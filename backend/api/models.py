@@ -5,6 +5,10 @@ ASSET_STATUSES = ["Available", "Assigned", "Under Repair", "In Storage", "Dispos
 ASSET_CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required", "Scrapped"]
 
 
+class LifecycleError(Exception):
+    """An asset checkout/transfer state transition isn't allowed."""
+
+
 class Category(models.Model):
     category_name = models.CharField(unique=True, max_length=100)
 

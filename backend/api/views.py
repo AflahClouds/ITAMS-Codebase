@@ -12,11 +12,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .checkout import check_in, check_out
 from .models import (ASSET_CONDITIONS, ASSET_STATUSES, Asset, AssetCheckout,
                      AssetConditionLog, AssetDocument, AssetImage,
                      AssetTransfer, AuditLog, Brand, Category, Department,
-                     Location, Model, Notification, Permission, Procurement,
-                     PurchaseMode, Role, Setting, User, users_with_permission)
+                     LifecycleError, Location, Model, Notification, Permission,
+                     Procurement, PurchaseMode, Role, Setting, User)
 from .permissions import HasRolePermission
 from .serializers import (AssetDocumentSerializer, AssetImageSerializer,
                           AssetSerializer, AuditLogSerializer, BrandSerializer,
@@ -28,7 +29,10 @@ from .serializers import (AssetDocumentSerializer, AssetImageSerializer,
                           RoleSerializer, SettingSerializer,
                           TransferSerializer, UserLiteSerializer,
                           UserSerializer)
-from .services import generate_asset_barcode, get_profile, log_action, notify
+from .services import generate_asset_barcode, get_profile, log_action
+from .transfer import approve as approve_transfer
+from .transfer import reject as reject_transfer
+from .transfer import request_transfer
 
 MASTER_WRITE = {"create": "settings_access", "update": "settings_access",
                 "partial_update": "settings_access", "destroy": "settings_access"}
@@ -454,49 +458,34 @@ class CheckoutViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        asset = serializer.validated_data['asset']
-        if asset.status != "Available":
-            return Response({"detail": "This asset is not available for checkout."},
-                            status=http_status.HTTP_400_BAD_REQUEST)
-        user = serializer.validated_data['user']
-        checkout = serializer.save(
-            approved_by=get_profile(request),
-            checkout_condition=serializer.validated_data.get('checkout_condition') or asset.condition)
-        asset.status = "Assigned"
-        asset.custodian = user
-        if user.department:
-            asset.department = user.department
-        asset.save()
+        data = serializer.validated_data
+        asset = data['asset']
+        user = data['user']
+        try:
+            checkout = check_out(
+                asset, user, get_profile(request),
+                checkout_condition=data.get('checkout_condition'),
+                expected_return_date=data.get('expected_return_date'),
+                purpose=data.get('purpose', ""),
+                remarks=data.get('remarks', ""),
+            )
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
         log_action(request, "Checkout", "Checkouts",
                    new_value=f"{asset.asset_id} -> {user.user_name} (usage session started)")
-        notify(user, f"Asset {asset.asset_id} has been checked out to you.",
-               link=f"/asset/{asset.id}")
         return Response(self.get_serializer(checkout).data, status=http_status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def checkin(self, request, pk=None):
         checkout = self.get_object()
-        if checkout.status == "Returned":
-            return Response({"detail": "This checkout is already closed."},
-                            status=http_status.HTTP_400_BAD_REQUEST)
         condition = request.data.get('condition') or "Good"
-        if condition not in ASSET_CONDITIONS:
-            return Response({"detail": f"Condition must be one of {ASSET_CONDITIONS}"},
-                            status=http_status.HTTP_400_BAD_REQUEST)
-        checkout.return_date = timezone.now()
-        checkout.return_condition = condition
-        checkout.remarks = (request.data.get('remarks') or "").strip()
-        checkout.status = "Returned"
-        checkout.save()
+        try:
+            checkout = check_in(checkout, condition, request.data.get('remarks'))
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
         asset = checkout.asset
-        asset.status = "Available"
-        asset.custodian = None
-        asset.condition = condition
-        asset.save()
         log_action(request, "Check-in", "Checkouts",
                    new_value=f"{asset.asset_id} returned by {checkout.user.user_name} (usage session ended)")
-        notify(checkout.user, f"Asset {asset.asset_id} check-in recorded. Thank you.",
-               link=f"/asset/{asset.id}")
         return Response(self.get_serializer(checkout).data)
 
 
@@ -521,63 +510,40 @@ class TransferViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        asset = serializer.validated_data['asset']
-        new_owner = serializer.validated_data['new_owner']
-        transfer = serializer.save(
-            previous_owner=asset.custodian,
-            previous_department=asset.department,
-            new_department=serializer.validated_data.get('new_department') or new_owner.department,
-            requested_by=get_profile(request),
-            condition=serializer.validated_data.get('condition') or asset.condition,
+        data = serializer.validated_data
+        asset = data['asset']
+        new_owner = data['new_owner']
+        transfer = request_transfer(
+            asset, new_owner, get_profile(request),
+            new_department=data.get('new_department'),
+            condition=data.get('condition'),
+            remarks=data.get('remarks', ""),
         )
         log_action(request, "Transfer Request", "Transfers",
                    new_value=f"{asset.asset_id} -> {new_owner.user_name}")
-        for approver in users_with_permission("asset_transfer"):
-            notify(approver, f"Transfer request for {asset.asset_id} awaiting approval.",
-                   link="/transfer?status=Pending")
         return Response(self.get_serializer(transfer).data, status=http_status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         transfer = self.get_object()
-        if transfer.status != "Pending":
-            return Response({"detail": "This transfer has already been processed."},
-                            status=http_status.HTTP_400_BAD_REQUEST)
-        transfer.status = "Approved"
-        transfer.approved_by = get_profile(request)
-        transfer.transfer_date = timezone.now()
-        transfer.save()
+        try:
+            transfer = approve_transfer(transfer, get_profile(request))
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
         asset = transfer.asset
-        asset.custodian = transfer.new_owner
-        asset.department = transfer.new_department or asset.department
-        asset.status = "Assigned"
-        if transfer.condition:
-            asset.condition = transfer.condition
-        asset.save()
         log_action(request, "Transfer Approved", "Transfers",
                    new_value=f"{asset.asset_id} -> {transfer.new_owner.user_name}")
-        notify(transfer.new_owner,
-               f"Asset {asset.asset_id} has been transferred to you.", link=f"/asset/{asset.id}")
-        if transfer.previous_owner:
-            notify(transfer.previous_owner,
-                   f"Asset {asset.asset_id} has been transferred from your custody.",
-                   link=f"/asset/{asset.id}")
         return Response(self.get_serializer(transfer).data)
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
         transfer = self.get_object()
-        if transfer.status != "Pending":
-            return Response({"detail": "This transfer has already been processed."},
-                            status=http_status.HTTP_400_BAD_REQUEST)
-        transfer.status = "Rejected"
-        transfer.approved_by = get_profile(request)
-        transfer.save()
+        try:
+            transfer = reject_transfer(transfer, get_profile(request))
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
         log_action(request, "Transfer Rejected", "Transfers",
                    old_value=f"TRF-{transfer.id:05d}")
-        if transfer.requested_by:
-            notify(transfer.requested_by,
-                   f"Transfer request TRF-{transfer.id:05d} was rejected.", link="/transfer")
         return Response(self.get_serializer(transfer).data)
 
     @action(detail=True, methods=['get'], url_path='document')
