@@ -1,0 +1,27 @@
+from rest_framework import serializers
+
+from .models import Brand, Category, Model, PurchaseMode
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ('id', 'category_name')
+
+
+class BrandSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Brand
+        fields = ('id', 'brand_name')
+
+
+class ModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Model
+        fields = ('id', 'model_name')
+
+
+class PurchaseModeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PurchaseMode
+        fields = ('id', 'purchase_mode')
