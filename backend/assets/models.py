@@ -1,7 +1,7 @@
 from django.db import models
 
-ASSET_STATUSES = ["Available", "Assigned", "Under Repair", "In Storage", "Disposed", "Scrapped"]
-ASSET_CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required", "Scrapped"]
+ASSET_STATUSES = ["Available", "Assigned", "Under Repair", "In Storage", "Sold", "Scrapped", "Lost"]
+ASSET_CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required"]
 
 
 class LifecycleError(Exception):
@@ -10,7 +10,7 @@ class LifecycleError(Exception):
 
 class Procurement(models.Model):
     mode_of_purchase = models.ForeignKey('catalog.PurchaseMode', on_delete=models.PROTECT)
-    vendor_name = models.CharField(max_length=100)
+    vendor = models.ForeignKey('catalog.Vendor', on_delete=models.PROTECT)
     purchase_date = models.DateField()
     invoice_date = models.DateField()
     invoice_number = models.CharField(unique=True, max_length=100)
@@ -43,6 +43,11 @@ class Asset(models.Model):
     department = models.ForeignKey('accounts.Department', on_delete=models.SET_NULL, null=True, blank=True)
     warranty_start = models.DateField(null=True, blank=True)
     warranty_end = models.DateField(null=True, blank=True)
+    has_amc = models.BooleanField(default=False)
+    amc_start = models.DateField(null=True, blank=True)
+    amc_end = models.DateField(null=True, blank=True)
+    amc_status = models.CharField(max_length=16, default="Active")  # Active / Ended
+    amc_end_reason = models.TextField(blank=True, default="")
     notes = models.TextField(blank=True, default="")
     barcode_path = models.CharField(max_length=255, blank=True, default="")
 
@@ -55,6 +60,13 @@ class Asset(models.Model):
             return None
         from datetime import date
         return (self.warranty_end - date.today()).days
+
+    @property
+    def amc_days_left(self):
+        if not self.amc_end:
+            return None
+        from datetime import date
+        return (self.amc_end - date.today()).days
 
     def __str__(self):
         return self.asset_id
@@ -129,3 +141,20 @@ class AssetConditionLog(models.Model):
     inspector = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
     condition = models.CharField(max_length=32)
     notes = models.TextField(blank=True, default="")
+
+
+class ServiceRecord(models.Model):
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="service_records")
+    vendor = models.ForeignKey('catalog.Vendor', on_delete=models.PROTECT)
+    sent_date = models.DateTimeField(auto_now_add=True)
+    expected_return_date = models.DateField(null=True, blank=True)
+    returned_date = models.DateTimeField(null=True, blank=True)
+    reason = models.CharField(max_length=255, blank=True, default="")
+    cost = models.DecimalField(decimal_places=2, max_digits=20, null=True, blank=True)
+    remarks = models.TextField(blank=True, default="")
+    opened_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name="opened_services")
+    closed_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name="closed_services")
+    status = models.CharField(max_length=16, default="Open")  # Open / Closed
+
+    def __str__(self):
+        return f"{self.asset.asset_id} -> {self.vendor.name}"

@@ -2,14 +2,17 @@ from rest_framework import serializers
 
 from accounts.serializers import DepartmentSerializer, LocationSerializer, UserLiteSerializer
 from catalog.serializers import (BrandSerializer, CategorySerializer,
-                                 ModelSerializer, PurchaseModeSerializer)
+                                 ModelSerializer, PurchaseModeSerializer,
+                                 VendorSerializer)
 
 from .models import (ASSET_CONDITIONS, ASSET_STATUSES, Asset, AssetCheckout,
                      AssetConditionLog, AssetDocument, AssetImage,
-                     AssetTransfer, Procurement)
+                     AssetTransfer, Procurement, ServiceRecord)
 
 
 class ProcurementLiteSerializer(serializers.ModelSerializer):
+    vendor_name = serializers.CharField(source='vendor.name', read_only=True)
+
     class Meta:
         model = Procurement
         fields = ('id', 'invoice_number', 'vendor_name', 'purchase_date')
@@ -86,6 +89,7 @@ class AssetLiteSerializer(serializers.ModelSerializer):
 
 class ProcurementSerializer(serializers.ModelSerializer):
     mode_of_purchase_details = PurchaseModeSerializer(source='mode_of_purchase', read_only=True)
+    vendor_details = VendorSerializer(source='vendor', read_only=True)
     assets = AssetSerializer(many=True, read_only=True)
     asset_ids = serializers.PrimaryKeyRelatedField(
         queryset=Asset.objects.all(), many=True, write_only=True
@@ -166,3 +170,16 @@ class ConditionLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssetConditionLog
         fields = "__all__"
+
+
+class ServiceRecordSerializer(serializers.ModelSerializer):
+    asset_details = AssetLiteSerializer(source='asset', read_only=True)
+    vendor_details = VendorSerializer(source='vendor', read_only=True)
+    opened_by_details = UserLiteSerializer(source='opened_by', read_only=True)
+    closed_by_details = UserLiteSerializer(source='closed_by', read_only=True)
+
+    class Meta:
+        model = ServiceRecord
+        fields = "__all__"
+        read_only_fields = ('sent_date', 'returned_date', 'opened_by', 'closed_by',
+                            'cost', 'status')

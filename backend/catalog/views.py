@@ -3,9 +3,10 @@ from rest_framework import viewsets
 from core.mixins import MASTER_WRITE, ProtectedMasterDeleteMixin
 from core.permissions import HasRolePermission
 
-from .models import Brand, Category, Model, PurchaseMode
+from .models import Brand, Category, Model, PurchaseMode, Vendor
 from .serializers import (BrandSerializer, CategorySerializer,
-                          ModelSerializer, PurchaseModeSerializer)
+                          ModelSerializer, PurchaseModeSerializer,
+                          VendorSerializer)
 
 
 class CategoryViewSet(ProtectedMasterDeleteMixin, viewsets.ModelViewSet):
@@ -34,3 +35,10 @@ class PurchaseModeViewSet(ProtectedMasterDeleteMixin, viewsets.ModelViewSet):
     permission_map = MASTER_WRITE
     queryset = PurchaseMode.objects.all().order_by('purchase_mode')
     serializer_class = PurchaseModeSerializer
+
+
+class VendorViewSet(ProtectedMasterDeleteMixin, viewsets.ModelViewSet):
+    permission_classes = [HasRolePermission]
+    permission_map = MASTER_WRITE
+    queryset = Vendor.objects.all().order_by('name')
+    serializer_class = VendorSerializer

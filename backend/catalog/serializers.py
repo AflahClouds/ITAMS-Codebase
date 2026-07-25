@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Brand, Category, Model, PurchaseMode
+from .models import Brand, Category, Model, PurchaseMode, Vendor
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -25,3 +25,9 @@ class PurchaseModeSerializer(serializers.ModelSerializer):
     class Meta:
         model = PurchaseMode
         fields = ('id', 'purchase_mode')
+
+
+class VendorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vendor
+        fields = ('id', 'name', 'contact_person', 'phone', 'email')

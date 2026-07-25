@@ -7,9 +7,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import Department, User
-from assets.models import Asset, AssetCheckout, AssetTransfer
+from assets.models import Asset, AssetCheckout, AssetTransfer, ServiceRecord
 from assets.serializers import AssetSerializer, CheckoutSerializer, TransferSerializer
-from catalog.models import Category
+from catalog.models import Category, Vendor
 from core.models import Setting
 from core.permissions import HasRolePermission
 from core.services import log_action
@@ -33,6 +33,9 @@ def dashboard(request):
         "total_value": float(qs.aggregate(v=Sum('purchase_cost'))['v'] or 0),
         "open_checkouts": AssetCheckout.objects.filter(status="Open").count(),
         "pending_transfers": AssetTransfer.objects.filter(status="Pending").count(),
+        "open_services": ServiceRecord.objects.filter(status="Open").count(),
+        "amc_expiring": qs.filter(has_amc=True, amc_status="Active",
+                                  amc_end__range=(today, soon)).count(),
     }
     recent_transfers = TransferSerializer(
         AssetTransfer.objects.select_related('asset', 'new_owner', 'previous_owner')
@@ -117,6 +120,23 @@ def charts(request, name):
             data.append(q.count())
         return Response({"labels": labels, "data": data})
 
+    if name == "amc-timeline":
+        today = date.today()
+        buckets = [("Expired", None, None), ("0-30 days", 0, 30), ("31-60 days", 31, 60),
+                   ("61-90 days", 61, 90), ("90+ days", 91, None)]
+        labels, data = [], []
+        for label, lo, hi in buckets:
+            q = Asset.objects.filter(has_amc=True, amc_status="Active", amc_end__isnull=False)
+            if label == "Expired":
+                q = q.filter(amc_end__lt=today)
+            else:
+                q = q.filter(amc_end__gte=today + timedelta(days=lo))
+                if hi is not None:
+                    q = q.filter(amc_end__lte=today + timedelta(days=hi))
+            labels.append(label)
+            data.append(q.count())
+        return Response({"labels": labels, "data": data})
+
     return Response({"detail": "Unknown chart."}, status=http_status.HTTP_404_NOT_FOUND)
 
 
@@ -162,8 +182,8 @@ def _report_warranty():
 
 def _report_purchase():
     rows = []
-    for a in Asset.objects.filter(procurement__isnull=False).select_related('procurement', 'brand', 'model').order_by('-procurement__purchase_date'):
-        rows.append([a.asset_id, a.name or "-", a.procurement.vendor_name,
+    for a in Asset.objects.filter(procurement__isnull=False).select_related('procurement__vendor', 'brand', 'model').order_by('-procurement__purchase_date'):
+        rows.append([a.asset_id, a.name or "-", a.procurement.vendor.name,
                      a.procurement.purchase_date.strftime("%d-%b-%Y"),
                      float(a.purchase_cost or 0),
                      a.brand.brand_name if a.brand else "-",
@@ -192,6 +212,63 @@ def _report_audit():
     return (["Date", "User", "Action", "Module", "Old Value", "New Value", "IP Address"], rows)
 
 
+def _report_in_service():
+    rows = []
+    for s in ServiceRecord.objects.filter(status="Open").select_related('asset', 'vendor').order_by('sent_date'):
+        rows.append([s.asset.asset_id, s.asset.name or "-", s.vendor.name,
+                     s.sent_date.strftime("%d-%b-%Y"),
+                     s.expected_return_date.strftime("%d-%b-%Y") if s.expected_return_date else "-",
+                     s.reason or "-"])
+    return (["Asset ID", "Asset", "Vendor", "Sent Date", "Expected Return", "Reason"], rows)
+
+
+def _report_vendor_service():
+    rows = []
+    for v in Vendor.objects.all().order_by('name'):
+        records = ServiceRecord.objects.filter(vendor=v)
+        pending = records.filter(status="Open").count()
+        closed = records.filter(status="Closed")
+        total_spend = closed.aggregate(v=Sum('cost'))['v'] or 0
+        turnarounds = [(r.returned_date.date() - r.sent_date.date()).days
+                       for r in closed if r.returned_date]
+        avg_turnaround = round(sum(turnarounds) / len(turnarounds), 1) if turnarounds else "-"
+        if not records.exists():
+            continue
+        rows.append([v.name, pending, closed.count(), float(total_spend), avg_turnaround])
+    return (["Vendor", "Pending Repairs", "Completed Repairs", "Total Spend",
+             "Avg Turnaround (days)"], rows)
+
+
+def _report_amc_expiry():
+    rows = []
+    for a in Asset.objects.filter(has_amc=True).select_related('category').order_by('amc_end'):
+        days = a.amc_days_left
+        status = "-"
+        if a.amc_status == "Ended":
+            status = "Ended"
+        elif days is None:
+            status = "Not set"
+        else:
+            status = "Expired" if days < 0 else f"{days} days left"
+        rows.append([a.asset_id, a.name or "-",
+                     a.category.category_name if a.category else "-",
+                     a.amc_start.strftime("%d-%b-%Y") if a.amc_start else "-",
+                     a.amc_end.strftime("%d-%b-%Y") if a.amc_end else "-",
+                     a.amc_status, status])
+    return (["Asset ID", "Name", "Category", "AMC Start", "AMC End", "AMC Status",
+             "Expiry"], rows)
+
+
+def _report_lost():
+    rows = []
+    for a in Asset.objects.filter(status="Lost").select_related('custodian', 'department').order_by('asset_id'):
+        rows.append([a.asset_id, a.name or "-",
+                     a.custodian.user_name if a.custodian else "-",
+                     a.department.name if a.department else "-",
+                     a.condition])
+    return (["Asset ID", "Name", "Last Known Custodian", "Department", "Condition"], rows)
+
+
 REPORTS = {
     "register": ("Asset Register Report", _report_register),
     "movement": ("Asset Movement Report", _report_movement),
@@ -199,6 +276,10 @@ REPORTS = {
     "purchase": ("Purchase Report", _report_purchase),
     "employee": ("Employee Asset Report", _report_employee),
     "audit": ("Asset Audit Report", _report_audit),
+    "in_service": ("Assets Currently In Service Report", _report_in_service),
+    "vendor_service": ("Vendor Service Report", _report_vendor_service),
+    "amc_expiry": ("AMC Expiry Report", _report_amc_expiry),
+    "lost": ("Lost Assets Report", _report_lost),
 }
 
 

@@ -7,17 +7,18 @@ from rest_framework.response import Response
 from core.exports import build_transfer_pdf
 from core.models import Setting
 from core.permissions import HasRolePermission
-from core.services import get_profile, log_action
+from core.services import get_profile, log_action, notify
 
 from .barcodes import generate_asset_barcode
 from .checkout import check_in, check_out
 from .models import (ASSET_CONDITIONS, Asset, AssetCheckout,
                      AssetConditionLog, AssetDocument, AssetImage,
-                     AssetTransfer, LifecycleError, Procurement)
+                     AssetTransfer, LifecycleError, Procurement, ServiceRecord)
 from .serializers import (AssetDocumentSerializer, AssetImageSerializer,
                           AssetSerializer, CheckoutSerializer,
                           ConditionLogSerializer, ProcurementSerializer,
-                          TransferSerializer)
+                          ServiceRecordSerializer, TransferSerializer)
+from .service import close_service, open_service
 from .transfer import approve as approve_transfer
 from .transfer import reject as reject_transfer
 from .transfer import request_transfer
@@ -25,12 +26,19 @@ from .transfer import request_transfer
 
 # ---------- Assets ----------
 
+def _notify_it_managers(message, link=""):
+    from accounts.models import User
+    for manager in User.objects.filter(role__name="IT Manager", status="Active"):
+        notify(manager, message, link=link)
+
+
 class AssetViewSet(viewsets.ModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "asset_create", "update": "asset_edit",
                       "partial_update": "asset_edit", "destroy": "asset_delete",
-                      "add_condition": "asset_edit", "history": "asset_view"}
+                      "add_condition": "asset_edit", "history": "asset_view",
+                      "renew_amc": "asset_edit", "end_amc_support": "asset_edit"}
     queryset = Asset.objects.all().select_related(
         'category', 'brand', 'model', 'location', 'custodian', 'department',
         'procurement').order_by('-id')
@@ -87,6 +95,41 @@ class AssetViewSet(viewsets.ModelViewSet):
         log_action(request, "Condition Update", "Assets", old_value=old, new_value=condition)
         return Response(AssetSerializer(asset).data)
 
+    @action(detail=True, methods=['post'])
+    def renew_amc(self, request, pk=None):
+        asset = self.get_object()
+        amc_start = request.data.get('amc_start')
+        amc_end = request.data.get('amc_end')
+        if not amc_start or not amc_end:
+            return Response({"detail": "amc_start and amc_end are required."},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        asset.has_amc = True
+        asset.amc_start = amc_start
+        asset.amc_end = amc_end
+        asset.amc_status = "Active"
+        asset.amc_end_reason = ""
+        asset.save(update_fields=['has_amc', 'amc_start', 'amc_end', 'amc_status',
+                                  'amc_end_reason', 'modified'])
+        description = f"AMC renewed for {asset.asset_id}: {amc_start} to {amc_end}"
+        log_action(request, "AMC Renewed", "Assets", new_value=description)
+        _notify_it_managers(description)
+        return Response(AssetSerializer(asset).data)
+
+    @action(detail=True, methods=['post'])
+    def end_amc_support(self, request, pk=None):
+        asset = self.get_object()
+        reason = (request.data.get('reason') or "").strip()
+        if not reason:
+            return Response({"detail": "A reason is required to end AMC support."},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        asset.amc_status = "Ended"
+        asset.amc_end_reason = reason
+        asset.save(update_fields=['amc_status', 'amc_end_reason', 'modified'])
+        description = f"AMC support ended for {asset.asset_id}: {reason}"
+        log_action(request, "AMC Ended", "Assets", new_value=description)
+        _notify_it_managers(description)
+        return Response(AssetSerializer(asset).data)
+
     @action(detail=True, methods=['get'])
     def history(self, request, pk=None):
         asset = self.get_object()
@@ -97,6 +140,8 @@ class AssetViewSet(viewsets.ModelViewSet):
                 asset.transfers.order_by('-transfer_date'), many=True).data,
             "condition_logs": ConditionLogSerializer(
                 asset.condition_logs.order_by('-inspection_date'), many=True).data,
+            "services": ServiceRecordSerializer(
+                asset.service_records.order_by('-sent_date'), many=True).data,
         })
 
 
@@ -105,7 +150,7 @@ class ProcurementViewSet(viewsets.ModelViewSet):
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "asset_create", "update": "asset_edit",
                       "partial_update": "asset_edit", "destroy": "asset_delete"}
-    queryset = Procurement.objects.all().select_related('mode_of_purchase').order_by('-id')
+    queryset = Procurement.objects.all().select_related('mode_of_purchase', 'vendor').order_by('-id')
     serializer_class = ProcurementSerializer
 
     def perform_create(self, serializer):
@@ -119,6 +164,56 @@ class ProcurementViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         log_action(self.request, "Delete", "Procurement", old_value=instance.invoice_number)
         instance.delete()
+
+
+# ---------- Service Records ----------
+
+class ServiceRecordViewSet(viewsets.ModelViewSet):
+    permission_classes = [HasRolePermission]
+    permission_map = {"list": "asset_view", "retrieve": "asset_view",
+                      "create": "asset_transfer", "close": "asset_transfer",
+                      "*": "__admin__"}
+    queryset = ServiceRecord.objects.all().select_related(
+        'asset', 'vendor', 'opened_by', 'closed_by').order_by('-sent_date')
+    serializer_class = ServiceRecordSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.query_params.get('status'):
+            qs = qs.filter(status=self.request.query_params['status'])
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        asset = data['asset']
+        vendor = data['vendor']
+        try:
+            record = open_service(
+                asset, vendor, get_profile(request),
+                expected_return_date=data.get('expected_return_date'),
+                reason=data.get('reason', ""),
+                remarks=data.get('remarks', ""),
+            )
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
+        log_action(request, "Service Opened", "Service Records",
+                   new_value=f"{asset.asset_id} -> {vendor.name}")
+        return Response(self.get_serializer(record).data, status=http_status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def close(self, request, pk=None):
+        record = self.get_object()
+        try:
+            record = close_service(
+                record, get_profile(request),
+                cost=request.data.get('cost'), remarks=request.data.get('remarks'))
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
+        log_action(request, "Service Closed", "Service Records",
+                   new_value=f"{record.asset.asset_id} returned from {record.vendor.name}")
+        return Response(self.get_serializer(record).data)
 
 
 # ---------- Asset files ----------

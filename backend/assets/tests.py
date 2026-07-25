@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib.auth.models import User as AuthUser
 from django.db.models.deletion import ProtectedError
@@ -7,10 +7,12 @@ from rest_framework.test import APIClient
 
 from accounts.models import Department
 from accounts.tests import _create_profile
-from catalog.models import Brand, Category, Model, PurchaseMode
+from catalog.models import Brand, Category, Model, PurchaseMode, Vendor
 
+from .alerts import check_expiring_dates
 from .checkout import check_in, check_out
 from .models import Asset, LifecycleError, Procurement
+from .service import close_service, open_service
 from .transfer import approve, reject, request_transfer
 
 
@@ -19,9 +21,10 @@ def _create_catalog(invoice_number):
     brand = Brand.objects.create(brand_name="Dell")
     model = Model.objects.create(model_name="Latitude")
     purchase_mode = PurchaseMode.objects.create(purchase_mode="Purchase")
+    vendor, _ = Vendor.objects.get_or_create(name="Vendor")
     procurement = Procurement.objects.create(
         mode_of_purchase=purchase_mode,
-        vendor_name="Vendor",
+        vendor=vendor,
         purchase_date=date(2026, 1, 1),
         invoice_date=date(2026, 1, 1),
         invoice_number=invoice_number,
@@ -48,9 +51,10 @@ class ProtectedMasterDataTests(TestCase):
         self.brand = Brand.objects.create(brand_name="Protected brand")
         self.model = Model.objects.create(model_name="Protected model")
         self.purchase_mode = PurchaseMode.objects.create(purchase_mode="Protected mode")
+        self.vendor = Vendor.objects.create(name="Protected vendor")
         self.procurement = Procurement.objects.create(
             mode_of_purchase=self.purchase_mode,
-            vendor_name="Test vendor",
+            vendor=self.vendor,
             purchase_date=date(2026, 1, 1),
             invoice_date=date(2026, 1, 1),
             invoice_number="PROTECTED-INV-001",
@@ -66,7 +70,7 @@ class ProtectedMasterDataTests(TestCase):
         )
 
     def test_referenced_master_records_cannot_delete_operational_data(self):
-        for master in (self.category, self.brand, self.model, self.purchase_mode):
+        for master in (self.category, self.brand, self.model, self.purchase_mode, self.vendor):
             with self.subTest(master=master):
                 with self.assertRaises(ProtectedError):
                     master.delete()
@@ -88,6 +92,7 @@ class ProtectedMasterDataTests(TestCase):
             f"/brand/{self.brand.pk}/",
             f"/model/{self.model.pk}/",
             f"/purchase_mode/{self.purchase_mode.pk}/",
+            f"/vendor/{self.vendor.pk}/",
         )
         for path in paths:
             with self.subTest(path=path):
@@ -107,6 +112,7 @@ class ProtectedMasterDataTests(TestCase):
             Brand.objects.create(brand_name="Unused brand"),
             Model.objects.create(model_name="Unused model"),
             PurchaseMode.objects.create(purchase_mode="Unused mode"),
+            Vendor.objects.create(name="Unused vendor"),
         )
 
         for master in unused_records:
@@ -242,6 +248,197 @@ class TransferLifecycleTests(TestCase):
 
         with self.assertRaises(LifecycleError):
             reject(transfer, self.approver)
+
+
+class ServiceRecordLifecycleTests(TestCase):
+    def setUp(self):
+        category, brand, model, procurement = _create_catalog("SVC-INV-001")
+        self.department = Department.objects.create(name="Engineering")
+        _, self.user = _create_profile("service-holder")
+        self.vendor = Vendor.objects.create(name="Repair Co")
+        self.asset = _create_asset(
+            "SVC-ASSET-001", category, brand, model, procurement,
+            status="Assigned", custodian=self.user, department=self.department)
+
+    def test_open_service_clears_custodian_and_marks_under_repair(self):
+        record = open_service(self.asset, self.vendor, self.user, reason="Screen flicker")
+
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.status, "Under Repair")
+        self.assertIsNone(self.asset.custodian)
+        self.assertEqual(record.vendor, self.vendor)
+        self.assertEqual(record.status, "Open")
+
+    def test_open_service_notifies_the_previous_custodian(self):
+        from core.models import Notification
+        open_service(self.asset, self.vendor, self.user)
+
+        self.assertTrue(Notification.objects.filter(user=self.user).exists())
+
+    def test_open_service_rejects_an_asset_already_under_repair(self):
+        self.asset.status = "Under Repair"
+        self.asset.save(update_fields=["status"])
+
+        with self.assertRaises(LifecycleError):
+            open_service(self.asset, self.vendor, self.user)
+
+    def test_open_service_rejects_a_terminal_asset(self):
+        self.asset.status = "Scrapped"
+        self.asset.save(update_fields=["status"])
+
+        with self.assertRaises(LifecycleError):
+            open_service(self.asset, self.vendor, self.user)
+
+    def test_close_service_returns_asset_to_available_without_reassigning_custodian(self):
+        record = open_service(self.asset, self.vendor, self.user)
+
+        record = close_service(record, self.user, cost=1500, remarks="Replaced screen")
+
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.status, "Available")
+        self.assertIsNone(self.asset.custodian)
+        self.assertEqual(record.status, "Closed")
+        self.assertEqual(record.cost, 1500)
+        self.assertIsNotNone(record.returned_date)
+
+    def test_close_service_rejects_an_already_closed_record(self):
+        record = open_service(self.asset, self.vendor, self.user)
+        close_service(record, self.user)
+
+        with self.assertRaises(LifecycleError):
+            close_service(record, self.user)
+
+
+class ServiceRecordEndpointTests(TestCase):
+    """Thin smoke tests: routing and permission_map wiring."""
+
+    def setUp(self):
+        category, brand, model, procurement = _create_catalog("SVC-EP-INV-001")
+        self.asset = _create_asset("SVC-EP-ASSET-001", category, brand, model, procurement)
+        self.vendor = Vendor.objects.create(name="Endpoint Repair Co")
+
+    def test_service_create_requires_asset_transfer_permission(self):
+        account, _ = _create_profile("no-service-permission")
+        client = APIClient()
+        client.force_authenticate(account)
+
+        response = client.post(
+            "/service/", {"asset": self.asset.pk, "vendor": self.vendor.pk})
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_service_open_and_close_round_trip(self):
+        account, _ = _create_profile("service-operator", ("asset_transfer",))
+        client = APIClient()
+        client.force_authenticate(account)
+
+        create_response = client.post(
+            "/service/", {"asset": self.asset.pk, "vendor": self.vendor.pk})
+        self.assertEqual(create_response.status_code, 201)
+
+        close_response = client.post(
+            f"/service/{create_response.data['id']}/close/", {"cost": "250.00"})
+        self.assertEqual(close_response.status_code, 200)
+        self.assertEqual(close_response.data["status"], "Closed")
+
+
+class AmcActionTests(TestCase):
+    def setUp(self):
+        category, brand, model, procurement = _create_catalog("AMC-INV-001")
+        self.asset = _create_asset("AMC-ASSET-001", category, brand, model, procurement)
+        _, self.manager = _create_profile("amc-it-manager")
+        from accounts.models import Role
+        manager_role, _ = Role.objects.get_or_create(name="IT Manager")
+        self.manager.role = manager_role
+        self.manager.save(update_fields=["role"])
+
+    def test_renew_amc_sets_dates_and_notifies_it_manager(self):
+        from core.models import Notification
+        account, _ = _create_profile("amc-operator", ("asset_edit",))
+        client = APIClient()
+        client.force_authenticate(account)
+
+        response = client.post(f"/asset/{self.asset.pk}/renew_amc/",
+                               {"amc_start": "2026-01-01", "amc_end": "2027-01-01"})
+
+        self.assertEqual(response.status_code, 200)
+        self.asset.refresh_from_db()
+        self.assertTrue(self.asset.has_amc)
+        self.assertEqual(self.asset.amc_status, "Active")
+        self.assertTrue(Notification.objects.filter(user=self.manager).exists())
+
+    def test_end_amc_support_requires_a_reason(self):
+        account, _ = _create_profile("amc-operator-2", ("asset_edit",))
+        client = APIClient()
+        client.force_authenticate(account)
+
+        response = client.post(f"/asset/{self.asset.pk}/end_amc_support/", {"reason": ""})
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_end_amc_support_sets_status_and_notifies_it_manager(self):
+        from core.models import Notification
+        account, _ = _create_profile("amc-operator-3", ("asset_edit",))
+        client = APIClient()
+        client.force_authenticate(account)
+
+        response = client.post(f"/asset/{self.asset.pk}/end_amc_support/",
+                               {"reason": "Vendor discontinued support"})
+
+        self.assertEqual(response.status_code, 200)
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.amc_status, "Ended")
+        self.assertEqual(self.asset.amc_end_reason, "Vendor discontinued support")
+        self.assertTrue(Notification.objects.filter(user=self.manager).exists())
+
+
+class ExpiryAlertTests(TestCase):
+    def setUp(self):
+        category, brand, model, procurement = _create_catalog("ALERT-INV-001")
+        self.category, self.brand, self.model, self.procurement = category, brand, model, procurement
+        _, self.it_staff = _create_profile("alert-it-staff", ("asset_transfer",))
+
+    def test_warranty_at_a_threshold_notifies_recipients(self):
+        from core.models import Notification
+        target = date.today() + timedelta(days=30)
+        asset = _create_asset("ALERT-WARR-001", self.category, self.brand, self.model,
+                              self.procurement, warranty_end=target)
+
+        check_expiring_dates()
+
+        self.assertTrue(Notification.objects.filter(
+            user=self.it_staff, message__icontains=asset.asset_id).exists())
+
+    def test_warranty_not_at_a_threshold_is_silent(self):
+        from core.models import Notification
+        off_threshold = date.today() + timedelta(days=29)
+        _create_asset("ALERT-WARR-002", self.category, self.brand, self.model,
+                      self.procurement, warranty_end=off_threshold)
+
+        check_expiring_dates()
+
+        self.assertFalse(Notification.objects.filter(user=self.it_staff).exists())
+
+    def test_active_amc_at_a_threshold_notifies_recipients(self):
+        from core.models import Notification
+        target = date.today() + timedelta(days=7)
+        asset = _create_asset("ALERT-AMC-001", self.category, self.brand, self.model,
+                              self.procurement, has_amc=True, amc_status="Active", amc_end=target)
+
+        check_expiring_dates()
+
+        self.assertTrue(Notification.objects.filter(
+            user=self.it_staff, message__icontains=asset.asset_id).exists())
+
+    def test_ended_amc_at_a_threshold_is_silent(self):
+        from core.models import Notification
+        target = date.today() + timedelta(days=15)
+        _create_asset("ALERT-AMC-002", self.category, self.brand, self.model,
+                      self.procurement, has_amc=True, amc_status="Ended", amc_end=target)
+
+        check_expiring_dates()
+
+        self.assertFalse(Notification.objects.filter(user=self.it_staff).exists())
 
 
 class CheckoutTransferEndpointTests(TestCase):
