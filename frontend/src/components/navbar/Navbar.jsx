@@ -20,7 +20,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../../AuthContext';
-import AxiosInstance from '../Axios';
+import AxiosInstance from '../../api/client';
 
 const drawerWidth = 240;
 const shortDrawerWidth = 50;

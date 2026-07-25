@@ -3,42 +3,42 @@ import './App.css'
 import Navbar from './components/navbar/Navbar'
 import ProtectedRoute from './components/ProtectedRoute'
 
-import Login from './components/Login'
-import ChangePassword from './components/ChangePassword'
-import Dashboard from './components/Dashboard'
-import Notifications from './components/Notifications'
-import Audit from './components/Audit'
-import Reports from './components/Reports'
-import Settings from './components/Settings'
+import Login from './pages/Login'
+import ChangePassword from './pages/ChangePassword'
+import Dashboard from './pages/Dashboard'
+import Notifications from './pages/Notifications'
+import Audit from './pages/Audit'
+import Reports from './pages/Reports'
+import Settings from './pages/Settings'
 
-// Asset components
-import Assets from './components/asset/Assets'
-import AssetDetail from './components/asset/Detail'
-import AssetCreate from './components/asset/Create'
-import AssetEdit from './components/asset/Edit'
-import AssetDelete from './components/asset/Delete'
+// Asset pages
+import Assets from './pages/asset/Assets'
+import AssetDetail from './pages/asset/Detail'
+import AssetCreate from './pages/asset/Create'
+import AssetEdit from './pages/asset/Edit'
+import AssetDelete from './pages/asset/Delete'
 
-// Checkout / transfer components
-import Checkouts from './components/checkout/Checkouts'
-import CheckoutCreate from './components/checkout/Create'
-import Transfers from './components/transfer/Transfers'
-import TransferCreate from './components/transfer/Create'
+// Checkout / transfer pages
+import Checkouts from './pages/checkout/Checkouts'
+import CheckoutCreate from './pages/checkout/Create'
+import Transfers from './pages/transfer/Transfers'
+import TransferCreate from './pages/transfer/Create'
 
-// Procurement components
-import Procurement from './components/procurement/Procurement'
-import ProcurementCreate from './components/procurement/Create'
-import ProcurementEdit from './components/procurement/Edit'
-import ProcurementDelete from './components/procurement/Delete'
+// Procurement pages
+import Procurement from './pages/procurement/Procurement'
+import ProcurementCreate from './pages/procurement/Create'
+import ProcurementEdit from './pages/procurement/Edit'
+import ProcurementDelete from './pages/procurement/Delete'
 
-// User components
-import User from './components/user/User'
-import UserCreate from './components/user/Create'
-import UserEdit from './components/user/Edit'
-import UserDelete from './components/user/Delete'
+// User pages
+import User from './pages/user/User'
+import UserCreate from './pages/user/Create'
+import UserEdit from './pages/user/Edit'
+import UserDelete from './pages/user/Delete'
 
-// Admin components
-import Roles from './components/admin/Roles'
-import Masters from './components/admin/Masters'
+// Admin pages
+import Roles from './pages/admin/Roles'
+import Masters from './pages/admin/Masters'
 
 
 function App() {
