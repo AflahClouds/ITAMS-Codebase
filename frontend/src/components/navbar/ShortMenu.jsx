@@ -7,6 +7,8 @@ import DevicesIcon from '@mui/icons-material/Devices';
 import LaptopChromebookIcon from '@mui/icons-material/LaptopChromebook';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import BuildIcon from '@mui/icons-material/Build';
+import StorefrontIcon from '@mui/icons-material/Storefront';
 import GroupIcon from '@mui/icons-material/Group';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import TuneIcon from '@mui/icons-material/Tune';
@@ -49,6 +51,12 @@ export default function ShortMenu() {
       )}
       {can('asset_view') && (
         <Item to="/procurement" icon={<ReceiptLongIcon />} selected={path.startsWith('/procurement')} />
+      )}
+      {can('asset_view') && (
+        <Item to="/service" icon={<BuildIcon />} selected={path.startsWith('/service')} />
+      )}
+      {can('asset_view') && (
+        <Item to="/vendor" icon={<StorefrontIcon />} selected={path.startsWith('/vendor')} />
       )}
       {can('user_management') && (
         <Item to="/user" icon={<GroupIcon />} selected={path.startsWith('/user')} />

@@ -17,6 +17,7 @@ const ProcurementCreate = () => {
 
   const [assets, setAssets] = useState([])
   const [purchase_modes, setPurchaseMode] = useState([])
+  const [vendors, setVendors] = useState([])
   const [message, setMessage] = useState([])
   const navigate = useNavigate()
 
@@ -27,6 +28,10 @@ const ProcurementCreate = () => {
 
     AxiosInstance.get('/purchase_mode/').then((res) => {
       setPurchaseMode(res.data)
+    })
+
+    AxiosInstance.get('/vendor/').then((res) => {
+      setVendors(res.data)
     })
 
   }
@@ -40,6 +45,8 @@ const ProcurementCreate = () => {
       .array().min(1, "Please select at least one asset").required("Please select at least one asset"),
     mode_of_purchase: yup
       .string().required("Please select a purchase mode"),
+    vendor: yup
+      .string().required("Please select a vendor"),
   })
 
   const toDateString = (value) => {
@@ -59,7 +66,7 @@ const ProcurementCreate = () => {
     initialValues: {
       asset_ids: [],
       mode_of_purchase: '',
-      vendor_name: '',
+      vendor: '',
       purchase_date: null,
       invoice_date: null,
       invoice_number: '',
@@ -70,10 +77,10 @@ const ProcurementCreate = () => {
       const payload = {
         ...values,
         mode_of_purchase: toNumberOrNull(values.mode_of_purchase),
+        vendor: toNumberOrNull(values.vendor),
         purchase_date: toDateString(values.purchase_date),
         invoice_date: toDateString(values.invoice_date),
         invoice_number: values.invoice_number || "",
-        vendor_name: values.vendor_name || "",
         po_number: values.po_number || "",
       };
 
@@ -153,14 +160,16 @@ const ProcurementCreate = () => {
           </Box>
 
           <Box className={"FormArea"}>
-            <TextForm
-              label={"Vendor Name"}
-              name="vendor_name"
-              value={formik.values.vendor_name}
+            <SelectForm
+              label={"Vendor"}
+              options={vendors}
+              labelKey="name"
+              name="vendor"
+              value={formik.values.vendor}
               onChange={formik.handleChange}
               onBlur={formik.handleBlur}
-              error={formik.touched.vendor_name && Boolean(formik.errors.vendor_name)}
-              helperText={formik.touched.vendor_name && formik.errors.vendor_name}
+              error={formik.touched.vendor && Boolean(formik.errors.vendor)}
+              helperText={formik.touched.vendor && formik.errors.vendor}
             />
           </Box>
 

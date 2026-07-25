@@ -11,7 +11,7 @@ import { useAuth } from '../../AuthContext';
 
 const STATUS_COLORS = {
   'Available': 'success', 'Assigned': 'info', 'Under Repair': 'warning',
-  'In Storage': 'default', 'Disposed': 'error', 'Scrapped': 'error',
+  'In Storage': 'default', 'Sold': 'error', 'Scrapped': 'error', 'Lost': 'error',
 };
 
 const Assets = () => {

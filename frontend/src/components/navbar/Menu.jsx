@@ -13,6 +13,8 @@ import DevicesIcon from '@mui/icons-material/Devices';
 import LaptopChromebookIcon from '@mui/icons-material/LaptopChromebook';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import BuildIcon from '@mui/icons-material/Build';
+import StorefrontIcon from '@mui/icons-material/Storefront';
 import GroupIcon from '@mui/icons-material/Group';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import AddIcon from '@mui/icons-material/Add';
@@ -55,6 +57,7 @@ function SubItem({ icon, label, to, path }) {
 export default function Menu() {
   const [assetsOpen, setAssetsOpen] = React.useState(true);
   const [procurementOpen, setProcurementOpen] = React.useState(false);
+  const [vendorOpen, setVendorOpen] = React.useState(false);
   const [userOpen, setUserOpen] = React.useState(false);
   const [adminOpen, setAdminOpen] = React.useState(false);
 
@@ -109,6 +112,23 @@ export default function Menu() {
           <SubItem icon={<ListAltIcon />} label="All" to="/procurement" path={path} />
           {can('asset_create') && (
             <SubItem icon={<AddIcon />} label="Create" to="/procurement/create" path={path} />
+          )}
+        </Section>
+      )}
+
+      {can('asset_view') && (
+        <ListItemButton component={Link} to="/service" selected={path.startsWith("/service")}>
+          <ListItemIcon><BuildIcon /></ListItemIcon>
+          <ListItemText primary="Service Records" />
+        </ListItemButton>
+      )}
+
+      {can('asset_view') && (
+        <Section icon={<StorefrontIcon />} label="Vendors" to="/vendor" path={path}
+          open={vendorOpen} onToggle={() => setVendorOpen(!vendorOpen)}>
+          <SubItem icon={<ListAltIcon />} label="All" to="/vendor" path={path} />
+          {can('settings_access') && (
+            <SubItem icon={<AddIcon />} label="Create" to="/vendor/create" path={path} />
           )}
         </Section>
       )}

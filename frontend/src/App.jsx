@@ -30,6 +30,16 @@ import ProcurementCreate from './pages/procurement/Create'
 import ProcurementEdit from './pages/procurement/Edit'
 import ProcurementDelete from './pages/procurement/Delete'
 
+// Vendor pages
+import Vendors from './pages/vendor/Vendors'
+import VendorCreate from './pages/vendor/Create'
+import VendorEdit from './pages/vendor/Edit'
+import VendorDelete from './pages/vendor/Delete'
+
+// Service Record pages
+import Services from './pages/service/Services'
+import ServiceCreate from './pages/service/Create'
+
 // User pages
 import User from './pages/user/User'
 import UserCreate from './pages/user/Create'
@@ -76,6 +86,16 @@ function App() {
                 <Route path="/procurement/create" element={<ProtectedRoute permission="asset_create"><ProcurementCreate /></ProtectedRoute>} />
                 <Route path="/procurement/edit/:id" element={<ProtectedRoute permission="asset_edit"><ProcurementEdit /></ProtectedRoute>} />
                 <Route path="/procurement/delete/:id" element={<ProtectedRoute permission="asset_delete"><ProcurementDelete /></ProtectedRoute>} />
+
+                {/* Service Record Routes */}
+                <Route path="/service" element={<ProtectedRoute permission="asset_view"><Services /></ProtectedRoute>} />
+                <Route path="/service/create" element={<ProtectedRoute permission="asset_transfer"><ServiceCreate /></ProtectedRoute>} />
+
+                {/* Vendor Routes */}
+                <Route path="/vendor" element={<ProtectedRoute permission="asset_view"><Vendors /></ProtectedRoute>} />
+                <Route path="/vendor/create" element={<ProtectedRoute permission="settings_access"><VendorCreate /></ProtectedRoute>} />
+                <Route path="/vendor/edit/:id" element={<ProtectedRoute permission="settings_access"><VendorEdit /></ProtectedRoute>} />
+                <Route path="/vendor/delete/:id" element={<ProtectedRoute permission="settings_access"><VendorDelete /></ProtectedRoute>} />
 
                 {/* User Routes */}
                 <Route path="/user" element={<ProtectedRoute permission="user_management"><User /></ProtectedRoute>} />

@@ -9,7 +9,7 @@ import AxiosInstance from '../../api/client';
 import MyMessage from '../../components/forms/Message';
 import { useAuth } from '../../AuthContext';
 
-const CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required", "Scrapped"];
+const CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required"];
 const DOCUMENT_TYPES = ["Purchase Invoice", "Warranty Card", "AMC Document", "PO Document",
                         "Asset Agreement", "Transfer Document", "Other"];
 
@@ -23,10 +23,13 @@ const Row = ({ label, value }) => (
 const AssetDetail = () => {
   const { id } = useParams();
   const [asset, setAsset] = useState(null);
-  const [history, setHistory] = useState({ checkouts: [], transfers: [], condition_logs: [] });
+  const [history, setHistory] = useState({ checkouts: [], transfers: [], condition_logs: [], services: [] });
   const [condition, setCondition] = useState('Good');
   const [notes, setNotes] = useState('');
   const [docType, setDocType] = useState('Purchase Invoice');
+  const [amcStart, setAmcStart] = useState('');
+  const [amcEnd, setAmcEnd] = useState('');
+  const [amcEndReason, setAmcEndReason] = useState('');
   const [message, setMessage] = useState(null);
   const imageInput = useRef(null);
   const documentInput = useRef(null);
@@ -108,6 +111,32 @@ const AssetDetail = () => {
     }
   };
 
+  const renewAmc = async (event) => {
+    event.preventDefault();
+    try {
+      await AxiosInstance.post(`/asset/${id}/renew_amc/`, { amc_start: amcStart, amc_end: amcEnd });
+      setMessage(<MyMessage messageText="AMC renewed. IT Manager notified." messageColor="green" />);
+      setAmcStart(''); setAmcEnd('');
+      load();
+    } catch (err) {
+      setMessage(<MyMessage
+        messageText={err.response?.data?.detail || 'Failed to renew AMC.'} messageColor="red" />);
+    }
+  };
+
+  const endAmcSupport = async (event) => {
+    event.preventDefault();
+    try {
+      await AxiosInstance.post(`/asset/${id}/end_amc_support/`, { reason: amcEndReason });
+      setMessage(<MyMessage messageText="AMC support ended. IT Manager notified." messageColor="green" />);
+      setAmcEndReason('');
+      load();
+    } catch (err) {
+      setMessage(<MyMessage
+        messageText={err.response?.data?.detail || 'Failed to end AMC support.'} messageColor="red" />);
+    }
+  };
+
   if (!asset) return <Typography sx={{ padding: '20px' }}>Loading...</Typography>;
 
   return (
@@ -161,6 +190,61 @@ const AssetDetail = () => {
                 <img src={asset.barcode_url} alt={`Barcode ${asset.tag_number}`}
                   style={{ maxWidth: '260px', width: '100%' }} />
               </Box>
+            )}
+          </Paper>
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Paper sx={{ padding: '16px' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', marginBottom: '8px' }}>
+              AMC (Annual Maintenance Contract)
+            </Typography>
+            {asset.has_amc ? (
+              <>
+                <Row label="AMC Start" value={asset.amc_start} />
+                <Row label="AMC End" value={asset.amc_end} />
+                <Row label="AMC Days Left" value={asset.amc_days_left} />
+                <Row label="AMC Status"
+                  value={<Chip label={asset.amc_status} size="small"
+                    color={asset.amc_status === 'Active' ? 'success' : 'default'} />} />
+                {asset.amc_status === 'Ended' && (
+                  <Row label="End Reason" value={asset.amc_end_reason || '-'} />
+                )}
+
+                {can('asset_edit') && (
+                  <Box sx={{ marginTop: '12px' }}>
+                    <form onSubmit={renewAmc}>
+                      <Typography variant="caption" color="text.secondary">Renew AMC</Typography>
+                      <Box sx={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '4px' }}>
+                        <TextField size="small" type="date" label="New Start"
+                          InputLabelProps={{ shrink: true }}
+                          value={amcStart} onChange={(e) => setAmcStart(e.target.value)} />
+                        <TextField size="small" type="date" label="New End"
+                          InputLabelProps={{ shrink: true }}
+                          value={amcEnd} onChange={(e) => setAmcEnd(e.target.value)} />
+                        <Button type="submit" size="small" variant="contained">Renew</Button>
+                      </Box>
+                    </form>
+
+                    {asset.amc_status === 'Active' && (
+                      <form onSubmit={endAmcSupport} style={{ marginTop: '12px' }}>
+                        <Typography variant="caption" color="text.secondary">End AMC Support</Typography>
+                        <Box sx={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '4px' }}>
+                          <TextField size="small" label="Reason" sx={{ flexGrow: 1 }}
+                            value={amcEndReason} onChange={(e) => setAmcEndReason(e.target.value)} />
+                          <Button type="submit" size="small" variant="outlined" color="error">
+                            End Support
+                          </Button>
+                        </Box>
+                      </form>
+                    )}
+                  </Box>
+                )}
+              </>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                This asset has no AMC. Set one via Edit Asset.
+              </Typography>
             )}
           </Paper>
         </Grid>
@@ -274,7 +358,7 @@ const AssetDetail = () => {
           </Grid>
         )}
 
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <Paper sx={{ padding: '16px' }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 'bold', marginBottom: '8px' }}>
               Checkout History
@@ -295,7 +379,7 @@ const AssetDetail = () => {
           </Paper>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <Paper sx={{ padding: '16px' }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 'bold', marginBottom: '8px' }}>
               Transfer History
@@ -315,7 +399,7 @@ const AssetDetail = () => {
           </Paper>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <Paper sx={{ padding: '16px' }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 'bold', marginBottom: '8px' }}>
               Condition Log
@@ -329,6 +413,28 @@ const AssetDetail = () => {
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   {new Date(l.inspection_date).toLocaleString()} {l.notes && `— ${l.notes}`}
+                </Typography>
+              </Box>
+            ))}
+          </Paper>
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 3 }}>
+          <Paper sx={{ padding: '16px' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', marginBottom: '8px' }}>
+              Service History
+            </Typography>
+            {history.services.length === 0 && (
+              <Typography variant="body2" color="text.secondary">No service records.</Typography>)}
+            {history.services.map((s) => (
+              <Box key={s.id} sx={{ padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <Typography variant="body2">
+                  {s.vendor_details?.name} — <Chip label={s.status} size="small" />
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {new Date(s.sent_date).toLocaleDateString()}
+                  {s.returned_date && ` → ${new Date(s.returned_date).toLocaleDateString()}`}
+                  {s.reason && ` — ${s.reason}`}
                 </Typography>
               </Box>
             ))}

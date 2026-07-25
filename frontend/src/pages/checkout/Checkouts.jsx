@@ -10,7 +10,7 @@ import AxiosInstance from '../../api/client';
 import MyMessage from '../../components/forms/Message';
 import { useAuth } from '../../AuthContext';
 
-const CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required", "Scrapped"];
+const CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required"];
 
 const Checkouts = () => {
   const [rows, setRows] = useState([]);

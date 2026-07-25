@@ -14,7 +14,7 @@ const ProcurementDelete = () => {
 
   const [myData, setMyData] = useState({
     assets: [],
-    vendor_name: "",
+    vendor_details: null,
     invoice_number: "",
     mode_of_purchase_details: null,
   })
@@ -57,7 +57,7 @@ const ProcurementDelete = () => {
         <Box className={"TextBox"}>
           <Typography>
             You will be deleting the procurement (Invoice: <strong>{myData.invoice_number}</strong>) from{" "}
-            <strong>{myData.vendor_name}</strong>, purchased via{" "}
+            <strong>{myData.vendor_details?.name}</strong>, purchased via{" "}
             {myData.mode_of_purchase_details?.purchase_mode}, covering the assets:{" "}
             <strong>{myData.assets?.map((asset) => asset.asset_id).join(", ")}</strong>
           </Typography>

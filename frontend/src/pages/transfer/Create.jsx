@@ -10,7 +10,7 @@ import DescriptionForm from "../../components/forms/DescriptionForm";
 import MyMessage from "../../components/forms/Message";
 import Button from '@mui/material/Button';
 
-const CONDITION_OPTIONS = ["New", "Good", "Average", "Damaged", "Repair Required", "Scrapped"]
+const CONDITION_OPTIONS = ["New", "Good", "Average", "Damaged", "Repair Required"]
   .map((s) => ({ id: s, label: s }));
 
 const TransferCreate = () => {

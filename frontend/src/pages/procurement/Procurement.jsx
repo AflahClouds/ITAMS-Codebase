@@ -33,7 +33,7 @@ const Procurement = () => {
         header: 'Purchase Mode',
       },
       {
-        accessorKey: 'vendor_name',
+        accessorKey: 'vendor_details.name',
         header: 'Vendor Name',
       },
       {

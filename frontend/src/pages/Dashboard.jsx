@@ -29,7 +29,7 @@ const Dashboard = () => {
   useEffect(() => {
     AxiosInstance.get('/dashboard/').then((res) => setData(res.data));
     const names = ['category-distribution', 'status-distribution', 'department-usage',
-                   'purchase-trend', 'transfer-trend', 'warranty-timeline'];
+                   'purchase-trend', 'transfer-trend', 'warranty-timeline', 'amc-timeline'];
     names.forEach((name) => {
       AxiosInstance.get(`/charts/${name}/`).then((res) => {
         setCharts((prev) => ({ ...prev, [name]: res.data }));
@@ -61,6 +61,8 @@ const Dashboard = () => {
         <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Warranty Expiring (30d)" value={k.expiring} color="#d32f2f" /></Grid>
         <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Open Checkouts" value={k.open_checkouts} color="#7b1fa2" /></Grid>
         <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Pending Transfers" value={k.pending_transfers} color="#c2185b" /></Grid>
+        <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Currently In Service" value={k.open_services} color="#5d4037" /></Grid>
+        <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="AMC Expiring (30d)" value={k.amc_expiring} color="#f57c00" /></Grid>
         <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Total Value" value={k.total_value.toLocaleString()} color="#00796b" /></Grid>
       </Grid>
 
@@ -104,6 +106,14 @@ const Dashboard = () => {
             <LineChart
               xAxis={[{ scaleType: 'point', data: charts['transfer-trend']?.labels || [] }]}
               series={[{ data: charts['transfer-trend']?.data || [] }]}
+              height={220} />
+          </ChartCard>
+        </Grid>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <ChartCard title="AMC Timeline">
+            <BarChart
+              xAxis={[{ scaleType: 'band', data: charts['amc-timeline']?.labels || [] }]}
+              series={[{ data: charts['amc-timeline']?.data || [] }]}
               height={220} />
           </ChartCard>
         </Grid>

@@ -20,11 +20,12 @@ const ProcurementEdit = () => {
 
   const [assets, setAssets] = useState([])
   const [purchase_modes, setPurchaseMode] = useState([])
+  const [vendors, setVendors] = useState([])
   const [message, setMessage] = useState([])
   const [myData, setMyData] = useState({
     asset_ids: [],
     mode_of_purchase: '',
-    vendor_name: '',
+    vendor: '',
     purchase_date: null,
     invoice_date: null,
     invoice_number: '',
@@ -35,6 +36,10 @@ const ProcurementEdit = () => {
   const GetData = () => {
     AxiosInstance.get('/purchase_mode/').then((res) => {
       setPurchaseMode(res.data)
+    })
+
+    AxiosInstance.get('/vendor/').then((res) => {
+      setVendors(res.data)
     })
 
     AxiosInstance.get(`/procurement/${MyId}/`).then((res) => {
@@ -58,6 +63,8 @@ const ProcurementEdit = () => {
       .array().min(1, "Please select at least one asset").required("Please select at least one asset"),
     mode_of_purchase: yup
       .string().required("Please select a purchase mode"),
+    vendor: yup
+      .string().required("Please select a vendor"),
   })
 
   const toDateString = (value) => {
@@ -77,7 +84,7 @@ const ProcurementEdit = () => {
     initialValues: {
       asset_ids: myData.asset_ids,
       mode_of_purchase: myData.mode_of_purchase,
-      vendor_name: myData.vendor_name,
+      vendor: myData.vendor,
       purchase_date: myData.purchase_date,
       invoice_date: myData.invoice_date,
       invoice_number: myData.invoice_number,
@@ -89,10 +96,10 @@ const ProcurementEdit = () => {
       const payload = {
         ...values,
         mode_of_purchase: toNumberOrNull(values.mode_of_purchase),
+        vendor: toNumberOrNull(values.vendor),
         purchase_date: toDateString(values.purchase_date),
         invoice_date: toDateString(values.invoice_date),
         invoice_number: values.invoice_number || "",
-        vendor_name: values.vendor_name || "",
         po_number: values.po_number || "",
       };
 
@@ -170,14 +177,16 @@ const ProcurementEdit = () => {
           </Box>
 
           <Box className={"FormArea"}>
-            <TextForm
-              label={"Vendor Name"}
-              name="vendor_name"
-              value={formik.values.vendor_name}
+            <SelectForm
+              label={"Vendor"}
+              options={vendors}
+              labelKey="name"
+              name="vendor"
+              value={formik.values.vendor}
               onChange={formik.handleChange}
               onBlur={formik.handleBlur}
-              error={formik.touched.vendor_name && Boolean(formik.errors.vendor_name)}
-              helperText={formik.touched.vendor_name && formik.errors.vendor_name}
+              error={formik.touched.vendor && Boolean(formik.errors.vendor)}
+              helperText={formik.touched.vendor && formik.errors.vendor}
             />
           </Box>
 

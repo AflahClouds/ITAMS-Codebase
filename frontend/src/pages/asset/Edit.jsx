@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router"
 import { useFormik } from "formik"
 import * as yup from "yup"
 import AxiosInstance from "../../api/client"
-import { Box, Typography } from "@mui/material"
+import { Box, Typography, Checkbox, FormControlLabel } from "@mui/material"
 import AddBoxIcon from '@mui/icons-material/AddBox';
 import TextForm from "../../components/forms/TextForm";
 import SelectForm from "../../components/forms/SelectForm";
@@ -12,9 +12,9 @@ import DescriptionForm from "../../components/forms/DescriptionForm";
 import MyMessage from "../../components/forms/Message";
 import Button from '@mui/material/Button';
 
-const STATUS_OPTIONS = ["Available", "Assigned", "Under Repair", "In Storage", "Disposed", "Scrapped"]
+const STATUS_OPTIONS = ["Available", "Assigned", "Under Repair", "In Storage", "Sold", "Scrapped", "Lost"]
   .map((s) => ({ id: s, label: s }));
-const CONDITION_OPTIONS = ["New", "Good", "Average", "Damaged", "Repair Required", "Scrapped"]
+const CONDITION_OPTIONS = ["New", "Good", "Average", "Damaged", "Repair Required"]
   .map((s) => ({ id: s, label: s }));
 
 const AssetEdit = () => {
@@ -34,6 +34,7 @@ const AssetEdit = () => {
     category: "", brand: "", model: "", status: "Available", condition: "New",
     location: "", department: "", custodian: "",
     warranty_start: null, warranty_end: null,
+    has_amc: false, amc_start: null, amc_end: null,
     purchase_cost: "", depreciation_rate: "", asset_life: "", notes: "",
   })
 
@@ -103,6 +104,9 @@ const AssetEdit = () => {
       custodian: myData.custodian ?? '',
       warranty_start: myData.warranty_start,
       warranty_end: myData.warranty_end,
+      has_amc: myData.has_amc || false,
+      amc_start: myData.amc_start,
+      amc_end: myData.amc_end,
       purchase_cost: myData.purchase_cost ?? '',
       depreciation_rate: myData.depreciation_rate ?? '',
       asset_life: myData.asset_life ?? '',
@@ -121,6 +125,8 @@ const AssetEdit = () => {
         custodian: toIdOrNull(values.custodian),
         warranty_start: toDateOrNull(values.warranty_start),
         warranty_end: toDateOrNull(values.warranty_end),
+        amc_start: values.has_amc ? toDateOrNull(values.amc_start) : null,
+        amc_end: values.has_amc ? toDateOrNull(values.amc_end) : null,
       };
       try {
         await AxiosInstance.put(`/asset/${MyId}/`, payload);
@@ -339,6 +345,47 @@ const AssetEdit = () => {
               helperText={formik.touched.warranty_end && formik.errors.warranty_end}
             />
           </Box>
+
+          <Box className={"FormArea"} sx={{ width: '100%' }}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  name="has_amc"
+                  checked={formik.values.has_amc}
+                  onChange={formik.handleChange}
+                />
+              }
+              label="This asset has an AMC (Annual Maintenance Contract)"
+            />
+          </Box>
+
+          {formik.values.has_amc && (
+            <>
+              <Box className={"FormArea"}>
+                <DateForm
+                  label="AMC Start"
+                  name="amc_start"
+                  value={formik.values.amc_start}
+                  onChange={(newValue) => formik.setFieldValue("amc_start", newValue)}
+                  onBlur={() => formik.setFieldTouched("amc_start", true)}
+                  error={formik.touched.amc_start && Boolean(formik.errors.amc_start)}
+                  helperText={formik.touched.amc_start && formik.errors.amc_start}
+                />
+              </Box>
+
+              <Box className={"FormArea"}>
+                <DateForm
+                  label="AMC End"
+                  name="amc_end"
+                  value={formik.values.amc_end}
+                  onChange={(newValue) => formik.setFieldValue("amc_end", newValue)}
+                  onBlur={() => formik.setFieldTouched("amc_end", true)}
+                  error={formik.touched.amc_end && Boolean(formik.errors.amc_end)}
+                  helperText={formik.touched.amc_end && formik.errors.amc_end}
+                />
+              </Box>
+            </>
+          )}
 
           <Box className={"FormArea"}>
             <TextForm
