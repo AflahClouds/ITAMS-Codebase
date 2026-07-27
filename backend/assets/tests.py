@@ -11,7 +11,7 @@ from catalog.models import Brand, Category, Model, PurchaseMode, Vendor
 
 from .alerts import check_expiring_dates
 from .checkout import check_in, check_out
-from .models import Asset, LifecycleError, Procurement
+from .models import AmcContract, Asset, LifecycleError, Procurement
 from .service import close_service, open_service
 from .transfer import approve, reject, request_transfer
 
@@ -429,8 +429,20 @@ class AmcActionTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    def test_end_amc_support_rejects_when_no_active_amc(self):
+        account, _ = _create_profile("amc-operator-none", ("asset_edit",))
+        client = APIClient()
+        client.force_authenticate(account)
+
+        response = client.post(f"/asset/{self.asset.pk}/end_amc_support/",
+                               {"reason": "Vendor discontinued support"})
+
+        self.assertEqual(response.status_code, 400)
+
     def test_end_amc_support_sets_status_and_notifies_it_manager(self):
         from core.models import Notification
+        AmcContract.objects.create(
+            asset=self.asset, start_date=date(2026, 1, 1), end_date=date(2027, 1, 1), status="Active")
         account, _ = _create_profile("amc-operator-3", ("asset_edit",))
         client = APIClient()
         client.force_authenticate(account)
@@ -443,6 +455,23 @@ class AmcActionTests(TestCase):
         self.assertEqual(self.asset.amc_status, "Ended")
         self.assertEqual(self.asset.amc_end_reason, "Vendor discontinued support")
         self.assertTrue(Notification.objects.filter(user=self.manager).exists())
+
+    def test_renew_amc_ends_previous_contract_and_creates_new_one(self):
+        AmcContract.objects.create(
+            asset=self.asset, start_date=date(2025, 1, 1), end_date=date(2026, 1, 1), status="Active")
+        account, _ = _create_profile("amc-operator-renew-history", ("asset_edit",))
+        client = APIClient()
+        client.force_authenticate(account)
+
+        response = client.post(f"/asset/{self.asset.pk}/renew_amc/",
+                               {"amc_start": "2026-01-01", "amc_end": "2027-01-01"})
+
+        self.assertEqual(response.status_code, 200)
+        contracts = list(AmcContract.objects.filter(asset=self.asset).order_by('start_date'))
+        self.assertEqual(len(contracts), 2)
+        self.assertEqual(contracts[0].status, "Ended")
+        self.assertEqual(contracts[0].end_reason, "Renewed")
+        self.assertEqual(contracts[1].status, "Active")
 
 
 class AssetStatusTransitionTests(TestCase):
@@ -610,8 +639,9 @@ class ExpiryAlertTests(TestCase):
     def test_active_amc_at_a_threshold_notifies_recipients(self):
         from core.models import Notification
         target = date.today() + timedelta(days=7)
-        asset = _create_asset("ALERT-AMC-001", self.category, self.brand, self.model,
-                              self.procurement, has_amc=True, amc_status="Active", amc_end=target)
+        asset = _create_asset("ALERT-AMC-001", self.category, self.brand, self.model, self.procurement)
+        AmcContract.objects.create(
+            asset=asset, start_date=date(2026, 1, 1), end_date=target, status="Active")
 
         check_expiring_dates()
 
@@ -621,8 +651,9 @@ class ExpiryAlertTests(TestCase):
     def test_ended_amc_at_a_threshold_is_silent(self):
         from core.models import Notification
         target = date.today() + timedelta(days=15)
-        _create_asset("ALERT-AMC-002", self.category, self.brand, self.model,
-                      self.procurement, has_amc=True, amc_status="Ended", amc_end=target)
+        asset = _create_asset("ALERT-AMC-002", self.category, self.brand, self.model, self.procurement)
+        AmcContract.objects.create(
+            asset=asset, start_date=date(2026, 1, 1), end_date=target, status="Ended")
 
         check_expiring_dates()
 

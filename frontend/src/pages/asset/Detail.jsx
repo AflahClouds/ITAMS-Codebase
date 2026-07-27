@@ -23,7 +23,9 @@ const Row = ({ label, value }) => (
 const AssetDetail = () => {
   const { id } = useParams();
   const [asset, setAsset] = useState(null);
-  const [history, setHistory] = useState({ checkouts: [], transfers: [], condition_logs: [], services: [] });
+  const [history, setHistory] = useState({
+    checkouts: [], transfers: [], condition_logs: [], services: [], amc_contracts: [],
+  });
   const [condition, setCondition] = useState('Good');
   const [notes, setNotes] = useState('');
   const [docType, setDocType] = useState('Purchase Invoice');
@@ -238,6 +240,19 @@ const AssetDetail = () => {
                         </Box>
                       </form>
                     )}
+                  </Box>
+                )}
+
+                {history.amc_contracts.length > 1 && (
+                  <Box sx={{ marginTop: '12px' }}>
+                    <Typography variant="caption" color="text.secondary">AMC History</Typography>
+                    {history.amc_contracts.map((c) => (
+                      <Box key={c.id} sx={{ padding: '4px 0', borderBottom: '1px solid #f0f0f0' }}>
+                        <Typography variant="body2">
+                          {c.start_date} → {c.end_date} — <Chip label={c.status} size="small" />
+                        </Typography>
+                      </Box>
+                    ))}
                   </Box>
                 )}
               </>

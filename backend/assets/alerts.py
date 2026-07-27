@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from accounts.models import users_with_permission
 from core.services import notify
 
-from .models import Asset
+from .models import AmcContract, Asset
 
 THRESHOLD_DAYS = (30, 15, 7)
 
@@ -27,7 +27,8 @@ def check_expiring_dates():
             for user in recipients:
                 notify(user, message, link=f"/asset/{asset.id}")
 
-        for asset in Asset.objects.filter(has_amc=True, amc_status="Active", amc_end=target):
+        for contract in AmcContract.objects.filter(status="Active", end_date=target).select_related('asset'):
+            asset = contract.asset
             message = f"AMC for {asset.asset_id} expires in {days} days."
             for user in recipients:
                 notify(user, message, link=f"/asset/{asset.id}")

@@ -1,5 +1,6 @@
 from datetime import date as date_cls
 
+from django.db import transaction
 from django.db.models import Max
 from rest_framework import status as http_status
 from rest_framework import viewsets
@@ -13,13 +14,14 @@ from core.services import get_profile, log_action, notify
 
 from .barcodes import generate_asset_barcode
 from .checkout import check_in, check_out
-from .models import (ASSET_CONDITIONS, TERMINAL_STATUSES, Asset, AssetCheckout,
-                     AssetConditionLog, AssetDocument, AssetImage,
+from .models import (ASSET_CONDITIONS, TERMINAL_STATUSES, AmcContract, Asset,
+                     AssetCheckout, AssetConditionLog, AssetDocument, AssetImage,
                      AssetTransfer, LifecycleError, Procurement, ServiceRecord)
-from .serializers import (AssetDocumentSerializer, AssetImageSerializer,
-                          AssetSerializer, CheckoutSerializer,
-                          ConditionLogSerializer, ProcurementSerializer,
-                          ServiceRecordSerializer, TransferSerializer)
+from .serializers import (AmcContractSerializer, AssetDocumentSerializer,
+                          AssetImageSerializer, AssetSerializer,
+                          CheckoutSerializer, ConditionLogSerializer,
+                          ProcurementSerializer, ServiceRecordSerializer,
+                          TransferSerializer)
 from .service import close_service, open_service
 from .transfer import approve as approve_transfer
 from .transfer import reject as reject_transfer
@@ -118,13 +120,11 @@ class AssetViewSet(viewsets.ModelViewSet):
         if amc_end <= amc_start:
             return Response({"detail": "amc_end must be after amc_start."},
                             status=http_status.HTTP_400_BAD_REQUEST)
-        asset.has_amc = True
-        asset.amc_start = amc_start
-        asset.amc_end = amc_end
-        asset.amc_status = "Active"
-        asset.amc_end_reason = ""
-        asset.save(update_fields=['has_amc', 'amc_start', 'amc_end', 'amc_status',
-                                  'amc_end_reason', 'modified'])
+        with transaction.atomic():
+            AmcContract.objects.filter(asset=asset, status="Active").update(
+                status="Ended", end_reason="Renewed")
+            AmcContract.objects.create(
+                asset=asset, start_date=amc_start, end_date=amc_end, status="Active")
         description = f"AMC renewed for {asset.asset_id}: {amc_start} to {amc_end}"
         log_action(request, "AMC Renewed", "Assets", new_value=description)
         _notify_it_managers(description)
@@ -137,9 +137,13 @@ class AssetViewSet(viewsets.ModelViewSet):
         if not reason:
             return Response({"detail": "A reason is required to end AMC support."},
                             status=http_status.HTTP_400_BAD_REQUEST)
-        asset.amc_status = "Ended"
-        asset.amc_end_reason = reason
-        asset.save(update_fields=['amc_status', 'amc_end_reason', 'modified'])
+        contract = asset.amc_contracts.filter(status="Active").order_by('-start_date').first()
+        if not contract:
+            return Response({"detail": "This asset has no active AMC to end."},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        contract.status = "Ended"
+        contract.end_reason = reason
+        contract.save(update_fields=['status', 'end_reason'])
         description = f"AMC support ended for {asset.asset_id}: {reason}"
         log_action(request, "AMC Ended", "Assets", new_value=description)
         _notify_it_managers(description)
@@ -157,6 +161,8 @@ class AssetViewSet(viewsets.ModelViewSet):
                 asset.condition_logs.order_by('-inspection_date'), many=True).data,
             "services": ServiceRecordSerializer(
                 asset.service_records.order_by('-sent_date'), many=True).data,
+            "amc_contracts": AmcContractSerializer(
+                asset.amc_contracts.order_by('-start_date'), many=True).data,
         })
 
 

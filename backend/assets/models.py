@@ -48,11 +48,6 @@ class Asset(models.Model):
     department = models.ForeignKey('accounts.Department', on_delete=models.SET_NULL, null=True, blank=True)
     warranty_start = models.DateField(null=True, blank=True)
     warranty_end = models.DateField(null=True, blank=True)
-    has_amc = models.BooleanField(default=False)
-    amc_start = models.DateField(null=True, blank=True)
-    amc_end = models.DateField(null=True, blank=True)
-    amc_status = models.CharField(max_length=16, default="Active")  # Active / Ended
-    amc_end_reason = models.TextField(blank=True, default="")
     notes = models.TextField(blank=True, default="")
     barcode_path = models.CharField(max_length=255, blank=True, default="")
 
@@ -67,11 +62,41 @@ class Asset(models.Model):
         return (self.warranty_end - date.today()).days
 
     @property
+    def latest_amc(self):
+        """The most recently started AMC contract, active or ended. None if AMC was never set up."""
+        return self.amc_contracts.order_by('-start_date', '-id').first()
+
+    @property
+    def has_amc(self):
+        return self.latest_amc is not None
+
+    @property
+    def amc_start(self):
+        contract = self.latest_amc
+        return contract.start_date if contract else None
+
+    @property
+    def amc_end(self):
+        contract = self.latest_amc
+        return contract.end_date if contract else None
+
+    @property
+    def amc_status(self):
+        contract = self.latest_amc
+        return contract.status if contract else None
+
+    @property
+    def amc_end_reason(self):
+        contract = self.latest_amc
+        return contract.end_reason if contract else ""
+
+    @property
     def amc_days_left(self):
-        if not self.amc_end:
+        end = self.amc_end
+        if not end:
             return None
         from datetime import date
-        return (self.amc_end - date.today()).days
+        return (end - date.today()).days
 
     def __str__(self):
         return self.asset_id
@@ -163,3 +188,16 @@ class ServiceRecord(models.Model):
 
     def __str__(self):
         return f"{self.asset.asset_id} -> {self.vendor.name}"
+
+
+class AmcContract(models.Model):
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="amc_contracts")
+    vendor = models.ForeignKey('catalog.Vendor', on_delete=models.PROTECT, null=True, blank=True)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    status = models.CharField(max_length=16, default="Active")  # Active / Ended
+    end_reason = models.TextField(blank=True, default="")
+    created = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.asset.asset_id} AMC {self.start_date}–{self.end_date}"

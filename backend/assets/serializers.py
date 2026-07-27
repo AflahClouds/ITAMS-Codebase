@@ -6,9 +6,9 @@ from catalog.serializers import (BrandSerializer, CategorySerializer,
                                  VendorSerializer)
 
 from .models import (ASSET_CONDITIONS, ASSET_STATUSES, LIFECYCLE_MANAGED_STATUSES,
-                     TERMINAL_STATUSES, Asset, AssetCheckout, AssetConditionLog,
-                     AssetDocument, AssetImage, AssetTransfer, Procurement,
-                     ServiceRecord)
+                     TERMINAL_STATUSES, AmcContract, Asset, AssetCheckout,
+                     AssetConditionLog, AssetDocument, AssetImage, AssetTransfer,
+                     Procurement, ServiceRecord)
 
 
 class ProcurementLiteSerializer(serializers.ModelSerializer):
@@ -48,6 +48,12 @@ class AssetSerializer(serializers.ModelSerializer):
     procurement_details = ProcurementLiteSerializer(source='procurement', read_only=True)
     has_procurement = serializers.SerializerMethodField()
     warranty_days_left = serializers.ReadOnlyField()
+    has_amc = serializers.BooleanField(required=False, default=False)
+    amc_start = serializers.DateField(required=False, allow_null=True)
+    amc_end = serializers.DateField(required=False, allow_null=True)
+    amc_status = serializers.ReadOnlyField()
+    amc_end_reason = serializers.ReadOnlyField()
+    amc_days_left = serializers.ReadOnlyField()
     barcode_url = serializers.SerializerMethodField()
     images = AssetImageSerializer(many=True, read_only=True)
     documents = AssetDocumentSerializer(many=True, read_only=True)
@@ -98,7 +104,21 @@ class AssetSerializer(serializers.ModelSerializer):
                                    "changing its status directly."})
         return attrs
 
+    def create(self, validated_data):
+        has_amc = validated_data.pop('has_amc', False)
+        amc_start = validated_data.pop('amc_start', None)
+        amc_end = validated_data.pop('amc_end', None)
+        asset = super().create(validated_data)
+        if has_amc and amc_start and amc_end:
+            AmcContract.objects.create(
+                asset=asset, start_date=amc_start, end_date=amc_end, status="Active")
+        return asset
+
     def update(self, instance, validated_data):
+        has_amc = validated_data.pop('has_amc', None)
+        amc_start = validated_data.pop('amc_start', None)
+        amc_end = validated_data.pop('amc_end', None)
+
         new_status = validated_data.get('status', instance.status)
         entering_status = new_status != instance.status
         if entering_status and new_status in ("Sold", "Scrapped"):
@@ -108,7 +128,21 @@ class AssetSerializer(serializers.ModelSerializer):
             # Custodian is retained for accountability (who had it when it went missing) —
             # ignore any custodian value the client sent along with this transition.
             validated_data.pop('custodian', None)
-        return super().update(instance, validated_data)
+        instance = super().update(instance, validated_data)
+
+        # Initial AMC entry, or a correction to the still-open contract — not a renewal.
+        # Renewals (closing the old contract, opening a new one) go through the
+        # dedicated renew_amc action so the history stays intact.
+        if has_amc and amc_start and amc_end:
+            contract = instance.latest_amc
+            if contract and contract.status == "Active":
+                contract.start_date = amc_start
+                contract.end_date = amc_end
+                contract.save(update_fields=['start_date', 'end_date'])
+            else:
+                AmcContract.objects.create(
+                    asset=instance, start_date=amc_start, end_date=amc_end, status="Active")
+        return instance
 
 
 class AssetLiteSerializer(serializers.ModelSerializer):
@@ -216,3 +250,11 @@ class ServiceRecordSerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ('sent_date', 'returned_date', 'opened_by', 'closed_by',
                             'cost', 'status')
+
+
+class AmcContractSerializer(serializers.ModelSerializer):
+    vendor_details = VendorSerializer(source='vendor', read_only=True)
+
+    class Meta:
+        model = AmcContract
+        fields = "__all__"

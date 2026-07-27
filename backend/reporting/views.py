@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import Department, User
-from assets.models import Asset, AssetCheckout, AssetTransfer, ServiceRecord
+from assets.models import AmcContract, Asset, AssetCheckout, AssetTransfer, ServiceRecord
 from assets.serializers import AssetSerializer, CheckoutSerializer, TransferSerializer
 from catalog.models import Category, Vendor
 from core.models import Setting
@@ -37,13 +37,13 @@ def dashboard(request):
         "pending_transfers": AssetTransfer.objects.filter(status="Pending").count(),
         "open_services": ServiceRecord.objects.filter(status="Open").count(),
         "warranty_expired": qs.filter(warranty_end__lt=today).count(),
-        "amc_expired": qs.filter(has_amc=True, amc_status="Active", amc_end__lt=today).count(),
+        "amc_expired": AmcContract.objects.filter(status="Active", end_date__lt=today).count(),
     }
     for days in EXPIRY_THRESHOLD_DAYS:
         until = today + timedelta(days=days)
         kpis[f"warranty_expiring_{days}"] = qs.filter(warranty_end__range=(today, until)).count()
-        kpis[f"amc_expiring_{days}"] = qs.filter(
-            has_amc=True, amc_status="Active", amc_end__range=(today, until)).count()
+        kpis[f"amc_expiring_{days}"] = AmcContract.objects.filter(
+            status="Active", end_date__range=(today, until)).count()
 
     recent_transfers = TransferSerializer(
         AssetTransfer.objects.select_related('asset', 'new_owner', 'previous_owner')
@@ -134,13 +134,13 @@ def charts(request, name):
                    ("61-90 days", 61, 90), ("90+ days", 91, None)]
         labels, data = [], []
         for label, lo, hi in buckets:
-            q = Asset.objects.filter(has_amc=True, amc_status="Active", amc_end__isnull=False)
+            q = AmcContract.objects.filter(status="Active")
             if label == "Expired":
-                q = q.filter(amc_end__lt=today)
+                q = q.filter(end_date__lt=today)
             else:
-                q = q.filter(amc_end__gte=today + timedelta(days=lo))
+                q = q.filter(end_date__gte=today + timedelta(days=lo))
                 if hi is not None:
-                    q = q.filter(amc_end__lte=today + timedelta(days=hi))
+                    q = q.filter(end_date__lte=today + timedelta(days=hi))
             labels.append(label)
             data.append(q.count())
         return Response({"labels": labels, "data": data})
@@ -249,22 +249,16 @@ def _report_vendor_service():
 
 def _report_amc_expiry():
     rows = []
-    for a in Asset.objects.filter(has_amc=True).select_related('category').order_by('amc_end'):
-        days = a.amc_days_left
-        status = "-"
-        if a.amc_status == "Ended":
-            status = "Ended"
-        elif days is None:
-            status = "Not set"
-        else:
-            status = "Expired" if days < 0 else f"{days} days left"
-        rows.append([a.asset_id, a.name or "-",
-                     a.category.category_name if a.category else "-",
-                     a.amc_start.strftime("%d-%b-%Y") if a.amc_start else "-",
-                     a.amc_end.strftime("%d-%b-%Y") if a.amc_end else "-",
-                     a.amc_status, status])
-    return (["Asset ID", "Name", "Category", "AMC Start", "AMC End", "AMC Status",
-             "Expiry"], rows)
+    for c in AmcContract.objects.select_related('asset__category', 'vendor').order_by('end_date'):
+        days = (c.end_date - date.today()).days
+        expiry = "Ended" if c.status == "Ended" else ("Expired" if days < 0 else f"{days} days left")
+        rows.append([c.asset.asset_id, c.asset.name or "-",
+                     c.asset.category.category_name if c.asset.category else "-",
+                     c.vendor.name if c.vendor else "-",
+                     c.start_date.strftime("%d-%b-%Y"), c.end_date.strftime("%d-%b-%Y"),
+                     c.status, expiry])
+    return (["Asset ID", "Name", "Category", "Vendor", "AMC Start", "AMC End",
+             "AMC Status", "Expiry"], rows)
 
 
 def _report_lost():
