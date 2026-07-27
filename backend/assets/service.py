@@ -1,4 +1,5 @@
 """Service Record lifecycle: an asset goes to a Vendor for repair, then comes back Available."""
+from django.db import transaction
 from django.utils import timezone
 
 from core.services import notify
@@ -14,17 +15,18 @@ def open_service(asset, vendor, opened_by, *, expected_return_date=None, reason=
 
     previous_custodian = asset.custodian
 
-    record = ServiceRecord.objects.create(
-        asset=asset,
-        vendor=vendor,
-        opened_by=opened_by,
-        expected_return_date=expected_return_date,
-        reason=reason or "",
-        remarks=remarks or "",
-    )
-    asset.status = "Under Repair"
-    asset.custodian = None
-    asset.save()
+    with transaction.atomic():
+        record = ServiceRecord.objects.create(
+            asset=asset,
+            vendor=vendor,
+            opened_by=opened_by,
+            expected_return_date=expected_return_date,
+            reason=reason or "",
+            remarks=remarks or "",
+        )
+        asset.status = "Under Repair"
+        asset.custodian = None
+        asset.save()
 
     if previous_custodian:
         notify(previous_custodian,
@@ -37,15 +39,16 @@ def close_service(record, closed_by, *, cost=None, remarks=""):
     if record.status == "Closed":
         raise LifecycleError("This service record is already closed.")
 
-    record.status = "Closed"
-    record.returned_date = timezone.now()
-    record.closed_by = closed_by
-    record.cost = cost
-    record.remarks = remarks or record.remarks
-    record.save()
+    with transaction.atomic():
+        record.status = "Closed"
+        record.returned_date = timezone.now()
+        record.closed_by = closed_by
+        record.cost = cost
+        record.remarks = remarks or record.remarks
+        record.save()
 
-    asset = record.asset
-    asset.status = "Available"
-    asset.save()
+        asset = record.asset
+        asset.status = "Available"
+        asset.save()
 
     return record
