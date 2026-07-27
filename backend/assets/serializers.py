@@ -5,9 +5,9 @@ from catalog.serializers import (BrandSerializer, CategorySerializer,
                                  ModelSerializer, PurchaseModeSerializer,
                                  VendorSerializer)
 
-from .models import (ASSET_CONDITIONS, ASSET_STATUSES, Asset, AssetCheckout,
-                     AssetConditionLog, AssetDocument, AssetImage,
-                     AssetTransfer, Procurement, ServiceRecord)
+from .models import (ASSET_CONDITIONS, ASSET_STATUSES, TERMINAL_STATUSES,
+                     Asset, AssetCheckout, AssetConditionLog, AssetDocument,
+                     AssetImage, AssetTransfer, Procurement, ServiceRecord)
 
 
 class ProcurementLiteSerializer(serializers.ModelSerializer):
@@ -76,6 +76,27 @@ class AssetSerializer(serializers.ModelSerializer):
         if value not in ASSET_CONDITIONS:
             raise serializers.ValidationError(f"Condition must be one of {ASSET_CONDITIONS}")
         return value
+
+    def validate(self, attrs):
+        if self.instance is not None:
+            current_status = self.instance.status
+            new_status = attrs.get('status', current_status)
+            if current_status in TERMINAL_STATUSES and new_status != current_status:
+                raise serializers.ValidationError(
+                    {"status": f"This asset is {current_status} and cannot change status further."})
+        return attrs
+
+    def update(self, instance, validated_data):
+        new_status = validated_data.get('status', instance.status)
+        entering_status = new_status != instance.status
+        if entering_status and new_status in ("Sold", "Scrapped"):
+            # Terminal — the org no longer has custody-tracking obligations for this asset.
+            validated_data['custodian'] = None
+        elif entering_status and new_status == "Lost":
+            # Custodian is retained for accountability (who had it when it went missing) —
+            # ignore any custodian value the client sent along with this transition.
+            validated_data.pop('custodian', None)
+        return super().update(instance, validated_data)
 
 
 class AssetLiteSerializer(serializers.ModelSerializer):

@@ -1,3 +1,5 @@
+from datetime import date as date_cls
+
 from django.db.models import Max
 from rest_framework import status as http_status
 from rest_framework import viewsets
@@ -106,6 +108,15 @@ class AssetViewSet(viewsets.ModelViewSet):
         amc_end = request.data.get('amc_end')
         if not amc_start or not amc_end:
             return Response({"detail": "amc_start and amc_end are required."},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        try:
+            amc_start = date_cls.fromisoformat(str(amc_start))
+            amc_end = date_cls.fromisoformat(str(amc_end))
+        except ValueError:
+            return Response({"detail": "amc_start and amc_end must be valid dates (YYYY-MM-DD)."},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        if amc_end <= amc_start:
+            return Response({"detail": "amc_end must be after amc_start."},
                             status=http_status.HTTP_400_BAD_REQUEST)
         asset.has_amc = True
         asset.amc_start = amc_start

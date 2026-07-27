@@ -249,6 +249,21 @@ class TransferLifecycleTests(TestCase):
         with self.assertRaises(LifecycleError):
             reject(transfer, self.approver)
 
+    def test_request_transfer_rejects_a_terminal_asset(self):
+        self.asset.status = "Sold"
+        self.asset.save(update_fields=["status"])
+
+        with self.assertRaises(LifecycleError):
+            request_transfer(self.asset, self.new_owner, self.previous_owner)
+
+    def test_approve_rejects_an_asset_that_turned_terminal_after_the_request(self):
+        transfer = request_transfer(self.asset, self.new_owner, self.previous_owner)
+        self.asset.status = "Scrapped"
+        self.asset.save(update_fields=["status"])
+
+        with self.assertRaises(LifecycleError):
+            approve(transfer, self.approver)
+
 
 class ServiceRecordLifecycleTests(TestCase):
     def setUp(self):
@@ -381,6 +396,30 @@ class AmcActionTests(TestCase):
         self.asset.refresh_from_db()
         self.assertFalse(self.asset.has_amc)
 
+    def test_renew_amc_rejects_an_unparseable_date(self):
+        account, _ = _create_profile("amc-operator-baddate", ("asset_edit",))
+        client = APIClient()
+        client.force_authenticate(account)
+
+        response = client.post(f"/asset/{self.asset.pk}/renew_amc/",
+                               {"amc_start": "not-a-date", "amc_end": "2027-01-01"})
+
+        self.assertEqual(response.status_code, 400)
+        self.asset.refresh_from_db()
+        self.assertFalse(self.asset.has_amc)
+
+    def test_renew_amc_rejects_end_before_start(self):
+        account, _ = _create_profile("amc-operator-order", ("asset_edit",))
+        client = APIClient()
+        client.force_authenticate(account)
+
+        response = client.post(f"/asset/{self.asset.pk}/renew_amc/",
+                               {"amc_start": "2027-01-01", "amc_end": "2026-01-01"})
+
+        self.assertEqual(response.status_code, 400)
+        self.asset.refresh_from_db()
+        self.assertFalse(self.asset.has_amc)
+
     def test_end_amc_support_requires_a_reason(self):
         account, _ = _create_profile("amc-operator-2", ("asset_edit",))
         client = APIClient()
@@ -404,6 +443,64 @@ class AmcActionTests(TestCase):
         self.assertEqual(self.asset.amc_status, "Ended")
         self.assertEqual(self.asset.amc_end_reason, "Vendor discontinued support")
         self.assertTrue(Notification.objects.filter(user=self.manager).exists())
+
+
+class AssetStatusTransitionTests(TestCase):
+    """Covers the update() guard in AssetSerializer that closes the direct-PATCH loophole
+    flagged in review: reversing a disposal, and status/custodian getting out of sync."""
+
+    def setUp(self):
+        category, brand, model, procurement = _create_catalog("STATUS-INV-001")
+        self.category, self.brand, self.model, self.procurement = category, brand, model, procurement
+        _, self.holder = _create_profile("status-holder")
+        self.account, _ = _create_profile("status-operator", ("asset_edit",))
+        self.client = APIClient()
+        self.client.force_authenticate(self.account)
+
+    def _asset(self, asset_id, **extra):
+        return _create_asset(asset_id, self.category, self.brand, self.model,
+                             self.procurement, **extra)
+
+    def test_cannot_reverse_out_of_a_terminal_status(self):
+        asset = self._asset("STATUS-ASSET-001", status="Sold")
+
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Available"})
+
+        self.assertEqual(response.status_code, 400)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Sold")
+
+    def test_entering_sold_clears_custodian_even_if_payload_keeps_it(self):
+        asset = self._asset("STATUS-ASSET-002", status="Assigned", custodian=self.holder)
+
+        response = self.client.patch(
+            f"/asset/{asset.pk}/", {"status": "Sold", "custodian": self.holder.pk})
+
+        self.assertEqual(response.status_code, 200)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Sold")
+        self.assertIsNone(asset.custodian)
+
+    def test_entering_lost_retains_custodian_even_if_payload_clears_it(self):
+        asset = self._asset("STATUS-ASSET-003", status="Assigned", custodian=self.holder)
+
+        response = self.client.patch(
+            f"/asset/{asset.pk}/", {"status": "Lost", "custodian": None},
+            format="json")
+
+        self.assertEqual(response.status_code, 200)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Lost")
+        self.assertEqual(asset.custodian, self.holder)
+
+    def test_non_terminal_status_edits_are_unaffected(self):
+        asset = self._asset("STATUS-ASSET-004", status="Available")
+
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Under Repair"})
+
+        self.assertEqual(response.status_code, 200)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Under Repair")
 
 
 class ExpiryAlertTests(TestCase):

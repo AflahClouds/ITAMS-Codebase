@@ -4,11 +4,14 @@ from django.utils import timezone
 from accounts.models import users_with_permission
 from core.services import notify
 
-from .models import AssetTransfer, LifecycleError
+from .models import AssetTransfer, LifecycleError, TERMINAL_STATUSES
 
 
 def request_transfer(asset, new_owner, requested_by, *, new_department=None,
                       condition=None, remarks=""):
+    if asset.status in TERMINAL_STATUSES:
+        raise LifecycleError(f"This asset is {asset.status} and cannot be transferred.")
+
     transfer = AssetTransfer.objects.create(
         asset=asset,
         previous_owner=asset.custodian,
@@ -28,6 +31,9 @@ def request_transfer(asset, new_owner, requested_by, *, new_department=None,
 def approve(transfer, approved_by):
     if transfer.status != "Pending":
         raise LifecycleError("This transfer has already been processed.")
+    if transfer.asset.status in TERMINAL_STATUSES:
+        raise LifecycleError(
+            f"This asset is {transfer.asset.status} and cannot be transferred.")
 
     transfer.status = "Approved"
     transfer.approved_by = approved_by
