@@ -493,14 +493,91 @@ class AssetStatusTransitionTests(TestCase):
         self.assertEqual(asset.status, "Lost")
         self.assertEqual(asset.custodian, self.holder)
 
-    def test_non_terminal_status_edits_are_unaffected(self):
+    def test_administrative_status_edits_are_unaffected(self):
         asset = self._asset("STATUS-ASSET-004", status="Available")
 
-        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Under Repair"})
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "In Storage"})
 
         self.assertEqual(response.status_code, 200)
         asset.refresh_from_db()
+        self.assertEqual(asset.status, "In Storage")
+
+    def test_editing_unrelated_fields_without_a_status_change_is_unaffected(self):
+        asset = self._asset("STATUS-ASSET-005", status="Assigned", custodian=self.holder)
+
+        response = self.client.patch(f"/asset/{asset.pk}/", {"notes": "checked screen"})
+
+        self.assertEqual(response.status_code, 200)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Assigned")
+        self.assertEqual(asset.custodian, self.holder)
+        self.assertEqual(asset.notes, "checked screen")
+
+    def test_cannot_enter_assigned_by_direct_edit(self):
+        asset = self._asset("STATUS-ASSET-006", status="Available")
+
+        response = self.client.patch(
+            f"/asset/{asset.pk}/", {"status": "Assigned", "custodian": self.holder.pk})
+
+        self.assertEqual(response.status_code, 400)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Available")
+        self.assertIsNone(asset.custodian)
+
+    def test_cannot_enter_under_repair_by_direct_edit(self):
+        asset = self._asset("STATUS-ASSET-007", status="Available")
+
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Under Repair"})
+
+        self.assertEqual(response.status_code, 400)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Available")
+
+    def test_cannot_leave_assigned_by_direct_edit(self):
+        asset = self._asset("STATUS-ASSET-008", status="Assigned", custodian=self.holder)
+
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Available"})
+
+        self.assertEqual(response.status_code, 400)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Assigned")
+
+    def test_cannot_leave_under_repair_by_direct_edit(self):
+        asset = self._asset("STATUS-ASSET-009", status="Under Repair")
+
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Available"})
+
+        self.assertEqual(response.status_code, 400)
+        asset.refresh_from_db()
         self.assertEqual(asset.status, "Under Repair")
+
+    def test_cannot_move_directly_between_assigned_and_under_repair(self):
+        asset = self._asset("STATUS-ASSET-010", status="Assigned", custodian=self.holder)
+
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Under Repair"})
+
+        self.assertEqual(response.status_code, 400)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Assigned")
+
+    def test_disposal_is_still_allowed_directly_from_assigned(self):
+        asset = self._asset("STATUS-ASSET-011", status="Assigned", custodian=self.holder)
+
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Sold"})
+
+        self.assertEqual(response.status_code, 200)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Sold")
+        self.assertIsNone(asset.custodian)
+
+    def test_lost_is_still_allowed_directly_from_under_repair(self):
+        asset = self._asset("STATUS-ASSET-012", status="Under Repair")
+
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Lost"})
+
+        self.assertEqual(response.status_code, 200)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Lost")
 
 
 class ExpiryAlertTests(TestCase):

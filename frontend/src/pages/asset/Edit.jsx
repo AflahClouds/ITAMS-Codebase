@@ -12,10 +12,36 @@ import DescriptionForm from "../../components/forms/DescriptionForm";
 import MyMessage from "../../components/forms/Message";
 import Button from '@mui/material/Button';
 
-const STATUS_OPTIONS = ["Available", "Assigned", "Under Repair", "In Storage", "Sold", "Scrapped", "Lost"]
-  .map((s) => ({ id: s, label: s }));
 const CONDITION_OPTIONS = ["New", "Good", "Average", "Damaged", "Repair Required"]
   .map((s) => ({ id: s, label: s }));
+
+const TERMINAL_STATUSES = ["Sold", "Scrapped", "Lost"];
+const LIFECYCLE_MANAGED_STATUSES = ["Assigned", "Under Repair"];
+
+// Mirrors the backend's AssetSerializer.validate() transition rule: Assigned/Under Repair
+// can only be entered/left via Checkout or Service Record, and terminal statuses are one-way.
+const allowedStatusOptions = (currentStatus) => {
+  if (TERMINAL_STATUSES.includes(currentStatus)) {
+    return [currentStatus];
+  }
+  if (LIFECYCLE_MANAGED_STATUSES.includes(currentStatus)) {
+    return [currentStatus, ...TERMINAL_STATUSES];
+  }
+  return ["Available", "In Storage", ...TERMINAL_STATUSES];
+};
+
+const statusLockNote = (currentStatus) => {
+  if (TERMINAL_STATUSES.includes(currentStatus)) {
+    return `This asset is ${currentStatus} and its status can no longer be changed.`;
+  }
+  if (currentStatus === "Assigned") {
+    return "To free this asset up, use Check-in on the Checkouts page instead of editing status here.";
+  }
+  if (currentStatus === "Under Repair") {
+    return "To free this asset up, close its Service Record instead of editing status here.";
+  }
+  return null;
+};
 
 const AssetEdit = () => {
 
@@ -255,14 +281,14 @@ const AssetEdit = () => {
           <Box className={"FormArea"}>
             <SelectForm
               label={"Status"}
-              options={STATUS_OPTIONS}
+              options={allowedStatusOptions(myData.status).map((s) => ({ id: s, label: s }))}
               labelKey="label"
               name="status"
               value={formik.values.status}
               onChange={formik.handleChange}
               onBlur={formik.handleBlur}
               error={formik.touched.status && Boolean(formik.errors.status)}
-              helperText={formik.touched.status && formik.errors.status}
+              helperText={(formik.touched.status && formik.errors.status) || statusLockNote(myData.status)}
             />
           </Box>
 

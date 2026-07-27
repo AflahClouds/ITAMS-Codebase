@@ -3,6 +3,10 @@ from django.db import models
 ASSET_STATUSES = ["Available", "Assigned", "Under Repair", "In Storage", "Sold", "Scrapped", "Lost"]
 ASSET_CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required"]
 TERMINAL_STATUSES = ("Sold", "Scrapped", "Lost")
+# Entered/left only via check_out/check_in (Checkout) or open_service/close_service
+# (Service Record) — never directly, so those lifecycle functions' preconditions,
+# custodian handling, and audit trail (AssetCheckout/ServiceRecord rows) can't be skipped.
+LIFECYCLE_MANAGED_STATUSES = ("Assigned", "Under Repair")
 
 
 class LifecycleError(Exception):

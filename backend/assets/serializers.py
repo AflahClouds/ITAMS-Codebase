@@ -5,9 +5,10 @@ from catalog.serializers import (BrandSerializer, CategorySerializer,
                                  ModelSerializer, PurchaseModeSerializer,
                                  VendorSerializer)
 
-from .models import (ASSET_CONDITIONS, ASSET_STATUSES, TERMINAL_STATUSES,
-                     Asset, AssetCheckout, AssetConditionLog, AssetDocument,
-                     AssetImage, AssetTransfer, Procurement, ServiceRecord)
+from .models import (ASSET_CONDITIONS, ASSET_STATUSES, LIFECYCLE_MANAGED_STATUSES,
+                     TERMINAL_STATUSES, Asset, AssetCheckout, AssetConditionLog,
+                     AssetDocument, AssetImage, AssetTransfer, Procurement,
+                     ServiceRecord)
 
 
 class ProcurementLiteSerializer(serializers.ModelSerializer):
@@ -81,9 +82,20 @@ class AssetSerializer(serializers.ModelSerializer):
         if self.instance is not None:
             current_status = self.instance.status
             new_status = attrs.get('status', current_status)
-            if current_status in TERMINAL_STATUSES and new_status != current_status:
-                raise serializers.ValidationError(
-                    {"status": f"This asset is {current_status} and cannot change status further."})
+            if new_status != current_status:
+                if current_status in TERMINAL_STATUSES:
+                    raise serializers.ValidationError(
+                        {"status": f"This asset is {current_status} and cannot change status further."})
+                if new_status in LIFECYCLE_MANAGED_STATUSES:
+                    action = "Checkout" if new_status == "Assigned" else "a Service Record"
+                    raise serializers.ValidationError(
+                        {"status": f"Use {action} to move this asset to {new_status} — "
+                                   "it can't be set directly."})
+                if current_status in LIFECYCLE_MANAGED_STATUSES and new_status not in TERMINAL_STATUSES:
+                    action = "Check-in" if current_status == "Assigned" else "closing its Service Record"
+                    raise serializers.ValidationError(
+                        {"status": f"This asset is {current_status}; use {action} before "
+                                   "changing its status directly."})
         return attrs
 
     def update(self, instance, validated_data):
