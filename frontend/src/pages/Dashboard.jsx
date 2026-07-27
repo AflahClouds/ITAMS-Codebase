@@ -22,6 +22,27 @@ const ChartCard = ({ title, children }) => (
   </Paper>
 );
 
+const ExpiryStat = ({ value, label, color }) => (
+  <Box sx={{ textAlign: 'center', flex: 1 }}>
+    <Typography variant="h6" sx={{ fontWeight: 'bold', color }}>{value}</Typography>
+    <Typography variant="caption" color="text.secondary">{label}</Typography>
+  </Box>
+);
+
+const ExpiryBreakdownCard = ({ title, expired, d7, d15, d30 }) => (
+  <Paper sx={{ padding: '16px' }}>
+    <Typography variant="subtitle2" sx={{ fontWeight: 'bold', marginBottom: '8px' }}>
+      {title}
+    </Typography>
+    <Box sx={{ display: 'flex' }}>
+      <ExpiryStat value={expired} label="Expired" color="#b71c1c" />
+      <ExpiryStat value={d7} label="≤ 7 days" color="#d32f2f" />
+      <ExpiryStat value={d15} label="≤ 15 days" color="#ed6c02" />
+      <ExpiryStat value={d30} label="≤ 30 days" color="#0288d1" />
+    </Box>
+  </Paper>
+);
+
 const Dashboard = () => {
   const [data, setData] = useState(null);
   const [charts, setCharts] = useState({});
@@ -58,12 +79,23 @@ const Dashboard = () => {
         <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Available" value={k.available} color="#2e7d32" /></Grid>
         <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Assigned" value={k.assigned} color="#0288d1" /></Grid>
         <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Under Repair" value={k.repair} color="#ed6c02" /></Grid>
-        <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Warranty Expiring (30d)" value={k.expiring} color="#d32f2f" /></Grid>
         <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Open Checkouts" value={k.open_checkouts} color="#7b1fa2" /></Grid>
         <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Pending Transfers" value={k.pending_transfers} color="#c2185b" /></Grid>
         <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Currently In Service" value={k.open_services} color="#5d4037" /></Grid>
-        <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="AMC Expiring (30d)" value={k.amc_expiring} color="#f57c00" /></Grid>
         <Grid size={{ xs: 6, sm: 3 }}><KpiCard label="Total Value" value={k.total_value.toLocaleString()} color="#00796b" /></Grid>
+      </Grid>
+
+      <Grid container spacing={2} sx={{ marginBottom: '16px' }}>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <ExpiryBreakdownCard title="Warranty Expiry"
+            expired={k.warranty_expired} d7={k.warranty_expiring_7}
+            d15={k.warranty_expiring_15} d30={k.warranty_expiring_30} />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <ExpiryBreakdownCard title="AMC Expiry"
+            expired={k.amc_expired} d7={k.amc_expiring_7}
+            d15={k.amc_expiring_15} d30={k.amc_expiring_30} />
+        </Grid>
       </Grid>
 
       <Grid container spacing={2} sx={{ marginBottom: '16px' }}>

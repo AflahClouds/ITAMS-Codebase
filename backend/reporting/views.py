@@ -17,26 +17,34 @@ from core.services import log_action
 
 # ---------- Dashboard / charts ----------
 
+EXPIRY_THRESHOLD_DAYS = (7, 15, 30)
+
+
 @api_view(['GET'])
 def dashboard(request):
     today = date.today()
     soon = today + timedelta(days=30)
     qs = Asset.objects
+
     kpis = {
         "total_assets": qs.count(),
         "active": qs.filter(status__in=["Available", "Assigned"]).count(),
         "available": qs.filter(status="Available").count(),
         "assigned": qs.filter(status="Assigned").count(),
         "repair": qs.filter(status="Under Repair").count(),
-        "expiring": qs.filter(warranty_end__range=(today, soon)).count(),
-        "expired": qs.filter(warranty_end__lt=today).count(),
         "total_value": float(qs.aggregate(v=Sum('purchase_cost'))['v'] or 0),
         "open_checkouts": AssetCheckout.objects.filter(status="Open").count(),
         "pending_transfers": AssetTransfer.objects.filter(status="Pending").count(),
         "open_services": ServiceRecord.objects.filter(status="Open").count(),
-        "amc_expiring": qs.filter(has_amc=True, amc_status="Active",
-                                  amc_end__range=(today, soon)).count(),
+        "warranty_expired": qs.filter(warranty_end__lt=today).count(),
+        "amc_expired": qs.filter(has_amc=True, amc_status="Active", amc_end__lt=today).count(),
     }
+    for days in EXPIRY_THRESHOLD_DAYS:
+        until = today + timedelta(days=days)
+        kpis[f"warranty_expiring_{days}"] = qs.filter(warranty_end__range=(today, until)).count()
+        kpis[f"amc_expiring_{days}"] = qs.filter(
+            has_amc=True, amc_status="Active", amc_end__range=(today, until)).count()
+
     recent_transfers = TransferSerializer(
         AssetTransfer.objects.select_related('asset', 'new_owner', 'previous_owner')
         .order_by('-transfer_date')[:5], many=True).data
