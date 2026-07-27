@@ -15,7 +15,7 @@ def check_expiring_dates():
     Exact-date match (not a range): since this runs once a day, each threshold fires
     exactly once per asset as the countdown passes through it.
     """
-    recipients = users_with_permission("asset_transfer")  # IT Manager + IT Staff (+ Admin)
+    recipients = users_with_permission("asset_custody_manage")  # IT Manager + IT Staff (+ Admin)
     if not recipients:
         return
 

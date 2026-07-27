@@ -72,7 +72,7 @@ const Services = () => {
         <Typography sx={{ marginLeft: '10px', fontWeight: 'bold' }} variant="subtitle2">
           Service Records
         </Typography>
-        {can('asset_transfer') && (
+        {can('asset_custody_manage') && (
           <Button href="/service/create" variant="contained" size="small"
             sx={{ marginLeft: 'auto' }}>
             Send for Service
@@ -88,7 +88,7 @@ const Services = () => {
         enableRowActions
         renderRowActions={({ row }) => (
           <Box>
-            {row.original.status === 'Open' && can('asset_transfer') && (
+            {row.original.status === 'Open' && can('asset_custody_manage') && (
               <IconButton color="primary" title="Close (asset returned)"
                 onClick={() => { setCloseTarget(row.original); setCost(''); setRemarks(''); }}>
                 <AssignmentReturnIcon />

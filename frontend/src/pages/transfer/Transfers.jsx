@@ -99,7 +99,7 @@ const Transfers = () => {
         enableRowActions
         renderRowActions={({ row }) => (
           <Box sx={{ display: 'flex', flexWrap: 'nowrap' }}>
-            {row.original.status === 'Pending' && can('asset_transfer') && (
+            {row.original.status === 'Pending' && can('asset_custody_manage') && (
               <>
                 <IconButton color="success" title="Approve"
                   onClick={() => act(row.original.id, 'approve')}>

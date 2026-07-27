@@ -192,7 +192,7 @@ class TransferLifecycleTests(TestCase):
         self.dept_b = Department.objects.create(name="Sales")
         _, self.previous_owner = _create_profile("transfer-previous-owner")
         _, self.new_owner = _create_profile("transfer-new-owner")
-        _, self.approver = _create_profile("transfer-approver", ("asset_transfer",))
+        _, self.approver = _create_profile("transfer-approver", ("asset_custody_manage",))
         self.asset = _create_asset(
             "TRF-ASSET-001", category, brand, model, procurement,
             status="Assigned", custodian=self.previous_owner, department=self.dept_a)
@@ -332,7 +332,7 @@ class ServiceRecordEndpointTests(TestCase):
         self.asset = _create_asset("SVC-EP-ASSET-001", category, brand, model, procurement)
         self.vendor = Vendor.objects.create(name="Endpoint Repair Co")
 
-    def test_service_create_requires_asset_transfer_permission(self):
+    def test_service_create_requires_asset_custody_manage_permission(self):
         account, _ = _create_profile("no-service-permission")
         client = APIClient()
         client.force_authenticate(account)
@@ -343,7 +343,7 @@ class ServiceRecordEndpointTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_service_open_and_close_round_trip(self):
-        account, _ = _create_profile("service-operator", ("asset_transfer",))
+        account, _ = _create_profile("service-operator", ("asset_custody_manage",))
         client = APIClient()
         client.force_authenticate(account)
 
@@ -584,7 +584,7 @@ class ExpiryAlertTests(TestCase):
     def setUp(self):
         category, brand, model, procurement = _create_catalog("ALERT-INV-001")
         self.category, self.brand, self.model, self.procurement = category, brand, model, procurement
-        _, self.it_staff = _create_profile("alert-it-staff", ("asset_transfer",))
+        _, self.it_staff = _create_profile("alert-it-staff", ("asset_custody_manage",))
 
     def test_warranty_at_a_threshold_notifies_recipients(self):
         from core.models import Notification
@@ -642,7 +642,7 @@ class CheckoutTransferEndpointTests(TestCase):
         self.transfer_asset.custodian = self.holder
         self.transfer_asset.save(update_fields=["custodian"])
 
-    def test_checkout_create_requires_asset_transfer_permission(self):
+    def test_checkout_create_requires_asset_custody_manage_permission(self):
         account, _ = _create_profile("no-permissions")
         client = APIClient()
         client.force_authenticate(account)
@@ -653,7 +653,7 @@ class CheckoutTransferEndpointTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_checkout_create_and_checkin_round_trip(self):
-        account, _ = _create_profile("checkout-operator", ("asset_transfer",))
+        account, _ = _create_profile("checkout-operator", ("asset_custody_manage",))
         client = APIClient()
         client.force_authenticate(account)
 
@@ -677,7 +677,7 @@ class CheckoutTransferEndpointTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_transfer_request_and_approve_round_trip(self):
-        account, _ = _create_profile("transfer-requester", ("transfer_request", "asset_transfer"))
+        account, _ = _create_profile("transfer-requester", ("transfer_request", "asset_custody_manage"))
         client = APIClient()
         client.force_authenticate(account)
 
@@ -691,7 +691,7 @@ class CheckoutTransferEndpointTests(TestCase):
                          f"TRF-{create_response.data['id']:05d}")
 
     def test_transfer_reject_round_trip(self):
-        account, _ = _create_profile("transfer-rejecter", ("transfer_request", "asset_transfer"))
+        account, _ = _create_profile("transfer-rejecter", ("transfer_request", "asset_custody_manage"))
         client = APIClient()
         client.force_authenticate(account)
 

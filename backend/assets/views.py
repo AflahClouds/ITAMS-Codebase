@@ -186,7 +186,7 @@ class ProcurementViewSet(viewsets.ModelViewSet):
 class ServiceRecordViewSet(viewsets.ModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
-                      "create": "asset_transfer", "close": "asset_transfer",
+                      "create": "asset_custody_manage", "close": "asset_custody_manage",
                       "*": "__admin__"}
     queryset = ServiceRecord.objects.all().select_related(
         'asset', 'vendor', 'opened_by', 'closed_by').order_by('-sent_date')
@@ -318,7 +318,7 @@ class AssetDocumentViewSet(viewsets.ModelViewSet):
 class CheckoutViewSet(viewsets.ModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
-                      "create": "asset_transfer", "checkin": "asset_transfer",
+                      "create": "asset_custody_manage", "checkin": "asset_custody_manage",
                       "*": "__admin__"}
     queryset = AssetCheckout.objects.all().select_related(
         'asset', 'user', 'approved_by').order_by('-checkout_date')
@@ -369,8 +369,8 @@ class CheckoutViewSet(viewsets.ModelViewSet):
 class TransferViewSet(viewsets.ModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
-                      "create": "transfer_request", "approve": "asset_transfer",
-                      "reject": "asset_transfer", "*": "__admin__"}
+                      "create": "transfer_request", "approve": "asset_custody_manage",
+                      "reject": "asset_custody_manage", "*": "__admin__"}
     queryset = AssetTransfer.objects.all().select_related(
         'asset', 'previous_owner', 'new_owner', 'previous_department',
         'new_department', 'requested_by', 'approved_by').order_by('-transfer_date')

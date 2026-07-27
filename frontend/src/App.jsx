@@ -75,7 +75,7 @@ function App() {
 
                 {/* Checkout Routes */}
                 <Route path="/checkout" element={<ProtectedRoute permission="asset_view"><Checkouts /></ProtectedRoute>} />
-                <Route path="/checkout/create" element={<ProtectedRoute permission="asset_transfer"><CheckoutCreate /></ProtectedRoute>} />
+                <Route path="/checkout/create" element={<ProtectedRoute permission="asset_custody_manage"><CheckoutCreate /></ProtectedRoute>} />
 
                 {/* Transfer Routes */}
                 <Route path="/transfer" element={<ProtectedRoute permission="asset_view"><Transfers /></ProtectedRoute>} />
@@ -89,7 +89,7 @@ function App() {
 
                 {/* Service Record Routes */}
                 <Route path="/service" element={<ProtectedRoute permission="asset_view"><Services /></ProtectedRoute>} />
-                <Route path="/service/create" element={<ProtectedRoute permission="asset_transfer"><ServiceCreate /></ProtectedRoute>} />
+                <Route path="/service/create" element={<ProtectedRoute permission="asset_custody_manage"><ServiceCreate /></ProtectedRoute>} />
 
                 {/* Vendor Routes */}
                 <Route path="/vendor" element={<ProtectedRoute permission="asset_view"><Vendors /></ProtectedRoute>} />

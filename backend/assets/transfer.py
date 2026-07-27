@@ -22,7 +22,7 @@ def request_transfer(asset, new_owner, requested_by, *, new_department=None,
         condition=condition or asset.condition,
         remarks=remarks or "",
     )
-    for approver in users_with_permission("asset_transfer"):
+    for approver in users_with_permission("asset_custody_manage"):
         notify(approver, f"Transfer request for {asset.asset_id} awaiting approval.",
                link="/transfer?status=Pending")
     return transfer

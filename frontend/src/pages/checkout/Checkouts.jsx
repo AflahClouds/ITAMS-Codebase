@@ -69,7 +69,7 @@ const Checkouts = () => {
         <Typography sx={{ marginLeft: '10px', fontWeight: 'bold' }} variant="subtitle2">
           Asset Checkouts
         </Typography>
-        {can('asset_transfer') && (
+        {can('asset_custody_manage') && (
           <Button href="/checkout/create" variant="contained" size="small"
             sx={{ marginLeft: 'auto' }}>
             New Checkout
@@ -85,7 +85,7 @@ const Checkouts = () => {
         enableRowActions
         renderRowActions={({ row }) => (
           <Box>
-            {row.original.status === 'Open' && can('asset_transfer') && (
+            {row.original.status === 'Open' && can('asset_custody_manage') && (
               <IconButton color="primary" title="Check in"
                 onClick={() => { setCheckinTarget(row.original); setCondition('Good'); }}>
                 <AssignmentReturnIcon />
