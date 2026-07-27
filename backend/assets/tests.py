@@ -367,6 +367,20 @@ class AmcActionTests(TestCase):
         self.assertEqual(self.asset.amc_status, "Active")
         self.assertTrue(Notification.objects.filter(user=self.manager).exists())
 
+    def test_renew_amc_rejects_a_terminal_asset(self):
+        self.asset.status = "Sold"
+        self.asset.save(update_fields=["status"])
+        account, _ = _create_profile("amc-operator-terminal", ("asset_edit",))
+        client = APIClient()
+        client.force_authenticate(account)
+
+        response = client.post(f"/asset/{self.asset.pk}/renew_amc/",
+                               {"amc_start": "2026-01-01", "amc_end": "2027-01-01"})
+
+        self.assertEqual(response.status_code, 400)
+        self.asset.refresh_from_db()
+        self.assertFalse(self.asset.has_amc)
+
     def test_end_amc_support_requires_a_reason(self):
         account, _ = _create_profile("amc-operator-2", ("asset_edit",))
         client = APIClient()

@@ -3,9 +3,9 @@ from django.utils import timezone
 
 from core.services import notify
 
-from .models import LifecycleError, ServiceRecord
+from .models import LifecycleError, ServiceRecord, TERMINAL_STATUSES
 
-TERMINAL_OR_ACTIVE_SERVICE_STATUSES = ("Under Repair", "Sold", "Scrapped", "Lost")
+TERMINAL_OR_ACTIVE_SERVICE_STATUSES = ("Under Repair",) + TERMINAL_STATUSES
 
 
 def open_service(asset, vendor, opened_by, *, expected_return_date=None, reason="", remarks=""):

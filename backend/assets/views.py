@@ -11,7 +11,7 @@ from core.services import get_profile, log_action, notify
 
 from .barcodes import generate_asset_barcode
 from .checkout import check_in, check_out
-from .models import (ASSET_CONDITIONS, Asset, AssetCheckout,
+from .models import (ASSET_CONDITIONS, TERMINAL_STATUSES, Asset, AssetCheckout,
                      AssetConditionLog, AssetDocument, AssetImage,
                      AssetTransfer, LifecycleError, Procurement, ServiceRecord)
 from .serializers import (AssetDocumentSerializer, AssetImageSerializer,
@@ -98,6 +98,10 @@ class AssetViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def renew_amc(self, request, pk=None):
         asset = self.get_object()
+        if asset.status in TERMINAL_STATUSES:
+            return Response(
+                {"detail": f"Cannot renew AMC on a {asset.status} asset."},
+                status=http_status.HTTP_400_BAD_REQUEST)
         amc_start = request.data.get('amc_start')
         amc_end = request.data.get('amc_end')
         if not amc_start or not amc_end:

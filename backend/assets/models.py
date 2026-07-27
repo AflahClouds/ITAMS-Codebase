@@ -2,6 +2,7 @@ from django.db import models
 
 ASSET_STATUSES = ["Available", "Assigned", "Under Repair", "In Storage", "Sold", "Scrapped", "Lost"]
 ASSET_CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required"]
+TERMINAL_STATUSES = ("Sold", "Scrapped", "Lost")
 
 
 class LifecycleError(Exception):
