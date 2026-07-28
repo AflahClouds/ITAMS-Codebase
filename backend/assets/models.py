@@ -63,8 +63,11 @@ class Asset(models.Model):
 
     @property
     def latest_amc(self):
-        """The most recently started AMC contract, active or ended. None if AMC was never set up."""
-        return self.amc_contracts.order_by('-start_date', '-id').first()
+        """The most recently created AMC contract, active/ended/incomplete. None if AMC
+        was never set up. Ordered by id, not start_date — an Incomplete contract has no
+        start_date yet, and NULLs sort last in a descending SQLite ORDER BY, which would
+        otherwise hide it behind an older, fully-dated contract."""
+        return self.amc_contracts.order_by('-id').first()
 
     @property
     def has_amc(self):
@@ -193,9 +196,11 @@ class ServiceRecord(models.Model):
 class AmcContract(models.Model):
     asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="amc_contracts")
     vendor = models.ForeignKey('catalog.Vendor', on_delete=models.PROTECT, null=True, blank=True)
-    start_date = models.DateField()
-    end_date = models.DateField()
-    status = models.CharField(max_length=16, default="Active")  # Active / Ended
+    # Null while "Incomplete": has_amc was set but the actual contract dates haven't
+    # been entered yet — a deliberate state per CONTEXT.md, not a partially-filled error.
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=16, default="Active")  # Incomplete / Active / Ended
     end_reason = models.TextField(blank=True, default="")
     created = models.DateTimeField(auto_now_add=True)
 

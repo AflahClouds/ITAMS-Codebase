@@ -121,7 +121,7 @@ class AssetViewSet(viewsets.ModelViewSet):
             return Response({"detail": "amc_end must be after amc_start."},
                             status=http_status.HTTP_400_BAD_REQUEST)
         with transaction.atomic():
-            AmcContract.objects.filter(asset=asset, status="Active").update(
+            AmcContract.objects.filter(asset=asset, status__in=("Active", "Incomplete")).update(
                 status="Ended", end_reason="Renewed")
             AmcContract.objects.create(
                 asset=asset, start_date=amc_start, end_date=amc_end, status="Active")
@@ -137,7 +137,8 @@ class AssetViewSet(viewsets.ModelViewSet):
         if not reason:
             return Response({"detail": "A reason is required to end AMC support."},
                             status=http_status.HTTP_400_BAD_REQUEST)
-        contract = asset.amc_contracts.filter(status="Active").order_by('-start_date').first()
+        contract = asset.amc_contracts.filter(
+            status__in=("Active", "Incomplete")).order_by('-id').first()
         if not contract:
             return Response({"detail": "This asset has no active AMC to end."},
                             status=http_status.HTTP_400_BAD_REQUEST)
@@ -162,7 +163,7 @@ class AssetViewSet(viewsets.ModelViewSet):
             "services": ServiceRecordSerializer(
                 asset.service_records.order_by('-sent_date'), many=True).data,
             "amc_contracts": AmcContractSerializer(
-                asset.amc_contracts.order_by('-start_date'), many=True).data,
+                asset.amc_contracts.order_by('-id'), many=True).data,
         })
 
 

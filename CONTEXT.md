@@ -24,7 +24,7 @@ _Exception_: on `status = Lost`, the Custodian is retained rather than cleared �
 
 **Checkout**:
 An Asset moves `Available → Assigned` to a user, and back to `Available` on check-in. No approval gate in the state machine — there's no separate Pending step like Transfer has. Distinct from Transfer, which moves custody *between* two different users and requires approval.
-_Avoid_: Assignment (used loosely elsewhere in the UI, but Checkout is the precise term for this state machine). Also avoid calling this "self-service" without qualification — the state machine has no approval step, but in practice only IT Manager/IT Staff hold the `asset_transfer` permission needed to create a Checkout; employees cannot check out an asset to themselves through the system. IT performs every Checkout on the employee's behalf, in person.
+_Avoid_: Assignment (used loosely elsewhere in the UI, but Checkout is the precise term for this state machine). Also avoid calling this "self-service" without qualification — the state machine has no approval step, but in practice only IT Manager/IT Staff hold the `asset_custody_manage` permission needed to create a Checkout; employees cannot check out an asset to themselves through the system. IT performs every Checkout on the employee's behalf, in person.
 _Deferred_: opening Checkout to employee self-service (e.g. for pooled/available items) is a possible future scope if IT's checkout admin load becomes a bottleneck.
 
 **Transfer**:

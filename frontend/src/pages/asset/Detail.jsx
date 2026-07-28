@@ -228,9 +228,11 @@ const AssetDetail = () => {
                       </Box>
                     </form>
 
-                    {asset.amc_status === 'Active' && (
+                    {(asset.amc_status === 'Active' || asset.amc_status === 'Incomplete') && (
                       <form onSubmit={endAmcSupport} style={{ marginTop: '12px' }}>
-                        <Typography variant="caption" color="text.secondary">End AMC Support</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {asset.amc_status === 'Incomplete' ? 'Cancel Planned AMC' : 'End AMC Support'}
+                        </Typography>
                         <Box sx={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '4px' }}>
                           <TextField size="small" label="Reason" sx={{ flexGrow: 1 }}
                             value={amcEndReason} onChange={(e) => setAmcEndReason(e.target.value)} />

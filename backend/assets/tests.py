@@ -505,6 +505,81 @@ class AmcActionTests(TestCase):
         self.assertEqual(contracts[1].status, "Active")
 
 
+class AmcIncompleteStateTests(TestCase):
+    """Covers the AMC 'Incomplete' contract state (CONTEXT.md): has_amc=True with no
+    dates yet must be representable, not silently dropped."""
+
+    def setUp(self):
+        category, brand, model, procurement = _create_catalog("AMC-INC-INV-001")
+        self.asset = _create_asset("AMC-INC-ASSET-001", category, brand, model, procurement)
+        self.account, _ = _create_profile("amc-incomplete-operator", ("asset_edit",))
+        self.client = APIClient()
+        self.client.force_authenticate(self.account)
+
+    def test_checking_has_amc_without_dates_creates_an_incomplete_contract(self):
+        response = self.client.patch(
+            f"/asset/{self.asset.pk}/", {"has_amc": True}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["has_amc"])
+        self.assertEqual(response.data["amc_status"], "Incomplete")
+        self.assertIsNone(response.data["amc_start"])
+        contract = AmcContract.objects.get(asset=self.asset)
+        self.assertEqual(contract.status, "Incomplete")
+        self.assertIsNone(contract.start_date)
+
+    def test_supplying_dates_later_completes_the_incomplete_contract(self):
+        self.client.patch(f"/asset/{self.asset.pk}/", {"has_amc": True}, format="json")
+
+        response = self.client.patch(
+            f"/asset/{self.asset.pk}/",
+            {"has_amc": True, "amc_start": "2026-01-01", "amc_end": "2027-01-01"},
+            format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(AmcContract.objects.filter(asset=self.asset).count(), 1)
+        contract = AmcContract.objects.get(asset=self.asset)
+        self.assertEqual(contract.status, "Active")
+        self.assertEqual(str(contract.start_date), "2026-01-01")
+
+    def test_renew_amc_supersedes_an_incomplete_contract(self):
+        AmcContract.objects.create(asset=self.asset, status="Incomplete")
+
+        response = self.client.post(f"/asset/{self.asset.pk}/renew_amc/",
+                                    {"amc_start": "2026-01-01", "amc_end": "2027-01-01"})
+
+        self.assertEqual(response.status_code, 200)
+        contracts = list(AmcContract.objects.filter(asset=self.asset).order_by('id'))
+        self.assertEqual(len(contracts), 2)
+        self.assertEqual(contracts[0].status, "Ended")
+        self.assertEqual(contracts[1].status, "Active")
+
+    def test_end_amc_support_can_end_an_incomplete_contract(self):
+        AmcContract.objects.create(asset=self.asset, status="Incomplete")
+
+        response = self.client.post(f"/asset/{self.asset.pk}/end_amc_support/",
+                                    {"reason": "Decided against AMC after all"})
+
+        self.assertEqual(response.status_code, 200)
+        contract = AmcContract.objects.get(asset=self.asset)
+        self.assertEqual(contract.status, "Ended")
+
+    def test_incomplete_contract_created_after_an_ended_one_is_correctly_latest(self):
+        # latest_amc must not fall back to a stale, fully-dated Ended contract just
+        # because the new Incomplete row has no start_date to sort by.
+        AmcContract.objects.create(
+            asset=self.asset, start_date=date(2023, 1, 1), end_date=date(2024, 1, 1),
+            status="Ended")
+
+        response = self.client.patch(
+            f"/asset/{self.asset.pk}/", {"has_amc": True}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["amc_status"], "Incomplete")
+        self.assertIsNone(response.data["amc_start"])
+        self.assertEqual(AmcContract.objects.filter(asset=self.asset).count(), 2)
+
+
 class AssetStatusTransitionTests(TestCase):
     """Covers the update() guard in AssetSerializer that closes the direct-PATCH loophole
     flagged in review: reversing a disposal, and status/custodian getting out of sync."""
@@ -638,6 +713,32 @@ class AssetStatusTransitionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         asset.refresh_from_db()
         self.assertEqual(asset.status, "Lost")
+
+    def test_entering_terminal_status_closes_the_open_checkout(self):
+        asset = self._asset("STATUS-ASSET-013")
+        checkout = check_out(asset, self.holder, self.holder)
+
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Sold"})
+
+        self.assertEqual(response.status_code, 200)
+        checkout.refresh_from_db()
+        self.assertEqual(checkout.status, "Returned")
+        self.assertIsNotNone(checkout.return_date)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Sold")
+
+    def test_entering_terminal_status_closes_the_open_service_record(self):
+        vendor = Vendor.objects.create(name="Status Repair Co")
+        asset = self._asset("STATUS-ASSET-014")
+        record = open_service(asset, vendor, self.holder)
+
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Scrapped"})
+
+        self.assertEqual(response.status_code, 200)
+        record.refresh_from_db()
+        self.assertEqual(record.status, "Closed")
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Scrapped")
 
 
 class ExpiryAlertTests(TestCase):

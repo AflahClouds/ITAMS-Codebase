@@ -250,13 +250,20 @@ def _report_vendor_service():
 def _report_amc_expiry():
     rows = []
     for c in AmcContract.objects.select_related('asset__category', 'vendor').order_by('end_date'):
-        days = (c.end_date - date.today()).days
-        expiry = "Ended" if c.status == "Ended" else ("Expired" if days < 0 else f"{days} days left")
+        if not c.start_date or not c.end_date:
+            # Incomplete (dates never entered) or Ended before dates were ever set —
+            # either way there's no date range to compute an expiry from.
+            expiry = ("Incomplete — dates not entered" if c.status != "Ended"
+                      else "Cancelled before dates were entered")
+            start, end = "-", "-"
+        else:
+            days = (c.end_date - date.today()).days
+            expiry = "Ended" if c.status == "Ended" else ("Expired" if days < 0 else f"{days} days left")
+            start, end = c.start_date.strftime("%d-%b-%Y"), c.end_date.strftime("%d-%b-%Y")
         rows.append([c.asset.asset_id, c.asset.name or "-",
                      c.asset.category.category_name if c.asset.category else "-",
                      c.vendor.name if c.vendor else "-",
-                     c.start_date.strftime("%d-%b-%Y"), c.end_date.strftime("%d-%b-%Y"),
-                     c.status, expiry])
+                     start, end, c.status, expiry])
     return (["Asset ID", "Name", "Category", "Vendor", "AMC Start", "AMC End",
              "AMC Status", "Expiry"], rows)
 

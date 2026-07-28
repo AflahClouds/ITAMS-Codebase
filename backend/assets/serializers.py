@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from accounts.serializers import DepartmentSerializer, LocationSerializer, UserLiteSerializer
@@ -5,10 +6,12 @@ from catalog.serializers import (BrandSerializer, CategorySerializer,
                                  ModelSerializer, PurchaseModeSerializer,
                                  VendorSerializer)
 
+from .checkout import close_all_open_checkouts
 from .models import (ASSET_CONDITIONS, ASSET_STATUSES, LIFECYCLE_MANAGED_STATUSES,
                      TERMINAL_STATUSES, AmcContract, Asset, AssetCheckout,
                      AssetConditionLog, AssetDocument, AssetImage, AssetTransfer,
                      Procurement, ServiceRecord)
+from .service import close_all_open_service_records
 
 
 class ProcurementLiteSerializer(serializers.ModelSerializer):
@@ -109,9 +112,14 @@ class AssetSerializer(serializers.ModelSerializer):
         amc_start = validated_data.pop('amc_start', None)
         amc_end = validated_data.pop('amc_end', None)
         asset = super().create(validated_data)
-        if has_amc and amc_start and amc_end:
-            AmcContract.objects.create(
-                asset=asset, start_date=amc_start, end_date=amc_end, status="Active")
+        if has_amc:
+            if amc_start and amc_end:
+                AmcContract.objects.create(
+                    asset=asset, start_date=amc_start, end_date=amc_end, status="Active")
+            else:
+                # has_amc checked but dates not entered yet — a deliberate, distinct
+                # state (CONTEXT.md), not silently dropped.
+                AmcContract.objects.create(asset=asset, status="Incomplete")
         return asset
 
     def update(self, instance, validated_data):
@@ -119,8 +127,9 @@ class AssetSerializer(serializers.ModelSerializer):
         amc_start = validated_data.pop('amc_start', None)
         amc_end = validated_data.pop('amc_end', None)
 
-        new_status = validated_data.get('status', instance.status)
-        entering_status = new_status != instance.status
+        old_status = instance.status
+        new_status = validated_data.get('status', old_status)
+        entering_status = new_status != old_status
         if entering_status and new_status in ("Sold", "Scrapped"):
             # Terminal — the org no longer has custody-tracking obligations for this asset.
             validated_data['custodian'] = None
@@ -128,20 +137,35 @@ class AssetSerializer(serializers.ModelSerializer):
             # Custodian is retained for accountability (who had it when it went missing) —
             # ignore any custodian value the client sent along with this transition.
             validated_data.pop('custodian', None)
-        instance = super().update(instance, validated_data)
 
-        # Initial AMC entry, or a correction to the still-open contract — not a renewal.
-        # Renewals (closing the old contract, opening a new one) go through the
-        # dedicated renew_amc action so the history stays intact.
-        if has_amc and amc_start and amc_end:
-            contract = instance.latest_amc
-            if contract and contract.status == "Active":
-                contract.start_date = amc_start
-                contract.end_date = amc_end
-                contract.save(update_fields=['start_date', 'end_date'])
-            else:
-                AmcContract.objects.create(
-                    asset=instance, start_date=amc_start, end_date=amc_end, status="Active")
+        with transaction.atomic():
+            instance = super().update(instance, validated_data)
+
+            if entering_status and new_status in TERMINAL_STATUSES and old_status in LIFECYCLE_MANAGED_STATUSES:
+                # Going straight from Assigned/Under Repair to a terminal status is the
+                # one legitimate direct transition (you can't check in a lost or sold
+                # asset) — but whichever record was managing that status must still be
+                # closed out, or it's left dangling "Open" forever.
+                note = f"Auto-closed: asset marked {new_status}."
+                close_all_open_checkouts(instance, note=note)
+                close_all_open_service_records(instance, note=note)
+
+            # Initial AMC entry, or a correction to the still-open contract — not a
+            # renewal. Renewals (closing the old contract, opening a new one) go through
+            # the dedicated renew_amc action so the history stays intact.
+            if has_amc:
+                contract = instance.latest_amc
+                if amc_start and amc_end:
+                    if contract and contract.status in ("Active", "Incomplete"):
+                        contract.start_date = amc_start
+                        contract.end_date = amc_end
+                        contract.status = "Active"
+                        contract.save(update_fields=['start_date', 'end_date', 'status'])
+                    else:
+                        AmcContract.objects.create(
+                            asset=instance, start_date=amc_start, end_date=amc_end, status="Active")
+                elif not contract or contract.status == "Ended":
+                    AmcContract.objects.create(asset=instance, status="Incomplete")
         return instance
 
 

@@ -1,10 +1,11 @@
 """Transfer lifecycle: an asset moves to a new custodian through an approval gate."""
+from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import users_with_permission
 from core.services import notify
 
-from .models import AssetTransfer, LifecycleError, TERMINAL_STATUSES
+from .models import Asset, AssetTransfer, LifecycleError, TERMINAL_STATUSES
 
 # Under Repair means an open Service Record has custody (asset.custodian is already
 # cleared) — unlike Checkout, Transfer has no business interrupting that; there's no
@@ -35,24 +36,25 @@ def request_transfer(asset, new_owner, requested_by, *, new_department=None,
 
 
 def approve(transfer, approved_by):
-    if transfer.status != "Pending":
-        raise LifecycleError("This transfer has already been processed.")
-    if transfer.asset.status in NOT_TRANSFERABLE_STATUSES:
-        raise LifecycleError(
-            f"This asset is {transfer.asset.status} and cannot be transferred.")
+    with transaction.atomic():
+        transfer = AssetTransfer.objects.select_for_update().get(pk=transfer.pk)
+        if transfer.status != "Pending":
+            raise LifecycleError("This transfer has already been processed.")
+        asset = Asset.objects.select_for_update().get(pk=transfer.asset_id)
+        if asset.status in NOT_TRANSFERABLE_STATUSES:
+            raise LifecycleError(f"This asset is {asset.status} and cannot be transferred.")
 
-    transfer.status = "Approved"
-    transfer.approved_by = approved_by
-    transfer.transfer_date = timezone.now()
-    transfer.save()
+        transfer.status = "Approved"
+        transfer.approved_by = approved_by
+        transfer.transfer_date = timezone.now()
+        transfer.save()
 
-    asset = transfer.asset
-    asset.custodian = transfer.new_owner
-    asset.department = transfer.new_department or asset.department
-    asset.status = "Assigned"
-    if transfer.condition:
-        asset.condition = transfer.condition
-    asset.save()
+        asset.custodian = transfer.new_owner
+        asset.department = transfer.new_department or asset.department
+        asset.status = "Assigned"
+        if transfer.condition:
+            asset.condition = transfer.condition
+        asset.save()
 
     notify(transfer.new_owner, f"Asset {asset.asset_id} has been transferred to you.",
            link=f"/asset/{asset.id}")
