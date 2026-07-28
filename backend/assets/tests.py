@@ -290,6 +290,20 @@ class ServiceRecordLifecycleTests(TestCase):
 
         self.assertTrue(Notification.objects.filter(user=self.user).exists())
 
+    def test_open_service_closes_the_open_checkout_it_interrupts(self):
+        asset = _create_asset("SVC-CHECKOUT-ASSET-001", self.asset.category, self.asset.brand,
+                              self.asset.model, self.asset.procurement)
+        checkout = check_out(asset, self.user, self.user)
+
+        open_service(asset, self.vendor, self.user, reason="Cracked screen")
+
+        checkout.refresh_from_db()
+        self.assertEqual(checkout.status, "Returned")
+        self.assertIsNotNone(checkout.return_date)
+        asset.refresh_from_db()
+        self.assertEqual(asset.status, "Under Repair")
+        self.assertIsNone(asset.custodian)
+
     def test_open_service_rejects_an_asset_already_under_repair(self):
         self.asset.status = "Under Repair"
         self.asset.save(update_fields=["status"])

@@ -16,6 +16,19 @@ def open_service(asset, vendor, opened_by, *, expected_return_date=None, reason=
     previous_custodian = asset.custodian
 
     with transaction.atomic():
+        # Sending a checked-out asset straight to service mirrors Checkout's check-in
+        # (ADR 0001) — so any open checkout it interrupts must be closed the same way
+        # check_in() would, or it's left dangling "Open" with no asset to check back in.
+        open_checkout = asset.checkouts.filter(status="Open").order_by('-checkout_date').first()
+        if open_checkout:
+            open_checkout.status = "Returned"
+            open_checkout.return_date = timezone.now()
+            open_checkout.return_condition = asset.condition
+            open_checkout.remarks = (
+                f"{open_checkout.remarks} " if open_checkout.remarks else ""
+            ) + "Auto-closed: asset sent for service."
+            open_checkout.save()
+
         record = ServiceRecord.objects.create(
             asset=asset,
             vendor=vendor,
