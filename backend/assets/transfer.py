@@ -6,10 +6,16 @@ from core.services import notify
 
 from .models import AssetTransfer, LifecycleError, TERMINAL_STATUSES
 
+# Under Repair means an open Service Record has custody (asset.custodian is already
+# cleared) — unlike Checkout, Transfer has no business interrupting that; there's no
+# current holder to hand off from, and the asset is physically at the vendor, not with
+# whoever the transfer would name as previous_owner.
+NOT_TRANSFERABLE_STATUSES = ("Under Repair",) + TERMINAL_STATUSES
+
 
 def request_transfer(asset, new_owner, requested_by, *, new_department=None,
                       condition=None, remarks=""):
-    if asset.status in TERMINAL_STATUSES:
+    if asset.status in NOT_TRANSFERABLE_STATUSES:
         raise LifecycleError(f"This asset is {asset.status} and cannot be transferred.")
 
     transfer = AssetTransfer.objects.create(
@@ -31,7 +37,7 @@ def request_transfer(asset, new_owner, requested_by, *, new_department=None,
 def approve(transfer, approved_by):
     if transfer.status != "Pending":
         raise LifecycleError("This transfer has already been processed.")
-    if transfer.asset.status in TERMINAL_STATUSES:
+    if transfer.asset.status in NOT_TRANSFERABLE_STATUSES:
         raise LifecycleError(
             f"This asset is {transfer.asset.status} and cannot be transferred.")
 

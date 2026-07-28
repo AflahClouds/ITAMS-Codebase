@@ -264,6 +264,23 @@ class TransferLifecycleTests(TestCase):
         with self.assertRaises(LifecycleError):
             approve(transfer, self.approver)
 
+    def test_request_transfer_rejects_an_asset_under_repair(self):
+        self.asset.status = "Under Repair"
+        self.asset.custodian = None
+        self.asset.save(update_fields=["status", "custodian"])
+
+        with self.assertRaises(LifecycleError):
+            request_transfer(self.asset, self.new_owner, self.previous_owner)
+
+    def test_approve_rejects_an_asset_sent_for_service_after_the_request(self):
+        transfer = request_transfer(self.asset, self.new_owner, self.previous_owner)
+        self.asset.status = "Under Repair"
+        self.asset.custodian = None
+        self.asset.save(update_fields=["status", "custodian"])
+
+        with self.assertRaises(LifecycleError):
+            approve(transfer, self.approver)
+
 
 class ServiceRecordLifecycleTests(TestCase):
     def setUp(self):
