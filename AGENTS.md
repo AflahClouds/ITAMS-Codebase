@@ -16,6 +16,11 @@ Single-context — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents
 
 - `.specify/` is managed Spec Kit infrastructure; durable feature artifacts live
   under `specs/<feature-id>-<feature-slug>/`.
+- Brownfield baseline specs are editable while `Draft`. After acceptance, their
+  requirements are immutable; later changes use a new feature directory with
+  reciprocal `Extends`/`Supersedes` lineage links.
+- Treat code and tests as evidence of current behavior, not product intent,
+  unless `CONTEXT.md`, an ADR, or an explicit stakeholder decision confirms it.
 - Run `$speckit-specify`, `$speckit-clarify`, `$speckit-plan`,
   `$speckit-checklist`, `$speckit-tasks`, and `$speckit-analyze` as appropriate.
 - Treat `tasks.md` as planning input. Publish approved implementation slices

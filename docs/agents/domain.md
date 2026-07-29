@@ -29,6 +29,18 @@ When your output names a domain concept (in an issue title, a refactor proposal,
 
 If the concept you need isn't in the glossary yet, that's a signal — either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
 
+## Separate domain authority from implementation evidence
+
+`CONTEXT.md` is authoritative for canonical terminology, shared lifecycle rules,
+and explicitly deferred scope. ADRs record accepted architecture, lasting
+design decisions, and rationale. Feature intent belongs in
+`specs/<feature-id>-<feature-slug>/spec.md`.
+
+When reconstructing a brownfield baseline, treat code and tests as evidence of
+current behavior rather than product intent by themselves. Record
+implementation-only behavior as unresolved until `CONTEXT.md`, an ADR, or an
+explicit stakeholder decision confirms it.
+
 ## Flag ADR conflicts
 
 If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:

@@ -1,20 +1,25 @@
 <!--
 Sync Impact Report
-- Version change: unversioned template -> 1.0.0
+- Version change: 1.0.0 -> 1.1.0
 - Modified principles:
-  - Placeholder Principle 1 -> I. Domain Language and Recorded Decisions
-  - Placeholder Principle 2 -> II. Lifecycle and Authorization Integrity
-  - Placeholder Principle 3 -> III. Specification and Traceability
-  - Placeholder Principle 4 -> IV. Test-First External Behavior
-  - Placeholder Principle 5 -> V. Incremental Local Delivery
-- Added sections:
-  - Technical and Documentation Constraints
-  - Development Workflow and Quality Gates
-- Removed sections: none; placeholder sections were concretized
+  - I. Domain Language and Recorded Decisions -> clarified authority of
+    CONTEXT.md and ADRs
+  - III. Specification and Traceability -> added brownfield baseline
+    persistence, lineage, and evidence rules
+- Added sections: none; persistence rules were integrated into existing sections
+- Removed sections: none
 - Templates:
-  - updated: .specify/templates/overrides/plan-template.md
   - updated: .specify/templates/overrides/spec-template.md
+  - updated: .specify/templates/overrides/plan-template.md
   - updated: .specify/templates/overrides/tasks-template.md
+  - validated: .specify/templates/spec-template.md
+  - validated: .specify/templates/plan-template.md
+  - validated: .specify/templates/tasks-template.md
+- Runtime guidance:
+  - updated: AGENTS.md
+  - updated: specs/README.md
+  - updated: docs/agents/domain.md
+  - updated: docs/agents/issue-tracker.md
 - Follow-up TODOs: none
 -->
 # ITAMS Constitution
@@ -23,13 +28,16 @@ Sync Impact Report
 
 ### I. Domain Language and Recorded Decisions
 
-All specifications, plans, tickets, tests, interfaces, and code MUST use the
-canonical language in `CONTEXT.md`, including its rejected synonyms and deferred
-scope. Work MUST read the ADRs relevant to the affected area before planning or
-implementation. Any proposed behavior that conflicts with an ADR MUST identify
-the conflict explicitly and obtain an ADR amendment; it MUST NOT silently
-override the recorded decision. This keeps product language and engineering
-decisions stable across long-running asset-lifecycle work.
+`CONTEXT.md` is authoritative for canonical domain terminology, rejected
+synonyms, shared lifecycle rules, and explicitly deferred scope. All
+specifications, plans, tickets, tests, interfaces, and code MUST use that
+language and preserve those rules. ADRs under `docs/adr/` are authoritative for
+accepted architecture, lasting design decisions, and their rationale. Work MUST
+read the ADRs relevant to the affected area before planning or implementation.
+Any conflict between `CONTEXT.md`, an ADR, or proposed behavior MUST be surfaced
+and resolved in the appropriate source; work MUST NOT silently override either
+record. This keeps product language and engineering decisions stable across
+long-running asset-lifecycle work.
 
 ### II. Lifecycle and Authorization Integrity
 
@@ -51,6 +59,21 @@ truth, while `plan.md`, research, data model, contracts, checklists, and
 stable identifiers and measurable acceptance scenarios. Plans, tickets, tests,
 and implementation evidence MUST remain traceable back to those identifiers.
 Lower-level artifacts MUST NOT contradict higher-level intent.
+
+Brownfield baseline specifications are living documents only while their status
+is `Draft`. Each baseline requirement MUST cite stakeholder-confirmed intent or
+evidence and MUST distinguish behavior verified by tests from behavior observed
+only in implementation. Code and tests are evidence of behavior; neither is
+product intent without confirmation from `CONTEXT.md`, an ADR, or an explicit
+stakeholder decision. Unconfirmed behavior MUST remain an unresolved finding and
+MUST NOT be silently promoted to a requirement.
+
+After a baseline is accepted, its requirement and acceptance content is an
+immutable flow-forward record. Later substantive changes MUST use a new feature
+directory and MUST record bidirectional `Extends`, `Supersedes`, or `Superseded
+by` links. An accepted specification may be edited only to add or correct this
+non-semantic lineage metadata; requirement changes always require a new feature
+directory.
 
 ### IV. Test-First External Behavior
 
@@ -82,6 +105,8 @@ an unreviewed generated task list.
   decision.
 - `.specify/` is managed Spec Kit infrastructure. Durable feature artifacts and
   local implementation tickets belong under `specs/`.
+- Accepted baseline and completed feature directories are historical records.
+  Their requirement content MUST NOT be rewritten to describe later behavior.
 - Project-local Spec Kit customizations MUST use supported template overrides or
   explicit constitution propagation. Managed command skills MUST NOT be edited
   casually because integration upgrades track them.
@@ -95,31 +120,40 @@ an unreviewed generated task list.
 
 1. Read `CONTEXT.md`, relevant ADRs, the active feature spec, and repository
    agent instructions before making a plan.
-2. Run specification, clarification, planning, requirements-checklist, task, and
-   analysis phases as appropriate. No implementation starts while a
-   constitution violation, unresolved critical clarification, or incomplete
-   required checklist remains.
-3. Convert the reviewed task graph into local tracer-bullet issues with
+2. For a brownfield baseline, classify every candidate requirement as
+   stakeholder-confirmed, test-verified, implementation-only, unresolved, or
+   deferred. Keep the specification in `Draft` until conflicts are resolved and
+   the accepted intent is reviewed.
+3. Run specification, clarification, planning, requirements-checklist, task, and
+   analysis phases as appropriate. A documentation-only baseline MAY stop after
+   specification, clarification, checklist review, and acceptance when no
+   delivery work remains. No implementation starts while a constitution
+   violation, unresolved critical clarification, or incomplete required
+   checklist remains.
+4. Before changing an accepted baseline or completed feature, create a new
+   feature directory and add reciprocal lineage links to the prior record.
+5. Convert the reviewed task graph into local tracer-bullet issues with
    `to-tickets`; review their granularity and blocking edges before execution.
-4. Implement one unblocked ticket at a time using test-first development. Update
+6. Implement one unblocked ticket at a time using test-first development. Update
    the ticket with evidence and status without rewriting unrelated feature
    history.
-5. For backend changes, run the relevant Django tests and normally the complete
+7. For backend changes, run the relevant Django tests and normally the complete
    `python manage.py test` suite from `backend/`. For frontend changes, run
    `npm run lint` and `npm run build` from `frontend/`, plus feature tests when a
    test harness applies.
-6. Review completion against the constitution, `spec.md`, the plan, acceptance
+8. Review completion against the constitution, `spec.md`, the plan, acceptance
    criteria, permissions, lifecycle invariants, and observable end-to-end
    behavior.
 
 ## Governance
 
 This constitution governs the ITAMS specification and delivery process.
-`CONTEXT.md` remains authoritative for domain terminology, ADRs remain
-authoritative for accepted architecture and lifecycle decisions, and the active
-feature `spec.md` remains authoritative for feature intent. When these sources
-conflict, work MUST stop and the conflict MUST be resolved in the appropriate
-source before implementation continues.
+`CONTEXT.md` remains authoritative for domain terminology, shared lifecycle
+rules, and deferred scope; ADRs remain authoritative for accepted architecture,
+lasting design decisions, and rationale; and the active feature `spec.md`
+remains authoritative for feature intent. When these sources conflict, work
+MUST stop and the conflict MUST be resolved in the appropriate source before
+implementation continues.
 
 Amendments require an explicit rationale, review of affected templates and
 runtime guidance, and a migration note for active features. Constitution
@@ -129,4 +163,4 @@ non-semantic clarification. Every plan and final review MUST include a
 constitution-compliance check. Unjustified complexity or an unapproved exception
 blocks implementation.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-28 | **Last Amended**: 2026-07-28
+**Version**: 1.1.0 | **Ratified**: 2026-07-28 | **Last Amended**: 2026-07-29

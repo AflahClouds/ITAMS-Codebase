@@ -20,6 +20,10 @@ user-story slices.
 After review, publish implementation work with `to-tickets` as separate files
 under this feature's `issues/` directory. Do not use `speckit-taskstoissues`.
 
+**Persistence gate**: Generate delivery tasks only for an active specification
+whose status permits implementation. Never generate tasks that rewrite an
+accepted baseline; create a linked Change specification first.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)

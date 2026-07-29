@@ -8,6 +8,21 @@
 
 **Input**: User description: "$ARGUMENTS"
 
+## Specification Lineage *(mandatory)*
+
+**Type**: [New Feature | Brownfield Baseline | Change]
+
+**Roadmap Reference**: [Stable roadmap entry and path, or state that this is a
+standalone feature.]
+
+**Extends**: [Prior specification path(s), or "None".]
+
+**Supersedes**: [Prior specification path(s), or "None".]
+
+**Reciprocal Links**: [Specification or roadmap paths updated to link back to
+this record. For an initial baseline, state where its future lineage will be
+recorded.]
+
 ## Domain Alignment *(mandatory)*
 
 **Canonical Terms**: [List affected terms from `CONTEXT.md` and any rejected
@@ -146,6 +161,34 @@ behavior, actors, and permissions; remove only when genuinely unrelated.]
 - [Assumption about scope boundaries, e.g., "Mobile support is out of scope for v1"]
 - [Assumption about data/environment, e.g., "Existing authentication system will be reused"]
 - [Dependency on existing system/service, e.g., "Requires access to the existing user profile API"]
+
+## Baseline Evidence and Unresolved Conflicts *(Brownfield Baseline only)*
+
+<!--
+  Remove this section for New Feature and Change specifications.
+  Code and tests demonstrate behavior but do not establish product intent by
+  themselves. Separate accepted intent from implementation-only observations.
+-->
+
+### Accepted Intent
+
+- [Requirement or lifecycle rule and its authoritative source: CONTEXT.md, ADR,
+  or explicit stakeholder decision.]
+
+### Verified Behavior Evidence
+
+- [Requirement or scenario identifier]: [Automated test, interface, or other
+  repository path that demonstrates current behavior.]
+
+### Implementation-Only Observations
+
+- [Observed behavior, repository path, and why stakeholder confirmation is
+  still required.]
+
+### Unresolved Conflicts
+
+- [Conflict among intent, ADRs, tests, interfaces, or implementation, plus the
+  decision owner. Use "None" only after review.]
 
 ## Out of Scope *(mandatory)*
 

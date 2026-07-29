@@ -45,6 +45,10 @@ impact]
   transitions, transaction boundaries, audit events, and notifications.
 - **Traceability**: Map the proposed design to requirement and acceptance
   scenario identifiers in `spec.md`.
+- **Persistence and lineage**: Confirm that the specification status permits
+  edits, its type and reciprocal lineage links are complete, and the plan does
+  not rewrite accepted baseline requirements. Treat implementation-only
+  observations as unresolved until authoritative intent is recorded.
 - **Test-first delivery**: Name the highest practical test seam for each behavior
   slice and place tests before implementation.
 - **Local execution**: Keep `tasks.md` as planning input and publish approved

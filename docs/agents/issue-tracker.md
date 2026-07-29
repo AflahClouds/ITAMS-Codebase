@@ -8,6 +8,10 @@ The feature directory is the directory created by Spec Kit, normally
 
 - One feature per directory: `specs/<feature-id>-<feature-slug>/`
 - The spec is `specs/<feature-id>-<feature-slug>/spec.md`
+- Brownfield baseline specs are editable while `Draft`; accepted requirement
+  content is immutable
+- A substantive change to an accepted baseline or completed feature uses a new
+  directory with reciprocal `Extends`/`Supersedes` lineage links
 - Spec Kit planning artifacts such as `plan.md`, `tasks.md`, `research.md`, `contracts/`, and `checklists/` live beside the spec
 - Implementation issues are one file per ticket at `specs/<feature-id>-<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` — never a single combined tickets file
 - `tasks.md` is planning and analysis input; the separate issue files are authoritative for implementation
