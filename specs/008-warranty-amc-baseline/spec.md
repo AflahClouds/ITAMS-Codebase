@@ -52,7 +52,7 @@ requirement content here.
   the rule that B2 register mutations create AuditLog entries and no
   Notifications.
 - Draft B1 identity and access baseline
-  (`specs/001-identity-access-baseline/`) for Roles, permission codes, named
+  (`specs/003-identity-access-baseline/`) for Roles, permission codes, named
   Role grants, and data visibility.
 - Draft B6 Procurement, Vendor, and catalog masters baseline
   (`specs/002-procurement-vendor-catalog-baseline/`) for the managed Vendor

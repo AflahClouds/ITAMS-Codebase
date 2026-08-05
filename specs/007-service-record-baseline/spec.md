@@ -49,7 +49,7 @@ requirement content here.
 - Accepted B2 Asset register and lifecycle baseline
   (`specs/001-asset-register-lifecycle-baseline/`, accepted 2026-07-29).
 - Draft B1 identity and access baseline
-  (`specs/001-identity-access-baseline/`) for Roles, permission codes, and data
+  (`specs/003-identity-access-baseline/`) for Roles, permission codes, and data
   visibility.
 - Draft B3 Checkout and check-in baseline
   (`specs/005-checkout-checkin-baseline/`) for the interrupted-Checkout
