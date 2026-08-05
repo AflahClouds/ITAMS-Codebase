@@ -67,19 +67,21 @@ index, not a parent product specification and not an implementation plan.
 The decision identifiers below come from
 `docs/research/itams-current-system-baseline.md`. Resolving a decision changes
 the owning B-row from R1 to R2 only when its other material unknowns are also
-closed.
+closed. The Resolution column records the current decision state and the
+clarification session or spec finding that carries it; a documented
+implementation conformance gap is delivery work, not a reopened decision.
 
-| Decision | Owning baseline | Acceptance question |
-| --- | --- | --- |
-| **C1** | B3, B4 | Is Store-to-User issuance a Checkout or a Transfer? |
-| **C2** | B2 | Which status, Custodian, and department combinations are valid when creating or directly editing an Asset? |
-| **C3** | B2, B3 | Replace the user-visible term `Assignment` with `Checkout`; any exception requires an explicit `CONTEXT.md` amendment. |
-| **C4** | B7 | How is deliberate no-AMC represented, and should ended AMC history make `has_amc` true? |
-| **C5** | B7 | What production scheduling and delivery guarantees satisfy proactive 30/15/7-day alerts? |
-| **C6** | B1 | Should Employee access be own-Asset-only, global read-only, or absent, and what does “raise requests” mean in current scope? |
-| **C7** | B6 | Is physical arrival a procedural Procurement precondition or a system-enforced state? |
-| **C8** | B4 | Which non-Admin actors may download Transfer PDFs? |
-| **C9** | B6 | Should Procurement edit/delete controls be hidden unless the matching permission is present? |
+| Decision | Owning baseline | Acceptance question | Resolution |
+| --- | --- | --- | --- |
+| **C1** | B3, B4 | Is Store-to-User issuance a Checkout or a Transfer? | **Resolved — Checkout** (B4 clarification 2026-08-04): issuance has no approval gate and is outside Transfer scope. Draft B3 still carries C1 as open blocker U-005 and must absorb this decision before acceptance. |
+| **C2** | B2 | Which status, Custodian, and department combinations are valid when creating or directly editing an Asset? | **Resolved — accepted** (B2 clarification, accepted 2026-07-29): create only as `Available` or `In Storage` with no Custodian; Custodian changes only through Checkout or Transfer. Accepted B2 documents a backend/frontend conformance gap. |
+| **C3** | B2, B3 | Replace the user-visible term `Assignment` with `Checkout`; any exception requires an explicit `CONTEXT.md` amendment. | **Resolved as intent — conformance pending**: `CONTEXT.md` rejects `Assignment`, and Draft B3 FR-018/AS-005 require `Checkout` on every user-visible surface; accepted B2 records the surviving `Assignment & Warranty` label as a finding requiring correction or an explicit `CONTEXT.md` amendment. |
+| **C4** | B7 | How is deliberate no-AMC represented, and should ended AMC history make `has_amc` true? | **Resolved — glossary reconciliation required** (B7 clarification 2026-08-05): `has_amc` derives from the current contract only — true for `Active`/`Incomplete`, false for `Ended` or absent — dropping the deliberate no-AMC distinction; this diverges from `CONTEXT.md` and must be reconciled before B7 acceptance. |
+| **C5** | B7 | What production scheduling and delivery guarantees satisfy proactive 30/15/7-day alerts? | **Resolved** (B7 clarification 2026-08-05): the in-process scheduler also runs under the production server with single-worker mutual exclusion, one organizational timezone, once-only alerts per Asset/coverage/threshold, and operator-visible downtime catch-up. |
+| **C6** | B1 | Should Employee access be own-Asset-only, global read-only, or absent, and what does “raise requests” mean in current scope? | **Resolved** (B1 clarification 2026-07-29): Employee visibility is own-Custodian Assets only, including retained `Lost` custody; "raise requests" is not accepted Role intent in current scope. |
+| **C7** | B6 | Is physical arrival a procedural Procurement precondition or a system-enforced state? | **Resolved — system-enforced** (B6 clarification 2026-08-03): saving a Procurement requires an Asset arrival record plus a required attestation. |
+| **C8** | B4 | Which non-Admin actors may download Transfer PDFs? | **Resolved** (B4 clarification 2026-08-04): any User with `asset_view` may download Transfer PDFs, limited to Transfer records visible under B1; downloads are not audited. |
+| **C9** | B6 | Should Procurement edit/delete controls be hidden unless the matching permission is present? | **Resolved** (B6 clarification 2026-08-03): existing B6 action codes govern the controls, reads require non-Employee `asset_view`, and Employees receive no B6 pages; B6 records an implementation conformance gap (OBS-AS-014). |
 
 ## Recommended drafting order
 
