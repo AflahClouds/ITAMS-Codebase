@@ -31,7 +31,7 @@
 
 - [x] Code and tests are treated as evidence rather than product intent
 - [x] All 9 selected B5 tests and 7 adjacent boundary tests were run on 2026-08-05 and are cited
-- [x] Accepted B2 is cited as accepted; B1, B3, B6, and B8 are cited as Draft dependencies
+- [x] Draft B2 is cited as Draft; B1, B3, B6, and B8 are cited as Draft dependencies
 - [x] Current `In Storage` eligibility and closure-status behavior is not accepted while U-001 is open
 - [x] Current department retention is recorded as a conformance gap while U-002 is open
 - [x] Current absent bill/document/outcome representation is not accepted while U-003 is open
@@ -61,15 +61,15 @@
   decisions themselves are recorded as RESOLVED in the spec.
 - Repository paths appear only where brownfield traceability requires them;
   accepted requirements are expressed as business and lifecycle outcomes.
-- U-002 was constrained rather than open-ended: accepted B2 FR-007 and FR-015
+- U-002 was constrained rather than open-ended: Draft B2 FR-007 and FR-015
   already required the department to be cleared. The stakeholder confirmed that
   rule, so no B2 amendment is required.
 - The B5 Notification and Audit Trigger Matrix is now accepted content under
   Draft B8 FR-018. Only the previous-Custodian Notification on opening is
   test-backed; every other row is stakeholder-confirmed with the current gap
   recorded beside it.
-- Condition-history evidence for a repair, Employee visibility of a
-  subject-less record, and production delivery of the new overdue notification
-  remain evidence-led confirmation items. None is an acceptance blocker.
+- Condition-history evidence for a repair and Employee visibility of a
+  subject-less record remain evidence-led confirmation items. Prospective
+  overdue delivery is owned by CHG-B5-01 and is not a B5 acceptance blocker.
 - The selected evidence runs passed 9 B5 tests and 7 adjacent boundary tests on
   2026-08-05.

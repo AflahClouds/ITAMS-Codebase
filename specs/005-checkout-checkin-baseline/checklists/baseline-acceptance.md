@@ -17,7 +17,7 @@ testable text or an explicit scope decision.
 
 - [ ] CHK001 Is B3's scope boundary explicit that it owns Checkout and check-in while Transfer, Service Record internals, Asset-register rules, and shared Notification/AuditLog infrastructure belong to named sibling baselines? [Completeness, Spec §Specification Lineage, §Dependencies, §Out of Scope]
 - [ ] CHK002 Are accepted-intent, stakeholder-confirmed, test-verified, implementation-only, and unresolved classifications applied consistently so that no code or test observation is promoted to product intent? [Consistency, Spec §Evidence Classification, §FR-021, §Baseline Evidence]
-- [ ] CHK003 Are the accepted B2 requirements that B3 depends upon cited by identifier rather than referenced in general terms, with an explicit statement that B3 does not reopen them? [Traceability, Spec §Relevant Decisions, §Accepted Intent, §Assumptions]
+- [ ] CHK003 Are the Draft B2 requirements that B3 depends upon cited by identifier rather than referenced in general terms, with an explicit statement that B3 does not reopen them? [Traceability, Spec §Relevant Decisions, §Accepted Intent, §Assumptions]
 - [ ] CHK004 Is the dependency on the Draft B8 baseline distinguished from an accepted dependency, so shared delivery and storage rules are not treated as settled? [Clarity, Spec §Relevant Decisions, §FR-020, §FR-027]
 - [ ] CHK005 Does the specification state that it is documentation-only and changes no application code, tests, routes, interfaces, or configuration? [Clarity, Spec §Assumptions, §Out of Scope]
 
@@ -45,7 +45,7 @@ testable text or an explicit scope decision.
 
 - [ ] CHK020 Is the Custodian effect stated for both directions — set to the Checkout User on Checkout, cleared on check-in? [Completeness, Spec §FR-004, §AS-001, §AS-007]
 - [ ] CHK021 Is the department effect at Checkout complete for a Checkout User who has a department and for one who does not? [Coverage, Spec §FR-006, §AS-003]
-- [ ] CHK022 Is department clearing at check-in stated as a requirement and reconciled with accepted B2 FR-015 rather than with current behavior? [Consistency, Spec §FR-023, §AS-011, §U-001]
+- [ ] CHK022 Is department clearing at check-in stated as a requirement and reconciled with Draft B2 FR-015 rather than with current behavior? [Consistency, Spec §FR-023, §AS-011, §U-001]
 - [ ] CHK023 Is the mandatory status of the return condition unambiguous, with no default value and an explicit rejection outcome when it is omitted? [Clarity, Spec §FR-024, §AS-012]
 - [ ] CHK024 Is the canonical condition set enforced for the return condition, with a rejection leaving Asset status, Custodian, department, and condition unchanged? [Completeness, Spec §FR-010, §AS-017]
 - [ ] CHK025 Is the condition-history requirement objectively applicable, stating which check-ins produce an Asset condition-inspection row? [Measurability, Spec §FR-025, §AS-032]

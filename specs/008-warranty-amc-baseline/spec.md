@@ -24,7 +24,7 @@ application code."
 - Q: What validation applies to initial AMC entry and to Warranty dates? → A: Initial AMC entry enforces the same rules as renewal — both dates or neither, real dates, end after start — and Warranty requires end after start when both are present while either may be recorded alone; neither is tied to purchase or arrival dates.
 - Q: Should an AMC contract record its Vendor, and what rules govern renewal and history? → A: A managed B6 Vendor is required on any dated contract and optional while `Incomplete`; renewal captures the Vendor for the new contract and may change it; history is append-only and renewal's supersede marker is recorded separately from the operator's End Support reason.
 - Q: Who receives expiry alerts and AMC decision notifications, and through which channel? → A: Expiry alerts go to every active holder of `asset_custody_manage` and AMC decision notifications to every active holder of the IT Manager grant, both selected by permission rather than Role display name; delivery is in-app only for this version, consistent with Draft B8 FR-008.
-- Q: What production scheduling, timezone, deduplication, and recovery guarantees must expiry alerts meet? → A: Keep the scheduler in-process but start it under the real production server as well, with mutual exclusion so exactly one worker runs each execution; evaluate thresholds in one configured organizational timezone; record each Asset/coverage/threshold alert once so reruns are no-ops; and catch up thresholds crossed during downtime on the next run, with failed or overdue runs operator-visible.
+- Q: What production scheduling, timezone, deduplication, and recovery guarantees must expiry alerts meet? → A: The stakeholder selected production execution, exactly one logical run, one organizational timezone, once-only delivery, downtime catch-up, and operator-visible health. Those unimplemented guarantees are retained in `specs/011-expiry-alert-delivery-reliability-change/`, not as B7 AS-BUILT requirements.
 
 ## Specification Lineage *(mandatory)*
 
@@ -37,6 +37,10 @@ actions; durable feature directory `specs/008-warranty-amc-baseline/`.
 
 **Supersedes**: None.
 
+**Extended by**: `specs/011-expiry-alert-delivery-reliability-change/spec.md`
+owns the prospective production execution, timezone, once-only delivery,
+downtime catch-up, and operator-health guarantees.
+
 **Reciprocal Links**: `ROADMAP.md` already reserves
 `specs/008-warranty-amc-baseline/` for B7 and must link the created directory
 when the B7 row moves to `R3 — draft review`. After this Draft is accepted, any
@@ -46,8 +50,8 @@ requirement content here.
 
 **Dependencies**:
 
-- Accepted B2 Asset register and lifecycle baseline
-  (`specs/001-asset-register-lifecycle-baseline/`, accepted 2026-07-29) for
+- Draft B2 Asset register and lifecycle baseline
+  (`specs/001-asset-register-lifecycle-baseline/`, Draft; acceptance review pending) for
   Asset identity, terminal statuses, the Asset write permission contract, and
   the rule that B2 register mutations create AuditLog entries and no
   Notifications.
@@ -120,10 +124,10 @@ requirement content here.
   description of what was done.
 - `CONTEXT.md`, **AMC**: Warranty dates are manufacturer-fixed and are not
   renewable or endable; the status/renew/end workflow is AMC-specific.
-- Accepted B2 FR-001, FR-008, and the Asset permission contract: Warranty dates
+- Draft B2 FR-001, FR-008, and the Asset permission contract: Warranty dates
   are Asset register data, terminal statuses have left circulation, and Asset
   updates require `asset_edit` held by Admin, IT Manager, and IT Staff.
-- Accepted B2 ALR-011 and Accepted Asset Audit and Notification Effects: every
+- Draft B2 ALR-011 and Accepted Asset Audit and Notification Effects: every
   successful B2 Asset mutation creates an AuditLog entry and B2 register actions
   create no Notifications. B7 owns its own AMC decision Notifications.
 - Draft B8 FR-002, FR-008, FR-011, FR-012, FR-014, FR-015, and FR-018: shared
@@ -210,7 +214,7 @@ independently labelled.
 2. **OBS-AS-002 — Implementation-only**: **Given** the current Asset detail
    surface, **When** coverage is displayed, **Then** Warranty appears inside a
    panel titled "Assignment & Warranty", which uses the `Assignment`
-   terminology `CONTEXT.md` rejects. The label is owned by accepted B2 FR-004
+   terminology `CONTEXT.md` rejects. The label is owned by Draft B2 FR-004
    and `ROADMAP.md` C3.
 3. **OBS-AS-003 — Implementation-only conformance gap (FR-031)**: **Given**
    Warranty dates, **When** they are entered, **Then** no validation requires an
@@ -418,15 +422,15 @@ confirm silence.
    threshold, **When** the check runs, **Then** an alert is still issued,
    because Warranty alerts filter on the date alone with no Asset status
    condition.
-3. **OBS-AS-012 — Implementation-only conformance gap (FR-039)**: **Given** the
+3. **OBS-AS-012 — Implementation-only gap motivating CHG-B7-01**: **Given** the
    exact-date threshold design, **When** the check does not run on a given day,
    **Then** that day's thresholds are missed permanently, because no catch-up,
    range, or already-alerted record exists.
-4. **OBS-AS-013 — Implementation-only conformance gap (FR-038)**: **Given** the
+4. **OBS-AS-013 — Implementation-only gap motivating CHG-B7-01**: **Given** the
    check runs more than once in a day, **When** it repeats, **Then** duplicate
    alerts are produced, because no deduplication or already-sent marker
    exists.
-5. **OBS-AS-014 — Implementation-only conformance gap (FR-036), not reliable
+5. **OBS-AS-014 — Implementation-only gap motivating CHG-B7-01, not reliable
    production delivery**: **Given** the current in-process daily job configured
    for 07:00, **When** the application runs under a normal WSGI or ASGI
    deployment, **Then** the job is never scheduled at all, because startup is
@@ -438,7 +442,7 @@ confirm silence.
    destination is followed, **Then** it points at `/asset/{id}` while the
    frontend Asset detail route is `/asset/detail/{id}`, so the destination does
    not resolve.
-7. **OBS-AS-016 — Implementation-only conformance gap (FR-037)**: **Given** the
+7. **OBS-AS-016 — Implementation-only gap motivating CHG-B7-01**: **Given** the
    threshold comparison, **When** it runs, **Then** it uses the server's local
    calendar date with no stated timezone rule, so the day an alert fires depends
    on server configuration.
@@ -497,7 +501,7 @@ then confirm the IT Manager received one informative notification for each.
 5. **OBS-AS-021 — Implementation-only**: **Given** initial AMC entry through the
    Asset write path, **When** a contract is created or completed that way,
    **Then** no AMC-specific AuditLog entry and no IT Manager notification are
-   produced; only the accepted B2 Asset-mutation audit entry exists.
+   produced; only the Draft B2 Asset-mutation audit entry exists.
 
 ---
 
@@ -562,12 +566,9 @@ authorized reader.
   Asset whose AMC flag was set but whose dates were never completed. That is
   precisely the `Incomplete` case `CONTEXT.md` cares about, so pre-migration
   incomplete AMCs were not carried forward.
-- Threshold evaluation uses one configured organizational timezone under
-  FR-037, so an alert's firing day is deterministic. The current reliance on the
-  server's local calendar date is a conformance gap.
-- Catch-up under FR-039 and once-only recording under FR-038 are interdependent:
-  re-evaluating a window after downtime is only safe because an already-issued
-  alert can never be issued twice.
+- The current check uses the server calendar, lacks once-only issuance and
+  catch-up, and is not scheduled under normal production operation. The desired
+  reliability behavior is non-baseline scope owned by CHG-B7-01.
 - An Asset with no AMC contract and an Asset whose AMC was deliberately ended
   are treated identically under FR-006. Neither is chased, and neither is
   identifiable as a deliberate decision — an accepted narrowing that FR-029
@@ -638,7 +639,7 @@ authorized reader.
 - **FR-011 — Accepted intent**: Renewal MUST be rejected for an Asset in a
   terminal status, because a `Sold`, `Scrapped`, or `Lost` Asset has left
   circulation.
-  *(Sources: accepted B2 FR-008; current rejection is test-backed.)*
+  *(Sources: Draft B2 FR-008; current rejection is test-backed.)*
 - **FR-012 — Accepted intent**: End Support MUST mark the current contract
   `Ended`, MUST require a nonblank recorded reason, and MUST be rejected when no
   `Active` or `Incomplete` contract exists.
@@ -651,7 +652,7 @@ authorized reader.
 - **FR-014 — Accepted intent**: Renewal and End Support MUST each apply their
   contract closure, creation, state, and reason effects as one atomic operation,
   so no intermediate coverage state is user-visible.
-  *(Sources: `.specify/memory/constitution.md`, Principle II; accepted B2
+  *(Sources: `.specify/memory/constitution.md`, Principle II; Draft B2
   ALR-003; current renewal is atomic.)*
 - **FR-015 — Accepted intent**: AMC history MUST be preserved. A renewal or End
   Support MUST NOT overwrite, delete, or make unreadable any earlier contract.
@@ -663,8 +664,8 @@ authorized reader.
 - **FR-017 — Accepted intent**: Expiry alerts MUST be proactively pushed to
   their recipients. A dashboard panel, report, or any surface a User must choose
   to open MUST NOT satisfy this requirement.
-  *(Source: `CONTEXT.md`, **AMC**. FR-035 through FR-039 define what satisfies
-  it in this version.)*
+  *(Source: `CONTEXT.md`, **AMC**. FR-035 records the current delivery channel;
+  CHG-B7-01 owns prospective production reliability.)*
 - **FR-018 — Stakeholder-confirmed**: Warranty and AMC expiry alerts MUST be
   issued to every active User holding `asset_custody_manage`. Under the B1
   grants that code covers IT Manager and IT Staff as `CONTEXT.md` requires, and
@@ -679,7 +680,7 @@ authorized reader.
   is test-backed.)*
 - **FR-020 — Accepted intent**: An Asset in a terminal status MUST NOT generate
   Warranty or AMC expiry alerts.
-  *(Source: accepted B2 FR-008. The current Warranty alert path has no status
+  *(Source: Draft B2 FR-008. The current Warranty alert path has no status
   condition and is a conformance gap.)*
 - **FR-021 — Accepted intent with stakeholder-confirmed recipient rule**: A
   successful renewal and a successful End Support MUST each notify every active
@@ -695,11 +696,11 @@ authorized reader.
   write authority `asset_edit`, held by Admin, IT Manager, and IT Staff. IT
   Staff MUST be able to perform renewal and End Support, because
   `CONTEXT.md` makes IT Staff the expected actor on an AMC alert.
-  *(Sources: `CONTEXT.md`, **AMC**; accepted B2 Asset permission contract.)*
+  *(Sources: `CONTEXT.md`, **AMC**; Draft B2 Asset permission contract.)*
 - **FR-023 — Accepted visibility dependency**: Reading Warranty dates, AMC
   state, and AMC history MUST require `asset_view` and MUST follow the B1
   visibility rules that apply to the underlying Asset.
-  *(Source: accepted B2 ALR-009 and Draft B1.)*
+  *(Source: Draft B2 ALR-009 and Draft B1.)*
 - **FR-024 — Draft B8 ownership dependency**: B7 MUST publish and own an
   explicit trigger matrix covering each Warranty and AMC business event, its
   recipient-selection rule, message meaning, destination, and any audit detail
@@ -714,7 +715,7 @@ authorized reader.
   state before and after, the dates involved, and the reason where one applies.
   Whether rejected and permission-denied AMC attempts also require an entry
   follows Draft B8 FR-014 once B8 is accepted.
-  *(Sources: Draft B8 FR-011, FR-014, FR-015, and FR-018; accepted B2 ALR-011
+  *(Sources: Draft B8 FR-011, FR-014, FR-015, and FR-018; Draft B2 ALR-011
   for the Asset-mutation entry that initial AMC entry already produces.)*
 - **FR-026 — Accepted boundary**: A Service Record MUST NOT be treated as
   evidence of a Warranty or AMC claim, and B7 MUST NOT infer coverage from
@@ -730,10 +731,10 @@ authorized reader.
   stakeholder clarification dated 2026-08-05 and MUST NOT be reopened by
   observing current implementation behavior. Two acceptance preconditions
   remain: the `CONTEXT.md` reconciliation required by FR-029, and confirmation
-  that the current development-server-only scheduling is treated as a
-  conformance gap against FR-036 rather than as satisfying FR-017. The
-  conformance gaps in U-006 are review findings, not grounds for weakening the
-  requirement each one contradicts.
+  that development-server-only scheduling is classified as current-system
+  evidence rather than reliable production delivery. CHG-B7-01 owns the
+  prospective reliability requirements; its delivery is not a B7 acceptance
+  condition. The conformance gaps in U-006 remain visible review findings.
   *(Sources: `ROADMAP.md` decisions C4 and C5;
   `.specify/memory/constitution.md`, Principles I and III.)*
 - **FR-029 — Stakeholder-confirmed reconciliation obligation**: Because FR-006
@@ -790,38 +791,14 @@ authorized reader.
   *(Sources: stakeholder clarification, 2026-08-05; Draft B8 FR-008. The
   residual risk that a recipient does not open the application within the alert
   window is recorded under Assumptions.)*
-- **FR-036 — Stakeholder-confirmed**: The expiry check MUST run on a daily
-  schedule under the deployment the organization actually operates, including
-  normal WSGI or ASGI server startup, and MUST NOT depend on the development
-  server command. Exactly one execution MUST occur per scheduled run regardless
-  of how many worker processes or hosts are running, enforced by mutual
-  exclusion across them. Because scheduling remains inside the application
-  process, alert production depends on that process being alive; the deployment
-  MUST make a stalled or non-running scheduler operator-visible.
-  *(Sources: stakeholder clarification, 2026-08-05; `CONTEXT.md`, **AMC**,
-  proactive push. The current startup restriction to the development server and
-  the absence of any cross-worker exclusion are conformance gaps. This decision
-  supersedes the engineering note in `backend/core/scheduler.py` proposing an
-  external scheduler, which `ROADMAP.md` records as a resolution candidate
-  rather than accepted product scope.)*
-- **FR-037 — Stakeholder-confirmed**: Threshold evaluation MUST use one
-  configured organizational timezone so that the day an alert fires is
-  deterministic and independent of server locale.
-  *(Sources: stakeholder clarification, 2026-08-05. The current use of the
-  server's local calendar date with no configured rule is a conformance gap.)*
-- **FR-038 — Stakeholder-confirmed**: Each combination of Asset, coverage type,
-  and threshold MUST produce at most one alert, recorded so that it is never
-  repeated. A repeated or overlapping execution MUST therefore be a no-op rather
-  than a source of duplicate alerts.
-  *(Sources: stakeholder clarification, 2026-08-05. The current absence of any
-  already-alerted record is a conformance gap.)*
-- **FR-039 — Stakeholder-confirmed**: After downtime or a missed run, the next
-  execution MUST evaluate every threshold crossed since the last successful run
-  and issue the alerts that were missed, relying on FR-038 to prevent repeats. A
-  failed or overdue run MUST be operator-visible rather than silent.
-  *(Sources: stakeholder clarification, 2026-08-05. The current exact-date
-  design permanently skips a missed day and reports nothing, which is a
-  conformance gap.)*
+### Prospective Change Extracted — Not B7 Baseline Requirements
+
+- **FWD-B7-001**: Production execution, exactly one logical run across workers,
+  one organizational timezone, once-only issuance, downtime catch-up, and
+  operator-visible run health are desired behavior absent from the current
+  system. Their normative authority is
+  `specs/011-expiry-alert-delivery-reliability-change/spec.md`; they MUST NOT be
+  used as evidence that B7 currently provides reliable production delivery.
 
 ### Current-System Contract Candidates — Not Accepted Requirements
 
@@ -867,8 +844,8 @@ MUST NOT be read as accepted requirements.
 - **CAND-013**: The expiry check compares Warranty end dates and `Active` AMC end
   dates against exactly `today + 30`, `today + 15`, and `today + 7` using the
   server's local calendar date, with no range, catch-up, deduplication, or
-  already-alerted record. FR-037, FR-038, and FR-039 are authoritative; the
-  exact-day threshold semantics themselves are retained by FR-016.
+  already-alerted record. CHG-B7-01 owns the prospective timezone, once-only,
+  and catch-up behavior; exact-day threshold semantics remain in FR-016.
 - **CAND-014**: Warranty alerts apply no Asset status condition, so terminal
   Assets are included; AMC alerts apply the `Active` contract condition only.
 - **CAND-015**: Alert recipients are every active User holding
@@ -881,7 +858,7 @@ MUST NOT be read as accepted requirements.
   only when the process is the development server; it does not start under
   normal WSGI or ASGI initialization, and its own source records this as an
   accepted temporary limitation to be replaced by an externally triggered
-  command. FR-036 is authoritative.
+  command. CHG-B7-01 owns prospective production reliability.
 - **CAND-018**: The IT Manager notification for renewal and End Support selects
   active Users whose Role is literally named "IT Manager" and carries no
   destination.
@@ -897,16 +874,16 @@ MUST NOT be read as accepted requirements.
 - **ALR-001 — Accepted authorization**: Every Warranty and AMC write MUST be
   authorized at the backend action boundary using `asset_edit`; hiding or
   showing a frontend control MUST NOT be the authorization decision.
-  *(Sources: `.specify/memory/constitution.md`, Principle II; accepted B2
+  *(Sources: `.specify/memory/constitution.md`, Principle II; Draft B2
   ALR-001 and ALR-010.)*
 - **ALR-002 — Accepted atomicity**: A renewal MUST commit the superseding
   closure, the new contract, and its required audit entry as one operation. An
   End Support MUST commit the state change, the reason, and its required audit
   entry as one operation.
-  *(Sources: accepted B2 ALR-003; Draft B8 FR-011.)*
+  *(Sources: Draft B2 ALR-003; Draft B8 FR-011.)*
 - **ALR-003 — Accepted rejection safety**: A denied or rejected AMC action MUST
   leave every contract, the Asset, and its Warranty dates unchanged.
-  *(Source: accepted B2 ALR-002.)*
+  *(Source: Draft B2 ALR-002.)*
 - **ALR-004 — Accepted history integrity**: AMC contract history MUST be
   append-only in effect. A superseded or ended contract MUST remain readable
   with its dates, state, and reason intact.
@@ -915,7 +892,7 @@ MUST NOT be read as accepted requirements.
   only through initial entry, completion of an `Incomplete` contract, renewal,
   or End Support. Direct editing of a contract row MUST NOT be an accepted path,
   and no automatic process MUST set a contract `Ended`.
-  *(Sources: `CONTEXT.md`, **AMC**; accepted B2 FR-012 by analogy for
+  *(Sources: `CONTEXT.md`, **AMC**; Draft B2 FR-012 by analogy for
   lifecycle-owned state.)*
 - **ALR-006 — Accepted alert integrity**: The expiry check MUST NOT change any
   Asset, Warranty date, or AMC contract. It MUST be a read-and-notify operation
@@ -936,9 +913,9 @@ MUST NOT be read as accepted requirements.
 
 | Action | Permission code | Accepted named-Role behavior | Evidence status |
 | --- | --- | --- | --- |
-| Read Warranty dates, AMC state, and AMC history | `asset_view` plus B1 visibility | Admin, IT Manager, IT Staff, HR, and Viewer global; Employee scope owned by B1 | Accepted B2 read contract; Employee scope is not implemented in the current global queryset |
-| Record or correct Warranty dates | `asset_edit` | Admin, IT Manager, and IT Staff | Accepted B2 Asset permission contract |
-| Record an initial AMC, complete or incomplete | `asset_edit` | Admin, IT Manager, and IT Staff | Accepted B2 permission contract; the `Incomplete` and completion paths are test-backed |
+| Read Warranty dates, AMC state, and AMC history | `asset_view` plus B1 visibility | Admin, IT Manager, IT Staff, HR, and Viewer global; Employee scope owned by B1 | Draft B2 read contract; Employee scope is not implemented in the current global queryset |
+| Record or correct Warranty dates | `asset_edit` | Admin, IT Manager, and IT Staff | Draft B2 Asset permission contract |
+| Record an initial AMC, complete or incomplete | `asset_edit` | Admin, IT Manager, and IT Staff | Draft B2 permission contract; the `Incomplete` and completion paths are test-backed |
 | Renew an AMC | `asset_edit` | Admin, IT Manager, and IT Staff; IT Staff is the expected actor on an alert | Accepted intent for the actor; the permitted action is test-backed |
 | End AMC Support | `asset_edit` | Admin, IT Manager, and IT Staff; IT Staff is the expected actor on an alert | Accepted intent for the actor; the permitted action is test-backed |
 | Receive expiry alerts | Not an action | Every IT Manager and IT Staff | Accepted intent; the current rule selects `asset_custody_manage` holders |
@@ -957,7 +934,7 @@ content yet.
 | AMC expiry threshold reached (30/15/7 days) on an `Active` contract | Every IT Manager and IT Staff; act before the contract lapses | Asset detail surface | None; the check is read-only | Threshold behavior test-backed; recipient breadth and destination are conformance gaps |
 | AMC renewed | IT Manager; describes the Asset and the new coverage period | Asset detail surface | Actor, time, Asset, previous contract dates and state, new dates, and `Active` outcome | Notification test-backed; missing destination, name-based recipient selection, and thin audit content are conformance gaps |
 | AMC support ended | IT Manager; describes the Asset and the recorded reason | Asset detail surface | Actor, time, Asset, previous contract state and dates, `Ended` outcome, and the reason | Notification test-backed; same three conformance gaps |
-| Initial AMC entry or completion of an `Incomplete` contract | None accepted | Not applicable | Actor, time, Asset, resulting contract state, and any dates supplied | Only the accepted B2 Asset-mutation entry exists; no AMC-specific entry |
+| Initial AMC entry or completion of an `Incomplete` contract | None accepted | Not applicable | Actor, time, Asset, resulting contract state, and any dates supplied | Only the Draft B2 Asset-mutation entry exists; no AMC-specific entry |
 | AMC flag becomes false because a contract ended | None beyond the End Support notification | Not applicable | Covered by the End Support entry; no separate decision record exists under FR-006 | Conforms |
 | Rejected or permission-denied AMC action | None | Not applicable | Follows Draft B8 FR-014 for security-relevant rejections | No current entry exists |
 | Coverage read, Dashboard panel, or report view | None | Not applicable | None as a routine business read | Current behavior conforms |
@@ -975,7 +952,7 @@ two-year retention rule.
   held separately from that reason, and a creation time. An Asset's contracts
   form its append-only coverage history.
 - **Asset**: The subject of both coverage types. Its identity, register data,
-  terminal statuses, and write permissions are owned by accepted B2.
+  terminal statuses, and write permissions are owned by Draft B2.
 - **Vendor**: The managed third-party identity owned by B6. A dated AMC contract
   references one under FR-032 and need not match the Procurement Vendor.
 - **Expiry alert**: A pushed message derived from a coverage end date. It
@@ -1013,10 +990,9 @@ two-year retention rule.
   15, and 7 days out, 100% of the accepted recipients receive an alert; for
   off-threshold dates, `Ended` contracts, Assets with no current AMC, and
   terminal Assets, 0% do.
-- **SC-009**: 100% of expiry alerts reach recipients without any User opening a
-  dashboard or report, under the deployment the organization actually runs; a
-  repeated execution produces 0% duplicate alerts, and 100% of thresholds
-  crossed during downtime are issued on the next run.
+- **SC-009**: Baseline review classifies 100% of current execution, timezone,
+  duplicate, and missed-run behavior as current-system evidence. Production
+  reliability outcomes are measured by CHG-B7-01, not this baseline.
 - **SC-010**: 100% of successful renewals and End Support actions produce
   exactly one IT Manager notification whose destination resolves to the Asset,
   and 0% depend on a Role's display name to find their recipient.
@@ -1034,9 +1010,9 @@ two-year retention rule.
 
 ## Assumptions
 
-- Accepted B2 is authoritative and is not reopened by this Draft. B1, B5, B6,
-  and B8 remain Draft dependencies; where this Draft cites them, acceptance of
-  B7 depends on their own acceptance.
+- Draft B2 is a current dependency and remains subject to its own acceptance
+  review; this Draft does not independently redefine it. B1, B2, B5, B6, and B8
+  remain Draft dependencies, and B7 acceptance depends on their own acceptance.
 - No ADR governs Warranty or AMC. `CONTEXT.md` is the only authoritative product
   source, and it is unusually detailed for this capability, so most accepted
   requirements here derive from it directly.
@@ -1044,9 +1020,8 @@ two-year retention rule.
   description of any particular transport. FR-035 records that an in-app
   notification satisfies it for this version.
 - The 30, 15, and 7-day thresholds are read as exact days-before-expiry
-  checkpoints, consistent with the current implementation and its tests. FR-039
-  keeps those exact semantics and adds catch-up for missed runs rather than
-  widening them into ranges.
+  checkpoints, consistent with the current implementation and its tests.
+  CHG-B7-01 preserves those checkpoints while defining missed-run catch-up.
 - IT Manager and IT Staff are the named Roles `CONTEXT.md` uses; the accepted
   recipient rule under FR-018 and FR-021 is the underlying permission grant, so
   the named Roles remain the business description and the code is authoritative.
@@ -1090,7 +1065,7 @@ two-year retention rule.
   `CONTEXT.md`, **AMC**.
 - Asset writes require `asset_edit` held by Admin, IT Manager, and IT Staff;
   terminal Assets have left circulation; every successful Asset mutation creates
-  an AuditLog entry and B2 register actions create no Notifications: accepted B2
+  an AuditLog entry and B2 register actions create no Notifications: Draft B2
   FR-008, ALR-010, ALR-011, and the Asset permission contract.
 - B7 owns its Notification and audit trigger matrix while B8 owns shared
   delivery, failure behavior, privacy, access, and retention: Draft B8 FR-002,
@@ -1186,7 +1161,7 @@ Warranty alerts, or notification destinations.
   than one contract exists, and the "This asset has no AMC" message:
   `frontend/src/pages/asset/Detail.jsx`.
 - The `Assignment & Warranty` panel title, which uses rejected terminology owned
-  by accepted B2 FR-004 and `ROADMAP.md` C3:
+  by Draft B2 FR-004 and `ROADMAP.md` C3:
   `frontend/src/pages/asset/Detail.jsx`.
 - Warranty date pickers, the AMC checkbox, and conditional AMC date fields with
   no Vendor field: `frontend/src/pages/asset/Create.jsx`;
@@ -1227,7 +1202,7 @@ Warranty alerts, or notification destinations.
   timezone; each Asset/coverage/threshold alert is recorded once so reruns are
   no-ops; and the next run after downtime issues every threshold crossed since
   the last successful run, with failed or overdue runs operator-visible.
-  Recorded in FR-036 through FR-039; the current development-server-only
+  Recorded normatively in CHG-B7-01; the current development-server-only
   startup, absent exclusion, absent timezone rule, absent deduplication, and
   absent catch-up (`backend/core/apps.py`; `backend/core/scheduler.py`;
   `backend/assets/alerts.py`) are now conformance gaps in U-006.
@@ -1235,9 +1210,8 @@ Warranty alerts, or notification destinations.
   This answer supersedes the engineering note in `backend/core/scheduler.py`
   proposing a move to an external scheduler. `ROADMAP.md` already records that
   move as a resolution candidate rather than accepted product scope, so no
-  authoritative source is overridden. The accepted design keeps alert production
-  tied to application process lifetime, which FR-036 requires to be
-  operator-visible.
+  authoritative source is overridden. CHG-B7-01 retains the selected outcome
+  without making it B7 AS-BUILT behavior.
 - **U-003 — Initial-entry validation — RESOLVED 2026-08-05**: the stakeholder
   aligned initial AMC entry with renewal — both dates or neither, real dates,
   end after start — and required Warranty to enforce end-after-start when both
@@ -1285,10 +1259,10 @@ Warranty alerts, or notification destinations.
 | 7 | Expiry alert destinations do not resolve to the Asset detail route | FR-024 | CAND-016 |
 | 8 | Renewal and End Support notifications carry no destination at all | AS-033, FR-021 | CAND-018 |
 | 9 | IT Manager notification recipients are selected by Role display name | FR-021, SC-010 | CAND-018 |
-| 11 | A missed run permanently skips that day's thresholds | FR-039 | CAND-013 |
-| 11a | A repeated run duplicates alerts, with no already-issued record | FR-038 | CAND-013 |
-| 11b | Threshold evaluation uses the server's local date with no configured timezone | FR-037 | CAND-013 |
-| 12 | No alert is scheduled at all under a normal production deployment, and nothing prevents one execution per worker | FR-036 | CAND-017 |
+| 11 | A missed run permanently skips that day's thresholds | CHG-B7-01 delivery gap | CAND-013 |
+| 11a | A repeated run duplicates alerts, with no already-issued record | CHG-B7-01 delivery gap | CAND-013 |
+| 11b | Threshold evaluation uses the server's local date with no configured timezone | CHG-B7-01 delivery gap | CAND-013 |
+| 12 | No alert is scheduled at all under a normal production deployment, and nothing prevents one execution per worker | CHG-B7-01 delivery gap | CAND-017 |
 | 13 | Renewal and End Support audit entries carry only a summary sentence, and rejected attempts none | FR-025 | CAND-019 |
 | 14 | No AMC Vendor is ever recorded, leaving the report column permanently empty | FR-032 | CAND-009 |
 | 14a | Renewal captures no Vendor, so a change of maintainer cannot be recorded | FR-033 | CAND-009 |
@@ -1302,14 +1276,14 @@ U-005. They are review items to confirm alongside them:
 - Whether an `Incomplete` AMC should itself be chased after some period, given
   that `CONTEXT.md` requires it to appear in data-completeness reporting
   (FR-007).
-- Confirmation of FR-020, which is derived from accepted B2 FR-008 rather than
+- Confirmation of FR-020, which is derived from Draft B2 FR-008 rather than
   stated in `CONTEXT.md`: `CONTEXT.md` never says terminal Assets are excluded
   from expiry alerts, and this Draft infers it from the fact that a `Sold`,
   `Scrapped`, or `Lost` Asset has left circulation and offers no action to take.
 - Whether an expiry alert should identify which coverage and which contract it
   refers to, rather than only the Asset (Edge Cases).
 - Whether AMC history should be retained when an Asset is deleted, which is
-  owned by accepted B2 (Edge Cases).
+  owned by Draft B2 (Edge Cases).
 - Whether a Service Record performed under Warranty or AMC should reference the
   covering contract, which would require a change in both B5 and B7 (FR-026).
 

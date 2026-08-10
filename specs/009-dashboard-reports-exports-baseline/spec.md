@@ -22,9 +22,9 @@ lifecycle rules owned by B2 through B7. Do not modify application code."
 
 - Q: What access and data scope apply to the Dashboard and to reports? → A: The Dashboard requires `asset_view` and is scoped to the reader's B1 Asset visibility, so an Employee sees only their own held Assets and no cross-User activity lists; reports keep `report_access` and stay global for the Roles holding it; and no aggregate may summarize records the reader could not read individually.
 - Q: What should happen to the "Asset Audit Report" — its name, and who may read it? → A: Retitle it to name operational event history rather than Asset verification, govern its access by Draft B8 FR-016 so only Admin and IT Manager reach it, audit every view and export, treat source IP as protected B8 data, and reserve the "Asset Audit" name for the deferred F1 physical-verification capability.
-- Q: What default semantics and filtering should Dashboard metrics and reports use? → A: Exclude `Sold`, `Scrapped`, and `Lost` Assets from every metric, chart, and report by default except surfaces whose purpose is terminal; make expiry threshold figures disjoint bands rather than cumulative; and give reports a standard date-range, status, and department filter set that is displayed on screen and carried into exports.
-- Q: What parity and branding rules apply across PDF, Excel, and CSV exports? → A: All three are generated server-side under the same authorization check and audit entry, carry identical row and column sets with the applied filters stated, and use typed dates and numbers in Excel and CSV; PDF is the document of record, branding appears on PDF and Excel, CSV stays unbranded, and an unconfigured organization name is a configuration error rather than a silent fallback.
-- Q: What volume, performance, and truncation expectations apply to reports? → A: Silent truncation is prohibited — a result is complete or states that it was limited and how to narrow it; reports carry an approved response-time budget at the organization's stated data volume; a report that cannot meet it paginates or streams rather than clipping; and the AuditLog report's fixed 1,000-row cap is replaced by filter-driven narrowing with an explicit limit indicator.
+- Q: What default semantics and filtering should Dashboard metrics and reports use? → A: Terminal-Asset and expiry-band semantics remain stakeholder intent for B9 review. The unimplemented standard filter set and filter metadata are retained in `specs/012-report-filter-export-parity-change/`, not as B9 AS-BUILT requirements.
+- Q: What parity and branding rules apply across PDF, Excel, and CSV exports? → A: The stakeholder-selected protected export parity, parseable values, and branding corrections are retained in `specs/012-report-filter-export-parity-change/`, not as B9 AS-BUILT requirements.
+- Q: What volume, performance, and truncation expectations apply to reports? → A: The stakeholder-selected visible limiting and response-time behavior is retained in `specs/012-report-filter-export-parity-change/`, not as B9 AS-BUILT requirements.
 
 ## Specification Lineage *(mandatory)*
 
@@ -37,6 +37,10 @@ durable feature directory `specs/009-dashboard-reports-exports-baseline/`.
 
 **Supersedes**: None.
 
+**Extended by**: `specs/012-report-filter-export-parity-change/spec.md` owns the
+prospective standard filters, written definitions, protected export parity,
+parseable values, branding correction, and non-truncating delivery behavior.
+
 **Reciprocal Links**: `ROADMAP.md` already reserves
 `specs/009-dashboard-reports-exports-baseline/` for B9 and must link the created
 directory when the B9 row moves to `R3 — draft review`. After this Draft is
@@ -47,8 +51,8 @@ editing accepted requirement content here.
 **Dependencies**: B9 is the terminal consumer in the roadmap and depends on
 every source baseline for the meaning of the data it presents.
 
-- Accepted B2 Asset register and lifecycle baseline
-  (`specs/001-asset-register-lifecycle-baseline/`, accepted 2026-07-29) for
+- Draft B2 Asset register and lifecycle baseline
+  (`specs/001-asset-register-lifecycle-baseline/`, Draft; acceptance review pending) for
   Asset identity, canonical statuses and conditions, terminology, terminal
   states, and Employee data visibility.
 - Draft B1 identity and access baseline for Roles, permission codes, and the
@@ -110,11 +114,11 @@ dependency baseline.
   on a dashboard someone has to check". A Dashboard panel therefore MUST NOT be
   presented as satisfying any alerting obligation; Draft B7 FR-017 states the
   same rule from the owning side.
-- Accepted B2 FR-004: user-visible terminology MUST use `Sold`, `Checkout`, and
+- Draft B2 FR-004: user-visible terminology MUST use `Sold`, `Checkout`, and
   the canonical status and condition sets.
-- Accepted B2 FR-008 and FR-009: terminal Assets have left circulation, and
+- Draft B2 FR-008 and FR-009: terminal Assets have left circulation, and
   `Lost` retains its Custodian and department for accountability.
-- Accepted B2 ALR-009: an active Employee with `asset_view` is limited to Assets
+- Draft B2 ALR-009: an active Employee with `asset_view` is limited to Assets
   where that Employee is Custodian. Any B9 surface that shows Asset data to an
   Employee is bound by that scope.
 - Draft B8 FR-016: Admin and IT Manager have AuditLog view, filter, and export
@@ -182,10 +186,10 @@ the Dashboard and confirm each KPI and chart matches its documented definition.
    coverage expiring within a threshold, **When** the Dashboard displays it,
    **Then** that display MUST NOT be treated as satisfying any alerting
    obligation; proactive delivery remains owned by B7.
-2. **AS-002 — Accepted B2 dependency**: **Given** any Dashboard label or value,
+2. **AS-002 — Draft B2 dependency**: **Given** any Dashboard label or value,
    **When** it is presented, **Then** it uses canonical terminology and the
    canonical status and condition sets.
-3. **AS-003 — Accepted B2 dependency**: **Given** a metric that describes Assets
+3. **AS-003 — Draft B2 dependency**: **Given** a metric that describes Assets
    in circulation, **When** it is calculated, **Then** its treatment of terminal
    Assets is stated explicitly rather than left to the reader.
 4. **AS-021 — Stakeholder-confirmed**: **Given** Assets in `Sold`, `Scrapped`,
@@ -196,7 +200,7 @@ the Dashboard and confirm each KPI and chart matches its documented definition.
 5. **AS-022 — Stakeholder-confirmed**: **Given** coverage expiring in three
    days, **When** the expiry bands are produced, **Then** it appears in exactly
    one band, and the boundary rule is stated on the surface.
-6. **AS-023 — Stakeholder-confirmed**: **Given** any presented figure, **When**
+6. **FWD-AS-001 — Prospective Change scenario, not B9 baseline acceptance**: **Given** any presented figure, **When**
    a reader asks what it counts, **Then** a written definition exists covering
    row selection, terminal-Asset treatment, date basis, and boundaries.
 
@@ -258,13 +262,13 @@ their documented definitions.
    activity across several Vendors, **When** Vendor-grouped reporting is
    produced, **Then** records group reliably by managed Vendor identity so that
    questions such as "which vendor has pending repairs" can be answered.
-2. **AS-005 — Accepted B2 dependency**: **Given** any report column that names a
+2. **AS-005 — Draft B2 dependency**: **Given** any report column that names a
    lifecycle concept, **When** it is labelled, **Then** it uses the canonical
    term owned by the source baseline rather than a synonym.
 3. **AS-006 — Accepted dependency**: **Given** a report that presents data owned
    by B3 through B7, **When** its values are produced, **Then** they reflect
    that baseline's accepted meaning and B9 introduces no competing definition.
-4. **AS-024 — Stakeholder-confirmed**: **Given** a report, **When** a date
+4. **FWD-AS-002 — Prospective Change scenario, not B9 baseline acceptance**: **Given** a report, **When** a date
    range, status, or department filter is applied, **Then** the rows narrow
    accordingly, the applied filters are shown with the result, and the same
    filters appear in every export of that result. **Given** a filter that is
@@ -278,7 +282,7 @@ their documented definitions.
    Asset Register, Asset Movement, Warranty Expiry, Purchase, Employee Asset,
    Asset Audit, Assets Currently In Service, Vendor Service, AMC Expiry, and
    Lost Assets.
-2. **OBS-AS-009 — Implementation-only conformance gap (FR-019)**: **Given** any
+2. **OBS-AS-009 — Implementation-only gap motivating CHG-B9-01**: **Given** any
    report, **When** it is run, **Then** it accepts no parameters at all — no
    date range, status filter, department, Vendor, or free-text search — and
    returns every qualifying row in a single response with no pagination.
@@ -453,26 +457,26 @@ sets, column sets, ordering, headers, branding, and generation metadata.
 2. **AS-016 — Draft B8 dependency**: **Given** any export containing AuditLog
    content, **When** it is produced, **Then** it obeys the same access, audit,
    and minimization rules as viewing that content.
-3. **AS-025 — Stakeholder-confirmed**: **Given** a report exported as PDF,
+3. **FWD-AS-003 — Prospective Change scenario, not B9 baseline acceptance**: **Given** a report exported as PDF,
    Excel, and CSV, **When** the three files are compared, **Then** their row
    sets, column sets, and ordering are identical and each states the filters
    that produced it.
-4. **AS-026 — Stakeholder-confirmed**: **Given** any export, **When** it is
+4. **FWD-AS-004 — Prospective Change scenario, not B9 baseline acceptance**: **Given** any export, **When** it is
    requested, **Then** it is produced server-side, is refused if the requester
    is not authorized for the underlying report, and creates the required audit
    entry.
-5. **AS-027 — Stakeholder-confirmed**: **Given** an Excel or CSV export,
+5. **FWD-AS-005 — Prospective Change scenario, not B9 baseline acceptance**: **Given** an Excel or CSV export,
    **When** a recipient opens it, **Then** date columns behave as dates and
    numeric columns as numbers without re-parsing.
-6. **AS-028 — Stakeholder-confirmed**: **Given** no configured organization
+6. **FWD-AS-006 — Prospective Change scenario, not B9 baseline acceptance**: **Given** no configured organization
    name, **When** a PDF or Excel export is requested, **Then** the missing
    configuration is surfaced to an administrator rather than a built-in
    organization name being substituted.
-7. **AS-029 — Stakeholder-confirmed**: **Given** a report whose result reaches
+7. **FWD-AS-007 — Prospective Change scenario, not B9 baseline acceptance**: **Given** a report whose result reaches
    an applied limit, **When** it is displayed or exported, **Then** it states
    that the result was limited and how to narrow it; **Given** a result within
    the limit, **Then** it is identifiable as complete.
-8. **AS-030 — Stakeholder-confirmed**: **Given** the organization's stated data
+8. **FWD-AS-008 — Prospective Change scenario, not B9 baseline acceptance**: **Given** the organization's stated data
    volume, **When** any report is run, **Then** it returns within the approved
    time budget, and any report that cannot paginates or streams rather than
    clipping.
@@ -483,7 +487,7 @@ sets, column sets, ordering, headers, branding, and generation metadata.
    exported server-side, **Then** only PDF and Excel are offered, the file is
    named from the report key, and the export is recorded in the AuditLog with
    the report key and format.
-2. **OBS-AS-026 — Implementation-only conformance gap (FR-021, FR-022)**:
+2. **OBS-AS-026 — Implementation-only gap motivating CHG-B9-01**:
    **Given** a report, **When** CSV is chosen, **Then** the file is generated in
    the browser from the rows already loaded, carries no company name, title, or
    generation timestamp, and creates no AuditLog entry — so the three formats
@@ -499,7 +503,7 @@ sets, column sets, ordering, headers, branding, and generation metadata.
    characters, row one is a merged branded banner, row two is the header row,
    panes are frozen below it, and column widths are derived from content and
    capped.
-5. **OBS-AS-029 — Implementation-only conformance gap (FR-023)**: **Given** any
+5. **OBS-AS-029 — Implementation-only gap motivating CHG-B9-01**: **Given** any
    export, **When** date columns are produced, **Then** they were already
    formatted as display strings by the report, so Excel receives text rather
    than dates and the output cannot be sorted or filtered as dates by the
@@ -528,14 +532,14 @@ server-generated export reflects it.
 
 **Current-System Verification Scenarios — Not Accepted Requirements**:
 
-1. **OBS-AS-031 — Implementation-only conformance gap (FR-024)**: **Given**
+1. **OBS-AS-031 — Implementation-only gap motivating CHG-B9-01**: **Given**
    branding, **When** an export is produced, **Then** the company name comes
    from an administrative Setting with a hard-coded fallback organization name,
    the banner colour is a hard-coded brand blue, and no logo, address, or
    document reference is included.
 2. **OBS-AS-032 — Implementation-only, conforming**: **Given** the CSV path,
    **When** it is produced, **Then** it carries no branding at all, which
-   matches FR-024.
+   matches the prospective branding rule in CHG-B9-01.
 
 ### Edge Cases
 
@@ -606,7 +610,7 @@ or as an unresolved decision.
 - **FR-002 — Accepted intent**: Lost Asset reporting MUST present Assets in the
   terminal `Lost` status together with the Custodian retained for
   accountability, and MUST present the data as reactive record-keeping.
-  *(Sources: `CONTEXT.md`, **Lost** and **Custodian**; accepted B2 FR-009.)*
+  *(Sources: `CONTEXT.md`, **Lost** and **Custodian**; Draft B2 FR-009.)*
 - **FR-003 — Accepted intent with stakeholder-confirmed naming rule**: No B9
   surface MUST imply that a periodic physical Asset audit has been performed.
   Physical verification is deferred beyond v1, and AuditLog content MUST be
@@ -621,16 +625,16 @@ or as an unresolved decision.
   presented as satisfying any alerting obligation. Proactive delivery is owned
   by the source capability.
   *(Sources: `CONTEXT.md`, **AMC**; Draft B7 FR-017.)*
-- **FR-005 — Accepted B2 dependency**: Every B9 label, column heading, and value
+- **FR-005 — Draft B2 dependency**: Every B9 label, column heading, and value
   MUST use the canonical terminology and the canonical status and condition sets
   owned by the source baseline, including `Sold` rather than `Disposed`,
   `Checkout` rather than `Assignment`, and `Custodian` rather than `Owner`.
-  *(Source: accepted B2 FR-004.)*
+  *(Source: Draft B2 FR-004.)*
 - **FR-006 — Accepted dependency**: B9 MUST NOT define, override, or reinterpret
   any lifecycle rule, status meaning, or business definition owned by B2 through
   B7. Where a source baseline changes its definition, the B9 presentation
   follows it.
-  *(Sources: accepted B2; Draft B3 through B7; `.specify/memory/constitution.md`,
+  *(Sources: Draft B2; Draft B3 through B7; `.specify/memory/constitution.md`,
   Principle I.)*
 - **FR-007 — Stakeholder-confirmed**: The Dashboard MUST require `asset_view`
   and MUST return figures scoped to the reader's B1 Asset visibility. An
@@ -638,7 +642,7 @@ or as an unresolved decision.
   only Assets where that Employee is Custodian and MUST NOT receive
   cross-User activity lists. Reports MUST continue to require `report_access`
   and remain global for the Roles that hold it.
-  *(Sources: stakeholder clarification, 2026-08-05; accepted B2 ALR-009. The
+  *(Sources: stakeholder clarification, 2026-08-05; Draft B2 ALR-009. The
   current permission-free, unscoped Dashboard is a conformance gap.)*
 - **FR-008 — Stakeholder-confirmed, Draft B8 dependency**: Every B9 surface
   that presents AuditLog content MUST be governed by the Draft B8 FR-016 access
@@ -664,7 +668,7 @@ or as an unresolved decision.
 - **FR-012 — Governance requirement**: Every B9 read and export MUST be
   authorized at the backend action boundary. A hidden menu entry or an
   unprotected frontend route MUST NOT be the authorization control.
-  *(Sources: `.specify/memory/constitution.md`, Principle II; accepted B2
+  *(Sources: `.specify/memory/constitution.md`, Principle II; Draft B2
   ALR-001.)*
 - **FR-013 — Accepted safety property**: A B9 surface MUST be read-only. Running
   or exporting a report MUST NOT create, change, or delete any business record;
@@ -681,8 +685,8 @@ or as an unresolved decision.
 - **FR-015 — Decision gate**: U-001 through U-006 were resolved by the
   stakeholder clarification dated 2026-08-05 and MUST NOT be reopened by
   observing current implementation behavior. Two review inputs remain acceptance
-  preconditions: the per-figure written definitions required by FR-020, and the
-  stated data volume with its approved response-time budget required by FR-026.
+  review inputs remain evidence-classification concerns: current per-figure
+  meanings and the data volume at which current behavior has been observed.
   This Draft MUST NOT be accepted before every source baseline it presents has
   itself been accepted, because a metric cannot be validated against an
   undecided definition. The conformance gaps in U-007 are review findings, not
@@ -695,7 +699,7 @@ or as an unresolved decision.
   authorized to read individually. A scoped reader's totals MUST be computed
   over that reader's visible records rather than filtered from a global result
   after the fact.
-  *(Sources: stakeholder clarification, 2026-08-05; accepted B2 ALR-009.)*
+  *(Sources: stakeholder clarification, 2026-08-05; Draft B2 ALR-009.)*
 - **FR-017 — Stakeholder-confirmed**: Every Dashboard metric, chart, and report
   MUST exclude Assets in `Sold`, `Scrapped`, and `Lost` by default, because a
   terminal Asset has left circulation. A surface whose stated purpose is
@@ -703,7 +707,7 @@ or as an unresolved decision.
   show the whole register — MUST state that inclusion explicitly on the surface
   itself. Total value MUST therefore describe only Assets the organization still
   holds.
-  *(Sources: stakeholder clarification, 2026-08-05; accepted B2 FR-008. The
+  *(Sources: stakeholder clarification, 2026-08-05; Draft B2 FR-008. The
   current inclusive counting is a conformance gap.)*
 - **FR-018 — Stakeholder-confirmed**: Expiry threshold figures MUST be disjoint
   bands rather than cumulative counts, so each Asset or contract appears in
@@ -712,60 +716,14 @@ or as an unresolved decision.
   be stated on the surface.
   *(Sources: stakeholder clarification, 2026-08-05. The current cumulative tiles
   are a conformance gap.)*
-- **FR-019 — Stakeholder-confirmed**: Reports MUST accept a standard filter
-  set covering a date range, status, and department, applied to the field each
-  report identifies as its primary date and subject. Every applied filter MUST
-  be displayed with the on-screen result and MUST be carried into every export
-  of that result, so an exported file states the query that produced it. A
-  report for which a given filter is meaningless MUST say so rather than
-  silently ignore it.
-  *(Sources: stakeholder clarification, 2026-08-05. The current parameterless
-  reports are a conformance gap.)*
-- **FR-020 — Stakeholder-confirmed**: Every metric, chart, band, column, and
-  filter MUST have a written definition covering its row selection, its
-  treatment of terminal Assets, its date basis, and its boundary conditions.
-  A figure whose definition is not written down MUST NOT be presented.
-  *(Sources: stakeholder clarification, 2026-08-05;
-  `.specify/memory/constitution.md`, Principle III.)*
-- **FR-021 — Stakeholder-confirmed**: Every export format MUST be generated
-  server-side and MUST pass the same authorization check and create the same
-  audit entry as the report it renders. No export path MUST exist that a backend
-  control cannot prevent or record.
-  *(Sources: stakeholder clarification, 2026-08-05; ALR-001 and ALR-005. The
-  current browser-generated CSV is a conformance gap.)*
-- **FR-022 — Stakeholder-confirmed**: PDF, Excel, and CSV renderings of the
-  same report MUST contain identical row sets and column sets in the same order,
-  and MUST state the filters that produced them. Any remaining difference
-  between formats MUST be a documented presentation affordance rather than a
-  difference in data.
-  *(Sources: stakeholder clarification, 2026-08-05; FR-019. The current
-  divergence between the three formats is a conformance gap.)*
-- **FR-023 — Stakeholder-confirmed**: Excel and CSV exports MUST carry dates as
-  dates and numeric values as numbers rather than as pre-formatted display
-  strings, so a recipient can sort, filter, and compute without re-parsing.
-  PDF MAY format values for display and is the document of record.
-  *(Sources: stakeholder clarification, 2026-08-05. The current pre-formatting
-  of every value before export is a conformance gap.)*
-- **FR-024 — Stakeholder-confirmed**: PDF and Excel exports MUST identify the
-  organization using the configured organization name. CSV MUST remain
-  unbranded as a data-interchange format. An unconfigured organization name MUST
-  be treated as a configuration error surfaced to an administrator rather than
-  silently replaced by a built-in fallback name.
-  *(Sources: stakeholder clarification, 2026-08-05. The current hard-coded
-  fallback organization name is a conformance gap.)*
-- **FR-025 — Stakeholder-confirmed**: A report result MUST NOT be silently
-  truncated. A result is either complete for its filters, or it states that a
-  limit was applied and how the reader can narrow the query using the FR-019
-  filters. This applies equally on screen and in every export.
-  *(Sources: stakeholder clarification, 2026-08-05. The current fixed
-  1,000-row AuditLog cap truncates without telling the reader and is a
-  conformance gap.)*
-- **FR-026 — Stakeholder-confirmed**: Every report MUST return within an
-  approved response-time budget at the organization's stated data volume. A
-  report that cannot meet that budget MUST paginate or stream rather than clip
-  its result. The stated volume and the budget MUST be recorded so the
-  expectation can be tested rather than assumed.
-  *(Sources: stakeholder clarification, 2026-08-05; SC-008.)*
+### Prospective Change Extracted — Not B9 Baseline Requirements
+
+- **FWD-B9-001**: Standard filters and written definitions, protected
+  server-controlled export parity, parseable date and numeric values, branding
+  corrections, visible limiting, and response-time behavior are desired changes
+  absent from the current system. Their normative authority is
+  `specs/012-report-filter-export-parity-change/spec.md`; they MUST NOT be used
+  as evidence that B9 currently implements or accepts those delivery outcomes.
 
 ### Current-System Contract Candidates — Not Accepted Requirements
 
@@ -796,11 +754,11 @@ MUST NOT be read as accepted requirements.
   titles are defined in the backend and returned to the frontend as chips.
 - **CAND-007**: No report accepts any parameter; there is no date range, status,
   department, Vendor, or search filter anywhere in the report API or surface.
-  FR-019 is authoritative.
+  CHG-B9-01 owns the desired filtering behavior.
 - **CAND-008**: Every report returns all qualifying rows in one response with no
   pagination; only the AuditLog-derived report is capped, at the 1,000 newest
-  entries, and that cap is applied silently. FR-025 and FR-026 are
-  authoritative.
+  entries, and that cap is applied silently. CHG-B9-01 owns desired visible
+  limiting and response-time behavior.
 - **CAND-009**: Report row selection and columns are fixed per report as
   recorded in the Current Report Catalog table below.
 - **CAND-010**: Running a report requires `report_access`; the seeded Role set
@@ -813,8 +771,8 @@ MUST NOT be read as accepted requirements.
 - **CAND-012**: Exporting a report writes an AuditLog entry recording the report
   key and format; viewing a report writes none.
 - **CAND-013**: Server-side exports support PDF and Excel only and are named
-  `{key}_report.pdf` and `{key}_report.xlsx`. FR-021 requires CSV to join
-  them.
+  `{key}_report.pdf` and `{key}_report.xlsx`. CHG-B9-01 owns protected CSV
+  delivery and format parity.
 - **CAND-014**: CSV is generated in the browser from the already-rendered rows,
   named `{key}_report.csv`, quoted with doubled inner quotes, and carries no
   banner, title, timestamp, or audit record.
@@ -827,13 +785,13 @@ MUST NOT be read as accepted requirements.
   headers, freezes panes below the header, and sets column widths from content
   up to a cap.
 - **CAND-017**: Report values are formatted as display strings before export, so
-  dates reach Excel as text and numeric costs reach it as numbers. FR-023 is
-  authoritative.
+  dates reach Excel as text and numeric costs reach it as numbers. CHG-B9-01
+  owns parseable and typed export values.
 - **CAND-018**: The company name is read from an administrative Setting with the
   hard-coded fallback "Cloud Shoe Factory"; the banner colour is a hard-coded
-  brand blue; no logo or document reference is included. FR-024 rejects the
-  silent fallback; the remaining visual choices are unresolved presentation
-  detail.
+  brand blue; no logo or document reference is included. CHG-B9-01 owns the
+  desired missing-configuration behavior; remaining visual choices are
+  unresolved presentation detail.
 - **CAND-019**: The Employee Asset report iterates active Users and queries each
   User's held Assets; the Vendor Service report iterates every Vendor and issues
   several queries per Vendor, skipping those with no Service Records.
@@ -845,7 +803,7 @@ MUST NOT be read as accepted requirements.
 - **ALR-001 — Accepted authorization boundary**: Every Dashboard, chart, report,
   and export action MUST enforce its access decision server-side, including the
   data scope applied to the rows returned.
-  *(Sources: `.specify/memory/constitution.md`, Principle II; accepted B2
+  *(Sources: `.specify/memory/constitution.md`, Principle II; Draft B2
   ALR-001. The current permission-free Dashboard is a conformance gap.)*
 - **ALR-002 — Accepted read-only property**: No B9 action MUST mutate business
   data. The AuditLog entries required by FR-009 are the only permitted writes.
@@ -853,7 +811,7 @@ MUST NOT be read as accepted requirements.
   count, chart, trend, or activity list MUST NOT disclose information about
   records the reader is not authorized to read individually, and MUST be
   computed over the reader's visible record set.
-  *(Sources: stakeholder clarification, 2026-08-05; accepted B2 ALR-009;
+  *(Sources: stakeholder clarification, 2026-08-05; Draft B2 ALR-009;
   FR-007 and FR-016.)*
 - **ALR-004 — Draft B8 dependency**: AuditLog content reached through a report
   or export MUST be governed by B8's access, audit, minimization, and retention
@@ -886,8 +844,8 @@ MUST NOT be read as accepted requirements.
 | `lost` | Lost Assets Report | Assets with status `Lost` | Asset ID, Name, Last Known Custodian, Department, Condition | B2 |
 
 Titles, keys, row selection, and columns above are implementation evidence.
-Their per-figure written definitions are owed under FR-020, and the accepted
-semantics in FR-017 through FR-019 apply to every row. The `audit` row's title
+CHG-B9-01 owns prospective written definitions and report filtering; accepted
+semantics in FR-017 and FR-018 apply to every row. The `audit` row's title
 and access were resolved on 2026-08-05: it must be retitled as operational event
 history and restricted to Admin and IT Manager under FR-003 and FR-008.
 
@@ -912,9 +870,9 @@ history and restricted to Admin and IT Manager under FR-003 and FR-008.
 
 - **SC-001**: The single existing reporting test passes, and every additional
   accepted B9 behavior has a stated verification approach before acceptance.
-- **SC-002**: 100% of Dashboard KPIs, charts, and report columns have an
-  approved written definition covering their row selection, treatment of
-  terminal Assets, and boundary conditions; 0% remain defined only by code.
+- **SC-002**: 100% of current Dashboard KPIs, charts, and report columns are
+  classified as stakeholder-confirmed, test-backed, implementation-only, or
+  unresolved. Written-definition delivery is measured by CHG-B9-01.
 - **SC-003**: For every named Role, the data returned by every B9 surface
   matches that Role's accepted visibility scope in 100% of checks, and 0% of
   aggregates disclose records the reader could not read individually.
@@ -924,15 +882,14 @@ history and restricted to Admin and IT Manager under FR-003 and FR-008.
 - **SC-005**: 0% of B9 titles, labels, or columns imply that a physical Asset
   audit has been performed, and 100% of lifecycle terminology matches the
   canonical set owned by the source baselines.
-- **SC-006**: For any report, the row set and column set are identical across
-  PDF, Excel, and CSV in 100% of comparisons, and every difference that remains
-  is a documented, approved format affordance.
-- **SC-007**: 100% of server-generated exports identify the organization
-  consistently, and branding differences between formats are approved rather
-  than incidental.
-- **SC-008**: Every report returns within an approved time budget at the
-  organization's expected data volume, and 0% of reports rely on an undisclosed
-  silent truncation.
+- **SC-006**: 100% of current PDF, Excel, and CSV differences are classified as
+  current evidence or a CHG-B9-01 delivery gap; none is silently presented as
+  implemented parity.
+- **SC-007**: 100% of current branding behavior is evidence-qualified; desired
+  branding correction is measured by CHG-B9-01.
+- **SC-008**: Current volume, query, and truncation behavior remains explicit
+  evidence; future response-time and completeness outcomes are measured by
+  CHG-B9-01.
 - **SC-009**: 100% of B9 actions are read-only apart from required audit
   entries, verified by observing no business-record mutation across a full
   catalog run.
@@ -949,9 +906,9 @@ history and restricted to Admin and IT Manager under FR-003 and FR-008.
 - B9 is a presentation layer. It is assumed to introduce no business rule of its
   own, so every figure it shows should be derivable from an accepted source
   baseline.
-- Accepted B2 is authoritative. B1, B3, B4, B5, B6, B7, and B8 remain Draft
-  dependencies, and `ROADMAP.md` places B9 last precisely because its metric
-  definitions cannot settle before theirs do.
+- B1 through B8, including Draft B2, remain Draft dependencies subject to their
+  own acceptance reviews. `ROADMAP.md` places B9 last precisely because its
+  metric definitions cannot settle before theirs do.
 - The organization's data volume is assumed to be modest enough that the current
   unpaginated reports return successfully today. That assumption is exactly what
   U-005 asks the stakeholder to state as a number.
@@ -980,11 +937,11 @@ history and restricted to Admin and IT Manager under FR-003 and FR-008.
 - Expiry alerts are proactively pushed rather than merely visible on a dashboard
   someone has to check: `CONTEXT.md`, **AMC**; Draft B7 FR-017.
 - User-visible terminology uses the canonical status, condition, and lifecycle
-  terms: accepted B2 FR-004.
+  terms: Draft B2 FR-004.
 - Terminal Assets have left circulation, and `Lost` retains its Custodian and
-  department: accepted B2 FR-008 and FR-009.
+  department: Draft B2 FR-008 and FR-009.
 - An Employee with `asset_view` is limited to Assets where that Employee is
-  Custodian: accepted B2 ALR-009.
+  Custodian: Draft B2 ALR-009.
 - `report_access` alone must not grant AuditLog data or exports, report and
   export surfaces must enforce the same policy as the direct Audit Trail, every
   AuditLog view or export must be audited, values must be minimized, and source
@@ -992,7 +949,7 @@ history and restricted to Admin and IT Manager under FR-003 and FR-008.
 - The Transfer PDF is B4's custody document with B4's access rule: Draft B4
   FR-015.
 - Authorization is enforced at the action boundary and hiding a control is not
-  authorization: `.specify/memory/constitution.md`, Principle II; accepted B2
+  authorization: `.specify/memory/constitution.md`, Principle II; Draft B2
   ALR-001.
 
 ### Verified Behavior Evidence
@@ -1053,20 +1010,17 @@ the weakest evidence base of any baseline in the roadmap and is the reason
   2026-08-05**: the stakeholder set three governing rules rather than approving
   each figure individually. Terminal Assets are excluded by default except on
   surfaces whose purpose is terminal (FR-017); expiry figures are disjoint bands
-  rather than cumulative counts (FR-018); and every figure must carry a written
-  definition covering row selection, terminal treatment, date basis, and
-  boundaries before it may be presented (FR-020). Reports also gain a standard
-  date-range, status, and department filter set carried into exports (FR-019),
-  and column labels are corrected to canonical terms under FR-005.
+  rather than cumulative counts (FR-018); and desired written definitions and
+  standard date-range, status, and department filters are retained in
+  CHG-B9-01. Column labels are corrected to canonical terms under FR-005.
 
   These rules resolve the recurring semantic questions. The remaining
   figure-by-figure definitions — what the purchase trend attributes to which
   date, whether the transfer trend is by request or decision date, whether empty
   categories and departments are shown consistently, and whether the unused
-  "active" KPI is retained — must be written under FR-020 during review. They
-  are a documentation task governed by an accepted rule, not open decisions.
-  Recorded in FR-017 through FR-020, AS-021 through AS-024, and CAND-002
-  through CAND-009.
+  "active" KPI is retained — remain B9 evidence-review questions. Prospective
+  written-definition delivery is recorded in CHG-B9-01 rather than promoted to
+  B9 AS-BUILT behavior.
 - **U-002 — Global versus scoped visibility — RESOLVED 2026-08-05**: the
   stakeholder required the Dashboard to use `asset_view` with results scoped to
   the reader's B1 Asset visibility — global for authorized non-Employee Roles,
@@ -1083,15 +1037,15 @@ the weakest evidence base of any baseline in the roadmap and is the reason
   all three formats to be generated server-side under the same authorization
   check and audit entry, to carry identical row and column sets in the same
   order with the applied filters stated, and to use typed dates and numbers in
-  Excel and CSV; PDF remains the document of record. Recorded in FR-021, FR-022,
-  FR-023, AS-025, AS-026, and AS-027; the browser-generated CSV path and the
+  Excel and CSV; PDF remains the document of record. The desired behavior is
+  recorded normatively in CHG-B9-01; the browser-generated CSV path and the
   pre-formatted values (`frontend/src/pages/Reports.jsx`;
-  `backend/core/exports.py`) are now conformance gaps in U-007.
+  `backend/core/exports.py`) are evidence motivating that Change.
 - **U-004 — Branding — RESOLVED 2026-08-05**: the stakeholder required PDF
   and Excel to identify the organization from the configured organization name,
   CSV to stay unbranded as a data-interchange format, and an unconfigured name
   to be surfaced as a configuration error rather than silently replaced by a
-  built-in fallback. Recorded in FR-024 and AS-028; the hard-coded fallback
+  built-in fallback. Recorded normatively in CHG-B9-01; the hard-coded fallback
   organization name (`backend/core/exports.py`;
   `backend/reporting/views.py`) is now a conformance gap in U-007. Logo,
   document reference, banner colour, and the signature block remain presentation
@@ -1102,11 +1056,9 @@ the weakest evidence base of any baseline in the roadmap and is the reason
   response-time budget at a stated data volume, and required a report that
   cannot meet the budget to paginate or stream rather than clip. The AuditLog
   report's fixed 1,000-row cap is replaced by filter-driven narrowing with an
-  explicit limit indicator. Recorded in FR-025, FR-026, AS-029, and AS-030; the
-  current silent cap and the per-row query patterns
-  (`backend/reporting/views.py`) are now conformance gaps in U-007. The specific
-  volume figure and time budget are review inputs to be recorded under FR-026,
-  not open requirement decisions.
+  explicit limit indicator. Recorded normatively in CHG-B9-01; the current
+  silent cap and per-row query patterns (`backend/reporting/views.py`) are
+  evidence motivating that Change.
 - **U-006 — Meaning and access of the "Asset Audit Report" — RESOLVED
   2026-08-05**: the stakeholder required the report to be retitled so it names
   operational event history rather than Asset verification, with the "Asset
@@ -1137,14 +1089,14 @@ the weakest evidence base of any baseline in the roadmap and is the reason
 | 8 | CSV export bypasses server-side access control and audit entirely | ALR-001, ALR-005 | CAND-014 |
 | 9 | Metrics, charts, and reports count terminal Assets, including total portfolio value | FR-017 | CAND-002 |
 | 10 | Expiry threshold figures are cumulative, so one Asset is counted in several bands | FR-018 | CAND-003 |
-| 11 | No report accepts a date, status, or department filter | FR-019 | CAND-007 |
-| 12 | No figure carries a written definition | FR-020 | CAND-002, CAND-005 |
-| 13 | CSV is generated in the browser rather than server-side | FR-021 | CAND-014 |
-| 14 | The three export formats differ in branding, metadata, and audit | FR-022 | CAND-014, CAND-015 |
-| 15 | Dates reach Excel and CSV as text because values are pre-formatted | FR-023 | CAND-017 |
-| 16 | An unconfigured organization name is silently replaced by a built-in name | FR-024 | CAND-018 |
-| 17 | The AuditLog report truncates at 1,000 rows with no indication to the reader | FR-025 | CAND-008 |
-| 18 | Two reports issue per-row queries, so cost grows with catalog size rather than result size | FR-026 | CAND-019 |
+| 11 | No report accepts a date, status, or department filter | CHG-B9-01 delivery gap | CAND-007 |
+| 12 | No figure carries a written definition | CHG-B9-01 delivery gap | CAND-002, CAND-005 |
+| 13 | CSV is generated in the browser rather than server-side | CHG-B9-01 delivery gap | CAND-014 |
+| 14 | The three export formats differ in branding, metadata, and audit | CHG-B9-01 delivery gap | CAND-014, CAND-015 |
+| 15 | Dates reach Excel and CSV as text because values are pre-formatted | CHG-B9-01 delivery gap | CAND-017 |
+| 16 | An unconfigured organization name is silently replaced by a built-in name | CHG-B9-01 delivery gap | CAND-018 |
+| 17 | The AuditLog report truncates at 1,000 rows with no indication to the reader | CHG-B9-01 delivery gap | CAND-008 |
+| 18 | Two reports issue per-row queries, so cost grows with catalog size rather than result size | CHG-B9-01 delivery gap | CAND-019 |
 
 ### Remaining Evidence-Led Confirmation Items
 
@@ -1190,9 +1142,10 @@ alongside them:
 
 - No requirement-level decision remains open. All six mandated decisions U-001
   through U-006 were resolved on 2026-08-05.
-- Two review inputs must still be recorded before acceptance, tracked in FR-020
-  and FR-026: the per-figure written definitions, and the organization's stated
-  data volume with its approved response-time budget.
+- Current per-figure meanings and observed data-volume behavior remain evidence
+  review inputs. Prospective written definitions and performance targets belong
+  to CHG-B9-01 and do not block acceptance of an accurately classified B9
+  baseline.
 - The items under Remaining Evidence-Led Confirmation Items.
 
 

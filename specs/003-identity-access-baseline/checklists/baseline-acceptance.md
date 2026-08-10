@@ -20,7 +20,7 @@ or assert implementation conformance.
 - [ ] CHK002 Are all five stakeholder decisions traceable to exactly one dated clarification entry and to every requirement or scenario they authorize? [Traceability, Spec §Clarifications, §AS-011–AS-015, §FR-008–FR-012]
 - [ ] CHK003 Do test-backed requirements name the precise automated-test evidence supporting their accepted scope, including negative permission cases and directory privacy? [Traceability, Spec §FR-001–FR-007, §Verified Behavior Evidence]
 - [ ] CHK004 Does the evidence classification make clear that passing tests establish accepted AS-BUILT behavior only within their asserted cases and do not establish broader product intent? [Clarity, Spec §Evidence Classification, §Assumptions]
-- [ ] CHK005 Are requirements derived from `CONTEXT.md` or the accepted B2 baseline bounded to the actor, lifecycle, and visibility decisions those sources actually establish? [Consistency, Spec §FR-008–FR-009, §Accepted Intent]
+- [ ] CHK005 Are requirements derived from `CONTEXT.md` or the Draft B2 baseline bounded to the actor, lifecycle, and visibility decisions those sources actually establish? [Consistency, Spec §FR-008–FR-009, §Accepted Intent]
 - [ ] CHK006 Are stakeholder-confirmed requirements, test-backed requirements, implementation-only observations, resolved decisions with conformance gaps, unresolved decisions, and deferred behavior distinguishable throughout the specification? [Completeness, Spec §Evidence Classification, §Baseline Evidence and Unresolved Conflicts]
 
 ## Named Roles and Permission Codes

@@ -503,7 +503,7 @@ The accepted, test-backed visibility contract is intentionally narrow:
 | Full User detail | Role grants `user_management` | Includes email and linked login username | `PrivacyAuthorizationTests::test_user_manager_can_read_full_user_records` |
 | Minimal active-User directory | Non-Employee Role grants `asset_view` | Global active Users; exactly `id`, `user_name`, `emp_id`, `department_name`; excludes Disabled User | Test-backed fields/exclusion; stakeholder-confirmed global scope and Employee exclusion |
 | Cross-User directory for Employee | Employee Role grants `asset_view` | Denied; no directory records | Stakeholder clarification, 2026-07-29 |
-| Asset register and Asset detail for Employee | Employee Role grants `asset_view` | Only Assets where that Employee is Custodian, including retained Custodian on `Lost` | Stakeholder clarification, 2026-07-29; accepted B2 baseline |
+| Asset register and Asset detail for Employee | Employee Role grants `asset_view` | Only Assets where that Employee is Custodian, including retained Custodian on `Lost` | Stakeholder clarification, 2026-07-29; Draft B2 baseline |
 | Any granted data action for Admin, IT Manager, IT Staff, HR, Viewer, or custom Role | Required permission code or accepted administrative authority | Global records; no Department filter | Stakeholder clarification, 2026-07-29 |
 | Employee identity and lifecycle data | Employee access is otherwise granted | Own User identity and directly involving records listed in FR-012; no Department expansion | Stakeholder clarification, 2026-07-29 |
 | Full Users, Roles, permission codes, administrative Settings | No relevant permission | Denied with `403` | `PrivacyAuthorizationTests::test_ordinary_user_cannot_read_privileged_apis` |
@@ -650,7 +650,7 @@ The following details are observations awaiting confirmation:
 - `CONTEXT.md` is authoritative for canonical lifecycle terminology and its
   selected actor statements, but it does not define a complete B1 identity or
   authorization model.
-- The accepted B2 baseline and this clarification establish Custodian-only
+- The Draft B2 baseline and this clarification establish Custodian-only
   Asset visibility for Employee. This clarification also establishes that
   Employee raises no requests in current scope. Authorized non-Employee named
   and custom Roles receive global records, Employee receives only the records

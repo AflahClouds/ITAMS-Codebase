@@ -21,8 +21,8 @@ automatic Checkout after service. Do not modify application code."
 ### Session 2026-08-05
 
 - Q: Is `In Storage` service-eligible, and what status does closure restore? → A: Only `Available` and `Assigned` are eligible; closure always returns `Available`.
-- Q: What does the Asset department mean while and after servicing? → A: It follows custody; opening clears it with the Custodian and closing restores neither, confirming accepted B2.
-- Q: What rules apply to the sent, expected return, and return dates? → A: Sent and return dates are operator-supplied, default to now, and cannot be in the future or out of order; expected return is optional, must be on or after the sent date, and drives an overdue state that notifies custody operators.
+- Q: What does the Asset department mean while and after servicing? → A: It follows custody; opening clears it with the Custodian and closing restores neither, confirming Draft B2.
+- Q: What rules apply to the sent, expected return, and return dates? → A: Sent and return dates are operator-supplied, default to now, and cannot be in the future or out of order. The desired expected-return validation, overdue signal, and custody-operator alert are retained as stakeholder intent but moved to `specs/010-service-record-overdue-alerts-change/`; they are not B5 AS-BUILT requirements.
 - Q: What must a Service Record capture for cost, bill evidence, outcome, and remarks? → A: Cost is mandatory at closure with zero meaning no-charge; a bill reference and attached bill/service document are required whenever cost is above zero; outcome is one of `Repaired`, `Replaced`, `Not Repairable`, or `No Fault Found` plus optional remarks; opening and closing remarks are retained separately.
 - Q: Which Notifications and AuditLog entries must Service Record events produce? → A: Opening notifies the previous Custodian and closing notifies every active `asset_custody_manage` holder, with the B3 interrupted-Checkout message kept separate; audit covers successful opening, successful closing, terminal auto-closure, and every rejected or denied attempt with its reason, under B8's failure boundary.
 
@@ -37,6 +37,10 @@ durable feature directory `specs/007-service-record-baseline/`.
 
 **Supersedes**: None.
 
+**Extended by**: `specs/010-service-record-overdue-alerts-change/spec.md` owns
+the prospective expected-return validation, derived overdue visibility, and
+overdue Notification behavior that the current system does not implement.
+
 **Reciprocal Links**: `ROADMAP.md` already reserves
 `specs/007-service-record-baseline/` for B5 and must link the created directory
 when the B5 row moves to `R3 — draft review`. After this Draft is accepted, any
@@ -46,8 +50,8 @@ requirement content here.
 
 **Dependencies**:
 
-- Accepted B2 Asset register and lifecycle baseline
-  (`specs/001-asset-register-lifecycle-baseline/`, accepted 2026-07-29).
+- Draft B2 Asset register and lifecycle baseline
+  (`specs/001-asset-register-lifecycle-baseline/`, Draft; acceptance review pending).
 - Draft B1 identity and access baseline
   (`specs/003-identity-access-baseline/`) for Roles, permission codes, and data
   visibility.
@@ -107,18 +111,18 @@ requirement content here.
   explicitly considered and rejected; reusing the Checkout/check-in pattern
   keeps one Asset in one clear state at a time; Vendor was made first-class
   rather than free text.
-- Accepted B2 FR-006, FR-007, FR-012, ALR-003, ALR-005, ALR-006, ALR-007, and
+- Draft B2 FR-006, FR-007, FR-012, ALR-003, ALR-005, ALR-006, ALR-007, and
   FR-015: opening a Service Record clears Custodian **and department** and moves
   the Asset to `Under Repair`; closing returns it to `Available` without
   restoring Custodian or department; `Under Repair` may be entered and left only
   through this lifecycle; lifecycle transitions are atomic; a terminal
   transition atomically closes open Service Records.
-- Accepted B2's permission contract: Service Record open and close use
+- Draft B2's permission contract: Service Record open and close use
   `asset_custody_manage`, held by Admin, IT Manager, and IT Staff.
-- Accepted B2 FR-014 and the terminal boundary: `Lost` may be recorded from any
+- Draft B2 FR-014 and the terminal boundary: `Lost` may be recorded from any
   nonterminal status including `Under Repair`, while `Sold` and `Scrapped` are
   accepted only from `Available` or `In Storage`.
-- Accepted B2's audit and notification effects: B2 register actions create
+- Draft B2's audit and notification effects: B2 register actions create
   AuditLog entries and no Notifications; Service Record workflow notifications
   remain owned by B5.
 - Draft B3 FR-015, FR-017, FR-020, and FR-028: opening a Service Record on an
@@ -188,7 +192,7 @@ record, the cleared Custodian, and the `Under Repair` status.
    managed Vendor, **When** an authorized custody operator opens a Service
    Record, **Then** an `Open` Service Record exists for that Asset and Vendor,
    the Asset's Custodian is cleared, and the Asset status is `Under Repair`.
-2. **AS-002 — Accepted intent (ADR-0001; accepted B2 ALR-003)**: **Given** the
+2. **AS-002 — Accepted intent (ADR-0001; Draft B2 ALR-003)**: **Given** the
    same opening, **When** it completes, **Then** the record creation, Custodian
    clearing, and status change commit as one operation with no user-visible
    partial state.
@@ -206,7 +210,7 @@ record, the cleared Custodian, and the `Under Repair` status.
    does not grant `asset_custody_manage`, **When** that User attempts to open a
    Service Record, **Then** access is denied and no Asset or Service Record data
    changes.
-7. **AS-007 — Accepted B2 dependency**: **Given** an Asset that is `Available`
+7. **AS-007 — Draft B2 dependency**: **Given** an Asset that is `Available`
    or `Assigned`, **When** a Service Record is opened, **Then** the operation is
    permitted; entry to `Under Repair` by a direct Asset status edit is rejected.
 8. **AS-008 — Draft B6 dependency**: **Given** an Asset with no current
@@ -216,7 +220,7 @@ record, the cleared Custodian, and the `Under Repair` status.
 9. **AS-035 — Stakeholder-confirmed**: **Given** an Asset that is `In Storage`,
    **When** an opening is attempted, **Then** it is rejected and the Asset
    remains `In Storage`; the Asset must first be returned to `Available` through
-   an accepted B2 administrative transition.
+   an Draft B2 administrative transition.
 
 **Current-System Verification Scenarios — Not Accepted Requirements**:
 
@@ -269,10 +273,10 @@ Asset, and the absent Custodian.
 5. **AS-013 — Accepted authorization**: **Given** a User whose Role does not
    grant `asset_custody_manage`, **When** that User attempts a closure, **Then**
    access is denied and no record or Asset data changes.
-6. **AS-014 — Accepted intent (accepted B2 ALR-003)**: **Given** a valid
+6. **AS-014 — Accepted intent (Draft B2 ALR-003)**: **Given** a valid
    closure, **When** it completes, **Then** the record state, return date, cost,
    outcome, and Asset status change commit as one operation.
-7. **AS-015 — Accepted intent (accepted B2 ALR-005)**: **Given** an Asset that
+7. **AS-015 — Accepted intent (Draft B2 ALR-005)**: **Given** an Asset that
    is `Under Repair`, **When** anyone attempts to move it out of that status by
    a direct Asset edit rather than by closing its Service Record, **Then** the
    attempt is rejected and the Asset and record remain unchanged.
@@ -327,15 +331,15 @@ Transfer request and approval against that Asset and confirm both are rejected.
    `Under Repair`, **When** a Transfer is requested or a previously Pending
    Transfer is approved, **Then** the Transfer action is rejected and custody
    does not change.
-4. **AS-019 — Accepted B2 dependency, test-backed**: **Given** an Asset with an
+4. **AS-019 — Draft B2 dependency, test-backed**: **Given** an Asset with an
    open Service Record, **When** an accepted terminal transition completes,
    **Then** every open Service Record for that Asset is closed atomically with
    that transition.
-5. **AS-020 — Accepted B2 dependency (FR-014), test-backed**: **Given** an Asset
+5. **AS-020 — Draft B2 dependency (FR-014), test-backed**: **Given** an Asset
    that is `Under Repair`, **When** it is reactively recorded as `Lost`,
    **Then** the transition is accepted and its open Service Record closes with
    it. `Sold` and `Scrapped` are not accepted directly from `Under Repair`.
-6. **AS-021 — Accepted intent (accepted B2 ALR-002)**: **Given** any rejected
+6. **AS-021 — Accepted intent (Draft B2 ALR-002)**: **Given** any rejected
    opening, closure, or authorization check, **When** the rejection occurs,
    **Then** the Asset, its Custodian, its condition, its open Checkout, and
    every Service Record remain unchanged.
@@ -388,23 +392,23 @@ and readable on the record and in the Asset's service history.
    Service Record, **When** it is compared with the Asset's condition and
    condition history, **Then** it remains a distinct event record and MUST NOT
    be presented as a condition label or a condition-history row.
-4. **AS-025 — Accepted intent (accepted B2 FR-012)**: **Given** a Service
+4. **AS-025 — Accepted intent (Draft B2 FR-012)**: **Given** a Service
    Record, **When** any change to its state or lifecycle effect is attempted,
-   **Then** it happens only through opening, closing, or an accepted B2 terminal
+   **Then** it happens only through opening, closing, or an Draft B2 terminal
    transition, never through a direct record edit or deletion.
 5. **AS-036 — Stakeholder-confirmed**: **Given** an operator recording a repair
    that happened earlier, **When** the sent or return date is supplied, **Then**
    the entered date is retained; **Given** a date in the future, or a return
    date before the sent date, **When** it is submitted, **Then** it is rejected
    and neither the record nor the Asset changes.
-6. **AS-037 — Stakeholder-confirmed**: **Given** an expected return date before
+6. **FWD-AS-001 — Prospective Change scenario, not B5 baseline acceptance**: **Given** an expected return date before
    the sent date, **When** it is submitted, **Then** it is rejected. **Given**
    an `Open` Service Record whose expected return date has passed, **When** it
    is read, **Then** it is identifiable as overdue and every active
    `asset_custody_manage` holder has been proactively notified; **Given** the
    same record after closure, **When** it is read, **Then** it is no longer
    overdue.
-7. **AS-038 — Stakeholder-confirmed**: **Given** an overdue Service Record,
+7. **FWD-AS-002 — Prospective Change scenario, not B5 baseline acceptance**: **Given** an overdue Service Record,
    **When** a closure or any other operation is attempted, **Then** overdue does
    not by itself block it, and overdue never appears as an Asset status or as a
    Service Record state alongside `Open` and `Closed`.
@@ -442,7 +446,7 @@ and readable on the record and in the Asset's service history.
    automatically to the moment the operation runs and neither can be entered or
    corrected, so an Asset that left the building last week cannot be recorded
    with its real send date.
-3. **OBS-AS-014 — Implementation-only conformance gap (FR-027)**: **Given** an
+3. **OBS-AS-014 — Implementation-only gap motivating CHG-B5-01**: **Given** an
    expected return date, **When** it is supplied, **Then** it is accepted even
    when it is before the sent date, and produces no overdue state, alert, or
    escalation anywhere.
@@ -566,7 +570,7 @@ the reader's B1 visibility scope.
    B1 data visibility: authorized non-Employee Roles receive global records,
    while Employee receives only lifecycle records that directly involve that
    Employee.
-2. **AS-033 — Accepted B2 dependency**: **Given** an Asset readable by the
+2. **AS-033 — Draft B2 dependency**: **Given** an Asset readable by the
    requesting User, **When** its aggregate history is opened, **Then** its
    Service Records appear alongside its Checkout, Transfer, condition, and AMC
    history without any of them being conflated.
@@ -637,7 +641,7 @@ the reader's B1 visibility scope.
 - An Asset can be recorded as `Lost` while `Under Repair` — the accepted
   reactive path when a Vendor loses it — which closes the Service Record with no
   closing operator, no cost, and no outcome.
-- `Sold` and `Scrapped` are not accepted from `Under Repair` under accepted B2
+- `Sold` and `Scrapped` are not accepted from `Under Repair` under Draft B2
   FR-014, yet the current direct-edit path accepts them and auto-closes the open
   Service Record. That transition guard is owned by B2.
 - The sent and return dates are operator-supplied under FR-026, so a Service
@@ -646,11 +650,9 @@ the reader's B1 visibility scope.
 - A correctable sent date means the sent date and the moment the record was
   created can differ. Only the sent date carries business meaning; the creation
   moment is not a substitute for it and MUST NOT be displayed as one.
-- Overdue is derived from the expected return date under FR-027 and is not
-  stored state, so it changes by itself as time passes and disappears on
-  closure. Proactive overdue delivery depends on production scheduling, which
-  `ROADMAP.md` C5 leaves unresolved for the existing expiry alerts; B5 accepts
-  the requirement and inherits that delivery-guarantee risk.
+- The current system has no derived overdue condition or proactive overdue
+  delivery. The desired behavior is non-baseline scope owned by
+  `specs/010-service-record-overdue-alerts-change/`.
 - An expected return date is optional, so a repair with no vendor commitment
   date simply never becomes overdue. Overdue is a signal about dates that were
   promised, not a completeness check on the record.
@@ -683,20 +685,20 @@ the reader's B1 visibility scope.
   *(Sources: `CONTEXT.md`, **Vendor**; `docs/adr/0001-service-record-lifecycle.md`.)*
 - **FR-003 — Accepted intent**: Opening a Service Record MUST move its Asset to
   `Under Repair`.
-  *(Sources: `CONTEXT.md`, **Service Record**; ADR-0001; accepted B2 FR-007;
+  *(Sources: `CONTEXT.md`, **Service Record**; ADR-0001; Draft B2 FR-007;
   current behavior is test-backed.)*
 - **FR-004 — Accepted intent**: Opening a Service Record MUST clear the Asset's
   Custodian, mirroring check-in, so that one Asset has one clear state at a
   time.
   *(Sources: `CONTEXT.md`, **Custodian** and **Service Record**; ADR-0001;
-  accepted B2 FR-006; current behavior is test-backed.)*
-- **FR-005 — Stakeholder-confirmed, accepted B2 dependency**: Asset department
+  Draft B2 FR-006; current behavior is test-backed.)*
+- **FR-005 — Stakeholder-confirmed, Draft B2 dependency**: Asset department
   MUST mean the current holder's organizational unit. Opening a Service Record
   MUST therefore clear the department together with the Custodian, an Asset at a
   Vendor MUST have no department, and closing MUST restore neither. Returning an
   Asset to a department MUST happen only through the fresh Checkout that
   restores custody.
-  *(Sources: stakeholder clarification, 2026-08-05, confirming accepted B2
+  *(Sources: stakeholder clarification, 2026-08-05, confirming Draft B2
   FR-006, FR-007, and FR-015 with no amendment required; Draft B3 FR-023 applies
   the same rule to check-in. The current retention at both points is a
   conformance gap.)*
@@ -704,17 +706,17 @@ the reader's B1 visibility scope.
   Service Record and left for `Available` only by closing one. A direct Asset
   status edit MUST NOT substitute for either operation, and a rejected attempt
   MUST leave the Asset and the Service Record unchanged.
-  *(Sources: `CONTEXT.md`, **Service Record**; ADR-0001; accepted B2 FR-012 and
+  *(Sources: `CONTEXT.md`, **Service Record**; ADR-0001; Draft B2 FR-012 and
   ALR-005; current rejection is test-backed.)*
 - **FR-007 — Accepted intent**: Opening a Service Record MUST be rejected when
   the Asset is already `Under Repair` or is `Sold`, `Scrapped`, or `Lost`, and
   the Asset MUST remain unchanged.
-  *(Sources: `CONTEXT.md`, terminal statuses; accepted B2 FR-008 and ALR-005;
+  *(Sources: `CONTEXT.md`, terminal statuses; Draft B2 FR-008 and ALR-005;
   current rejection is test-backed.)*
 - **FR-008 — Stakeholder-confirmed**: Only an `Available` or `Assigned` Asset
   MUST be eligible to be sent for service. `In Storage` MUST be rejected; an
   Asset held in storage MUST first be returned to `Available` through an
-  accepted B2 administrative transition before it can be sent to a Vendor.
+  Draft B2 administrative transition before it can be sent to a Vendor.
   Closing MUST always return the Asset to `Available`, and no pre-service status
   MUST be captured or restored.
   *(Sources: stakeholder clarification, 2026-08-05; `CONTEXT.md`, **Service
@@ -726,7 +728,7 @@ the reader's B1 visibility scope.
   *(Source: Draft B6 FR-014 and FR-022.)*
 - **FR-010 — Accepted intent**: Closing a Service Record MUST mark it closed,
   record the date the Asset was returned, and move the Asset to `Available`.
-  *(Sources: `CONTEXT.md`, **Service Record**; ADR-0001; accepted B2 FR-007;
+  *(Sources: `CONTEXT.md`, **Service Record**; ADR-0001; Draft B2 FR-007;
   current behavior is test-backed.)*
 - **FR-011 — Stakeholder-confirmed**: A cost MUST be supplied to close a Service
   Record. Zero MUST be permitted and MUST mean the work carried no charge, such
@@ -738,7 +740,7 @@ the reader's B1 visibility scope.
   previous Custodian, MUST NOT create a Checkout, and MUST NOT reopen a Checkout
   that was closed when the record opened. Returning the Asset to a holder MUST
   require a fresh Checkout performed as a separate deliberate operation.
-  *(Sources: `CONTEXT.md`, **Service Record**; ADR-0001; accepted B2 FR-007;
+  *(Sources: `CONTEXT.md`, **Service Record**; ADR-0001; Draft B2 FR-007;
   current behavior is test-backed.)*
 - **FR-013 — Accepted intent**: A closed Service Record MUST NOT be reopened,
   and a second closure MUST be rejected without changing the record or the
@@ -755,12 +757,12 @@ the reader's B1 visibility scope.
   ordinary check-in, MUST remain visible in the Asset's custody history, and
   MUST NOT be treated as a check-in for the purposes of B3's return-condition
   and return-remark rules.
-  *(Sources: ADR-0001; Draft B3 FR-017 and FR-028; accepted B2 ALR-006.)*
-- **FR-016 — Accepted B2 dependency**: An accepted terminal transition on an
+  *(Sources: ADR-0001; Draft B3 FR-017 and FR-028; Draft B2 ALR-006.)*
+- **FR-016 — Draft B2 dependency**: An accepted terminal transition on an
   Asset with an open Service Record MUST close that record atomically with the
   transition. `Lost` is the accepted terminal outcome reachable directly from
   `Under Repair`.
-  *(Sources: accepted B2 FR-014 and ALR-006; current closure behavior and the
+  *(Sources: Draft B2 FR-014 and ALR-006; current closure behavior and the
   `Under Repair → Lost` path are test-backed.)*
 - **FR-017 — Accepted intent**: A Service Record MUST remain distinct from the
   Asset's `condition` and from its condition history, and MUST NOT be presented
@@ -773,23 +775,23 @@ the reader's B1 visibility scope.
   *(Sources: `CONTEXT.md`, **Service Record**; observable acceptance cases
   AS-001, AS-009, and AS-022.)*
 - **FR-019 — Accepted intent**: A Service Record's state and lifecycle effects
-  MUST be changed only by opening, closing, or an accepted B2 terminal
+  MUST be changed only by opening, closing, or an Draft B2 terminal
   transition. Direct record update or deletion MUST NOT be an accepted path.
-  *(Sources: `.specify/memory/constitution.md`, Principle II; accepted B2
+  *(Sources: `.specify/memory/constitution.md`, Principle II; Draft B2
   FR-012. The current Admin-only fallback is implementation-only.)*
 - **FR-020 — Accepted intent (C3)**: Every user-visible Service Record surface,
   label, and message MUST use `Service Record`, `Under Repair`, `Vendor`, and
   `Checkout`, and MUST NOT describe restoring custody after service as an
   assignment or as automatic.
   *(Sources: `CONTEXT.md`, **Checkout** and **Service Record**; `ROADMAP.md`
-  decision C3; accepted B2 FR-004.)*
+  decision C3; Draft B2 FR-004.)*
 - **FR-021 — Stakeholder-confirmed, Draft B8 ownership dependency**: B5 owns the
   accepted trigger matrix below and B8 MUST NOT add, remove, or reinterpret a
   B5 trigger. Opening a Service Record MUST request an in-app Notification for
   the previous Custodian, and closing one MUST request an in-app Notification
   for every active `asset_custody_manage` holder so the returned Asset can be
-  checked out again. An overdue Service Record MUST request one for every active
-  `asset_custody_manage` holder under FR-027. An Asset with no Custodian at
+  checked out again. Prospective overdue alerts are excluded from B5 and owned
+  by `specs/010-service-record-overdue-alerts-change/`. An Asset with no Custodian at
   opening produces no opening Notification because no recipient exists. The B3
   interrupted-Checkout Notification MUST remain a separate message addressed to
   the Checkout User; B5 MUST NOT merge or suppress it. B8 MUST own only shared
@@ -828,7 +830,7 @@ the reader's B1 visibility scope.
   observing current implementation behavior. The conformance gaps in U-005 are
   review findings, not grounds for weakening the requirement each one
   contradicts. This Draft has no remaining acceptance blocker of its own; it
-  MUST NOT be accepted while its Draft B1, B3, B6, and B8 dependencies remain
+  MUST NOT be accepted while its Draft B1, B2, B3, B6, and B8 dependencies remain
   unaccepted in the parts this baseline relies on.
   *(Sources: stakeholder clarification, 2026-08-05; `ROADMAP.md` B5 review
   status; `.specify/memory/constitution.md`, Principles I and III.)*
@@ -840,17 +842,15 @@ the reader's B1 visibility scope.
   rejected without changing the record or the Asset.
   *(Source: stakeholder clarification, 2026-08-05. The current automatic-only
   stamping is a conformance gap.)*
-- **FR-027 — Stakeholder-confirmed**: An expected return date is optional. When
-  supplied it MUST be on or after the sent date, and an earlier date MUST be
-  rejected. An `Open` Service Record whose expected return date has passed MUST
-  be derived as overdue, MUST be identifiable on Service Record surfaces, and
-  MUST proactively notify every active `asset_custody_manage` holder. Overdue
-  MUST NOT be an Asset status, MUST NOT be a Service Record state alongside
-  `Open` and `Closed`, and MUST NOT by itself block a closure or any other
-  operation.
-  *(Sources: stakeholder clarification, 2026-08-05; Draft B3 FR-026 applies the
-  same pattern to an Overdue Checkout. The current absence of validation and of
-  any overdue concept is a conformance gap.)*
+### Prospective Change Extracted — Not a B5 Baseline Requirement
+
+- **FWD-B5-001**: Expected-return validation, derived overdue visibility, and
+  proactive custody-operator alerts are desired behavior absent from the
+  current system. Their normative authority is
+  `specs/010-service-record-overdue-alerts-change/spec.md`; they MUST NOT be used
+  as evidence that B5 currently implements or accepts that delivery behavior.
+
+### Functional Requirements *(continued)*
 - **FR-028 — Stakeholder-confirmed**: When the closing cost is greater than
   zero, a bill reference and an attached bill or service document MUST be
   supplied, and a closure missing either MUST be rejected. When the cost is
@@ -893,7 +893,7 @@ MUST NOT be read as accepted requirements.
   corrected. FR-026 is authoritative.
 - **CAND-005**: The expected return date is an optional date, is accepted when
   before the sent date, and drives no overdue state, alert, escalation, or
-  report. FR-027 is authoritative.
+  report. CHG-B5-01 owns the desired validation and overdue delivery behavior.
 - **CAND-006**: The cost is optional, is accepted only at closure, is taken
   directly from the submitted request without the validation applied to other
   record fields, and carries no sign rule. FR-011 is authoritative.
@@ -934,7 +934,7 @@ MUST NOT be read as accepted requirements.
   MUST require `asset_custody_manage`. Admin, IT Manager, and IT Staff hold that
   code in the accepted named-Role matrix; a custom Role granted the code is
   authorized under B1 with no implicit bypass.
-  *(Sources: accepted B2 permission contract; `CONTEXT.md`, **Checkout**, for
+  *(Sources: Draft B2 permission contract; `CONTEXT.md`, **Checkout**, for
   the IT-performed custody actor; the denial is test-backed.)*
 - **ALR-002 — Accepted visibility dependency**: Reading Service Records MUST
   require `asset_view` and MUST follow B1 data visibility. The Employee scope
@@ -949,23 +949,23 @@ MUST NOT be read as accepted requirements.
   clearing, the `Under Repair` status, and its required audit entry as one
   operation. A closure MUST commit the closed state, return date, cost, outcome,
   `Available` status, and its required audit entry as one operation.
-  *(Sources: accepted B2 ALR-003; Draft B8 FR-011.)*
+  *(Sources: Draft B2 ALR-003; Draft B8 FR-011.)*
 - **ALR-005 — Accepted lifecycle ownership**: Opening and closing MUST be the
   only operations that move an Asset into and out of `Under Repair`, and the
-  only operations that change a Service Record's state, except an accepted B2
+  only operations that change a Service Record's state, except an Draft B2
   terminal transition. Direct record editing or deletion MUST NOT be an accepted
   path.
-  *(Sources: accepted B2 FR-012 and ALR-005; ADR-0001.)*
+  *(Sources: Draft B2 FR-012 and ALR-005; ADR-0001.)*
 - **ALR-006 — Accepted rejection safety**: A denied or rejected opening or
   closure MUST leave the Asset status, Custodian, department, condition, open
   Checkout, and every Service Record unchanged.
-  *(Source: accepted B2 ALR-002.)*
+  *(Source: Draft B2 ALR-002.)*
 - **ALR-007 — Accepted integration boundary**: Opening a Service Record owns the
   closure of the Checkout it interrupts, and an accepted terminal transition
   owns the closure of the Service Record it interrupts. Neither interrupting
   operation MUST leave a dangling open record, and neither MUST be presented as
   the normal closure of the record it interrupted.
-  *(Sources: ADR-0001; accepted B2 ALR-006; Draft B3 FR-015 and FR-028.)*
+  *(Sources: ADR-0001; Draft B2 ALR-006; Draft B3 FR-015 and FR-028.)*
 - **ALR-008 — Draft B8 failure boundary**: Failure of a required AuditLog write
   MUST reject and roll back the owning opening or closure. Notification failure
   MUST NOT roll back completed Service Record work and MUST remain visible and
@@ -981,9 +981,9 @@ MUST NOT be read as accepted requirements.
 
 | Service Record action | Permission code | Accepted named-Role behavior | Evidence status |
 | --- | --- | --- | --- |
-| List, retrieve, and read Asset service history | `asset_view` plus B1 visibility | Admin, IT Manager, IT Staff, HR, and Viewer global; Employee scope owned by B1 | Accepted B2 read contract; Employee scope is not implemented in the current global queryset |
-| Open a Service Record | `asset_custody_manage` | Admin, IT Manager, and IT Staff | Accepted B2 permission contract; the denial is test-backed and the permitted round trip is test-backed |
-| Close a Service Record | `asset_custody_manage` | Admin, IT Manager, and IT Staff | Accepted B2 permission contract; the permitted round trip is test-backed |
+| List, retrieve, and read Asset service history | `asset_view` plus B1 visibility | Admin, IT Manager, IT Staff, HR, and Viewer global; Employee scope owned by B1 | Draft B2 read contract; Employee scope is not implemented in the current global queryset |
+| Open a Service Record | `asset_custody_manage` | Admin, IT Manager, and IT Staff | Draft B2 permission contract; the denial is test-backed and the permitted round trip is test-backed |
+| Close a Service Record | `asset_custody_manage` | Admin, IT Manager, and IT Staff | Draft B2 permission contract; the permitted round trip is test-backed |
 | Perform the fresh Checkout after service | `asset_custody_manage` | Admin, IT Manager, and IT Staff | Owned by B3; B5 requires only that it is separate and deliberate |
 | Open or close through a custom Role granted the code | Assigned relevant code | Allowed with no implicit bypass | Draft B1 intent |
 | Directly update or delete a Service Record | Not accepted | None | Current Admin fallback is implementation-only and conflicts with ALR-005 |
@@ -1000,9 +1000,9 @@ current behavior meets it.
 | Service Record opened | Previous Custodian; custody ended because the Asset went to a Vendor | Asset detail surface | Actor, time, Asset, Vendor, `Open` state, `Under Repair` status effect, and the cleared Custodian and department | Notification test-backed; destination and audit content are conformance gaps |
 | Service Record opened for an Asset with no Custodian | None; no recipient exists | Not applicable | Same as the row above with no custody effect to record | Current silence conforms; audit content is a conformance gap |
 | Service Record closed | Every active `asset_custody_manage` holder; the Asset is back and can be checked out again | Asset detail surface | Actor, time, Asset, Vendor, `Closed` state, return date, cost, outcome, and the `Available` status effect | No current Notification exists; both are conformance gaps |
-| Open Service Record becomes overdue | Every active `asset_custody_manage` holder; the Asset is late back from the Vendor (FR-027) | Service Record surface filtered to overdue records | None required; overdue is derived, not a mutation | No current overdue concept exists; conformance gap |
+| Prospective overdue alert | Owned by CHG-B5-01, not the B5 baseline | Owned by CHG-B5-01 | Owned by CHG-B5-01 and B8 | No current overdue concept exists; evidence motivating the Change specification |
 | Interrupted Checkout closed by an opening | Owned by Draft B3 FR-020 and FR-028; addressed to the Checkout User and kept separate from the B5 opening Notification | Asset detail surface | Owned by Draft B3 FR-027 | Draft B3 dependency; B5 MUST NOT merge or suppress it |
-| Terminal transition auto-closes an open Service Record | Accepted B2 emits no workflow Notification | Not applicable | Actor, time, Asset, Vendor, forced `Closed` state, and the fact that no operator confirmed the repair; may be carried by the accepted B2 terminal-transition entry that already identifies every Service Record it closed | No B5 entry currently exists; conformance gap |
+| Terminal transition auto-closes an open Service Record | Draft B2 emits no workflow Notification | Not applicable | Actor, time, Asset, Vendor, forced `Closed` state, and the fact that no operator confirmed the repair; may be carried by the Draft B2 terminal-transition entry that already identifies every Service Record it closed | No B5 entry currently exists; conformance gap |
 | Permission-denied, ineligible-Asset, or already-closed rejection | None | Not applicable | Actor, time, attempted action, target identifiers when safe, and the rejection reason | No current entry exists; conformance gap |
 | Service Record list, detail, or history read | None | Not applicable | None; routine business read | Current behavior conforms |
 
@@ -1021,7 +1021,7 @@ follows B8's two-year retention rule.
   `Closed` state.
 - **Asset**: The authoritative lifecycle record. Opening sets `Under Repair` and
   clears custody; closing sets `Available` and restores nothing. Its status,
-  condition, custody, and history rules are owned by accepted B2.
+  condition, custody, and history rules are owned by Draft B2.
 - **Vendor**: The shared managed third-party identity. B5 selects one; B6 owns
   its creation, naming, merging, archiving, and protected deletion.
 - **Custodian**: The User holding the Asset before servicing. After opening,
@@ -1075,11 +1075,9 @@ follows B8's two-year retention rule.
   claims in this baseline cite `CONTEXT.md`, ADR-0001, an accepted or Draft
   dependency identifier, an explicit stakeholder decision, or a repository
   evidence path.
-- **SC-013**: 100% of future-dated sent or return dates, return dates preceding
-  their sent date, and expected return dates preceding their sent date are
-  rejected without mutation; 100% of `Open` records past their expected return
-  date are identifiable as overdue and have notified every active
-  `asset_custody_manage` holder, and 0% of closed records remain overdue.
+- **SC-013**: 100% of future-dated sent or return dates and return dates
+  preceding their sent date are rejected without mutation. Expected-return
+  validation and overdue outcomes are measured by CHG-B5-01, not this baseline.
 - **SC-014**: 100% of closures missing a cost, carrying a negative cost, missing
   a canonical outcome, or carrying a cost above zero without a bill reference
   and bill/service document are rejected without mutation; 100% of successful
@@ -1087,9 +1085,9 @@ follows B8's two-year retention rule.
 
 ## Assumptions
 
-- Accepted B2 is authoritative and is not reopened by this Draft. B1, B3, B6,
-  and B8 remain Draft dependencies; where this Draft cites them, acceptance of
-  B5 depends on their own acceptance.
+- Draft B2 is a current dependency and remains subject to its own acceptance
+  review; this Draft does not independently redefine it. B1, B2, B3, B6, and B8
+  remain Draft dependencies, and B5 acceptance depends on their own acceptance.
 - The IT-performed custody actor described for Checkout in `CONTEXT.md` applies
   equally to sending an Asset for service; employees do not send their own
   Assets to a Vendor in current scope.
@@ -1136,12 +1134,12 @@ follows B8's two-year retention rule.
 - Opening clears the Asset department with the Custodian, closing restores
   neither, `Under Repair` is entered and left only through this lifecycle,
   transitions are atomic, and a terminal transition closes open Service Records:
-  accepted B2 FR-006, FR-007, FR-012, FR-015, ALR-003, ALR-005, ALR-006, and
+  Draft B2 FR-006, FR-007, FR-012, FR-015, ALR-003, ALR-005, ALR-006, and
   ALR-007.
 - `Lost` may be recorded from `Under Repair`; `Sold` and `Scrapped` are accepted
-  only from `Available` or `In Storage`: accepted B2 FR-014.
+  only from `Available` or `In Storage`: Draft B2 FR-014.
 - Service Record open and close use `asset_custody_manage`, held by Admin, IT
-  Manager, and IT Staff: accepted B2 permission contract.
+  Manager, and IT Staff: Draft B2 permission contract.
 - Opening a Service Record closes the Checkout it interrupts, marks it
   closed-as-interrupted, and keeps it distinguishable from a check-in: Draft B3
   FR-015, FR-017, and FR-028; ADR-0001.
@@ -1249,7 +1247,7 @@ current-system evidence for B5's lifecycle boundary.
 - **U-002 — Department meaning while servicing — RESOLVED 2026-08-05**: the
   stakeholder confirmed that department follows custody. It is the current
   holder's organizational unit, so an Asset at a Vendor has none, and only the
-  fresh Checkout after service restores one. This confirms accepted B2 FR-006,
+  fresh Checkout after service restores one. This confirms Draft B2 FR-006,
   FR-007, and FR-015 and matches the check-in rule in Draft B3 FR-023, so no B2
   amendment is required. Recorded in FR-005; the current retention at both
   opening and closure (`backend/assets/service.py`) remains a conformance gap in
@@ -1290,12 +1288,12 @@ current-system evidence for B5's lifecycle boundary.
 | 4 | An interrupted Checkout carries no explicit closed-as-interrupted marker | FR-015 | OBS-AS-008 |
 | 5 | The opening Notification destination does not resolve to the Asset detail route | FR-022 | CAND-010 |
 | 6 | An Admin or superuser may edit or delete a Service Record directly | FR-019, ALR-005 | CAND-015 |
-| 7 | `Sold` and `Scrapped` are accepted directly from `Under Repair` by the current direct-edit path | Accepted B2 FR-014 (B2-owned gap) | CAND-003 |
+| 7 | `Sold` and `Scrapped` are accepted directly from `Under Repair` by the current direct-edit path | Draft B2 FR-014 (B2-owned gap) | CAND-003 |
 | 8 | Required audit entries are absent for rejections, denials, and terminal auto-closures | FR-023 | CAND-012 |
 | 9 | The backend accepts an `In Storage` Asset for service | FR-008 | CAND-001 |
 | 10 | Closing does not re-check that the Asset is still `Under Repair` | FR-010, ALR-005 | CAND-003 |
 | 11 | Sent and return dates cannot be entered or corrected | FR-026 | CAND-004 |
-| 12 | The expected return date is unvalidated and no overdue state or notification exists | FR-027 | CAND-005 |
+| 12 | The expected return date is unvalidated and no overdue state or notification exists | CHG-B5-01; non-baseline delivery gap | CAND-005 |
 | 13 | Cost is optional and unvalidated at closure | FR-011 | CAND-006 |
 | 14 | No bill reference and no attached bill or service document exist | FR-028 | CAND-008 |
 | 15 | No outcome value exists; outcome is inferable only from free text | FR-029 | CAND-008 |
@@ -1313,7 +1311,7 @@ are review items to confirm at baseline acceptance:
   likely to matter than it was before FR-029.
 - How B1's Employee visibility rule applies to a Service Record whose subject
   User has deliberately been cleared (ALR-002).
-- Whether the overdue notification in FR-027 can be delivered reliably in
+- Whether the overdue notification in CHG-B5-01 can be delivered reliably in
   production, which depends on the scheduling question `ROADMAP.md` C5 leaves
   open for the existing expiry alerts.
 

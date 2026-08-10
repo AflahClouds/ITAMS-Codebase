@@ -33,7 +33,7 @@ an explicit stakeholder-approved waiver recorded in the specification.
 ## Eligible and Rejected Asset States
 
 - [ ] CHK015 Is the eligible source-state set stated as exactly `Available` and `Assigned`, with `In Storage` named as rejected rather than merely unlisted? [Clarity, Spec §FR-008, §AS-035]
-- [ ] CHK016 Is the required path for servicing a stored Asset — return it to `Available` through an accepted B2 administrative transition first — stated as a requirement rather than left as operator practice? [Completeness, Spec §FR-008, §Edge Cases]
+- [ ] CHK016 Is the required path for servicing a stored Asset — return it to `Available` through an Draft B2 administrative transition first — stated as a requirement rather than left as operator practice? [Completeness, Spec §FR-008, §Edge Cases]
 - [ ] CHK017 Are rejections specified for an Asset already `Under Repair` and for each of `Sold`, `Scrapped`, and `Lost`, with the Asset left unchanged in every case? [Coverage, Spec §FR-007, §AS-004, §AS-005]
 - [ ] CHK018 Is the B6 dependency complete and enforceable — no current Procurement and a flagged legacy Vendor both block opening — rather than stated only as an assumption? [Dependency Coverage, Spec §FR-009, §AS-008]
 - [ ] CHK019 Is `Under Repair` specified as enterable only by opening and leavable only by closing, with direct status editing rejected in both directions? [Clarity, Spec §FR-006, §AS-007, §AS-015]
@@ -47,7 +47,7 @@ an explicit stakeholder-approved waiver recorded in the specification.
 - [ ] CHK024 Are all closing effects required to commit as one operation: closed state, return date, cost, outcome, `Available` status, and the required AuditLog entry? [Atomicity, Spec §ALR-004, §AS-014]
 - [ ] CHK025 Is the ordering requirement explicit that the interrupted Checkout closes and the Custodian clears *before* the Asset becomes `Under Repair`, so no intermediate state is observable? [Clarity, Spec §FR-014, §AS-016]
 - [ ] CHK026 Is the interrupted Checkout required to remain distinguishable from an ordinary check-in and exempt from B3's return-condition and return-remark rules, with that ownership assigned to B3 rather than restated as B5 behavior? [Dependency Consistency, Spec §FR-015, §ALR-007, §Out of Scope]
-- [ ] CHK027 Is the department-follows-custody rule complete for all three points — cleared at opening, absent while at the Vendor, not restored at closing — and reconciled with accepted B2 without requiring a B2 amendment? [Consistency, Spec §FR-005, §U-002]
+- [ ] CHK027 Is the department-follows-custody rule complete for all three points — cleared at opening, absent while at the Vendor, not restored at closing — and reconciled with Draft B2 without requiring a B2 amendment? [Consistency, Spec §FR-005, §U-002]
 - [ ] CHK028 Do all rejected openings and closings — permission, eligibility, date, cost, bill, and outcome failures — carry an explicit zero-partial-mutation requirement covering the Asset, its Custodian, its condition, its open Checkout, and every Service Record? [Negative Coverage, Spec §ALR-006, §AS-021, §SC-002]
 - [ ] CHK029 Is the terminal auto-closure requirement complete: atomic with the B2 transition, closing every open Service Record, and distinguishable from an operator-confirmed closure that carries a cost and outcome? [Completeness, Spec §FR-016, §AS-019, §Accepted B5 Notification and Audit Trigger Matrix]
 
@@ -71,8 +71,8 @@ an explicit stakeholder-approved waiver recorded in the specification.
 
 - [ ] CHK040 Are the sent-date and return-date rules complete and objectively verifiable: operator-supplied, defaulted to now, correctable, not future-dated, and correctly ordered? [Acceptance Criteria, Spec §FR-026, §AS-036, §SC-013]
 - [ ] CHK041 Is the distinction between the business sent date and the moment the record was created stated clearly enough that the creation moment cannot be substituted for it on any surface? [Clarity, Spec §Edge Cases, §FR-026]
-- [ ] CHK042 Are the expected-return rules complete — optional, on or after the sent date, and the sole input to the overdue derivation — with the comparison semantics between a date-only expected return and timestamped sent/return values unambiguous? [Ambiguity, Spec §FR-027, §AS-037]
-- [ ] CHK043 Is overdue defined as derived rather than stored, excluded from Asset status and from Service Record state, and specified as non-blocking for closure and every other operation? [Clarity, Spec §FR-027, §AS-038]
+- [ ] CHK042 Is the current absence of expected-return validation and overdue behavior classified as evidence rather than a B5 requirement, with normative delivery linked to CHG-B5-01? [Scope, Spec §FWD-B5-001, §OBS-AS-014]
+- [ ] CHK043 Is CHG-B5-01 excluded from the B5 acceptance decision so accepting B5 cannot imply that overdue behavior is implemented? [Lineage, Spec §Extended by, §FWD-B5-001]
 - [ ] CHK044 Is the cost rule complete and measurable: mandatory at closure, zero permitted and meaning no-charge, negative and missing both rejected without mutation? [Acceptance Criteria, Spec §FR-011, §AS-039, §SC-014]
 - [ ] CHK045 Is the conditional bill requirement unambiguous — bill reference and attached document required when cost is above zero, both optional at zero cost — including the outcome when only one of the two is supplied? [Clarity, Spec §FR-028, §AS-040]
 - [ ] CHK046 Is the storage, immutability, and replacement policy for the bill/service document specified, or explicitly deferred as a planning detail with that deferral recorded? [Gap, Spec §FR-028, §U-003]
@@ -85,7 +85,7 @@ an explicit stakeholder-approved waiver recorded in the specification.
 
 ## Notifications and AuditLog Effects
 
-- [ ] CHK053 Are Notification triggers and recipient rules complete for opening, opening with no Custodian, closing, overdue, interrupted closure, and terminal auto-closure, with every deliberate no-Notification case stated as deliberate? [Completeness, Spec §FR-021, §Accepted B5 Notification and Audit Trigger Matrix]
+- [ ] CHK053 Are B5 baseline Notification triggers and recipient rules complete for opening, opening with no Custodian, closing, interrupted closure, and terminal auto-closure, with every deliberate no-Notification case stated as deliberate and prospective overdue delivery excluded to CHG-B5-01? [Completeness/Scope, Spec §FR-021, §FWD-B5-001, §Accepted B5 Notification and Audit Trigger Matrix]
 - [ ] CHK054 Is every accepted Notification destination specified as a resolvable outcome rather than a literal current path, including the correction of the unresolvable Asset-detail destination? [Clarity, Spec §FR-022, §CAND-010]
 - [ ] CHK055 Is the requirement that the B3 interrupted-closure Notification and the B5 opening Notification remain separate messages stated with its rationale, so neither baseline suppresses the other's trigger? [Dependency Consistency, Spec §FR-021, §AS-044, §Edge Cases]
 - [ ] CHK056 Is the closing Notification recipient rule precise about whether the closing operator is included among the `asset_custody_manage` holders notified? [Ambiguity, Spec §FR-021, §AS-043]
@@ -93,7 +93,7 @@ an explicit stakeholder-approved waiver recorded in the specification.
 - [ ] CHK058 Are required AuditLog events complete for successful opening, successful closing, terminal auto-closure, and every rejected or permission-denied attempt, with routine reads explicitly excluded? [Completeness, Spec §FR-023, §AS-045]
 - [ ] CHK059 Are the minimum B5-specific AuditLog values defined per event — including cost and outcome on closure and the reason on rejection — and consistent with B8 privacy, minimization, source-IP, and retention rules? [Privacy/Clarity, Spec §FR-023, §AS-031, §Accepted B5 Notification and Audit Trigger Matrix]
 - [ ] CHK060 Is audit atomicity stated consistently — required-audit failure rolls back the owning opening or closure, Notification failure does not roll back completed work? [Reliability/Consistency, Spec §ALR-008, §AS-029, §AS-030, §SC-010]
-- [ ] CHK061 Is the production delivery guarantee for the new overdue Notification addressed, including its dependency on the unresolved `ROADMAP.md` C5 scheduling question? [Assumption/Gap, Spec §FR-027, §Edge Cases, §Remaining Evidence-Led Confirmation Items]
+- [ ] CHK061 Is production delivery of the prospective overdue Notification assigned only to CHG-B5-01 and B8 rather than treated as B5 current behavior? [Scope, Spec §FWD-B5-001]
 - [ ] CHK062 Is the outcome specified when a Notification recipient has no reachable delivery target, so a silent non-delivery is not treated as a satisfied trigger? [Exception Coverage, Spec §OBS-AS-023, §ALR-008]
 
 ## Evidence Integrity, Scope, and Decision Closure
@@ -101,7 +101,7 @@ an explicit stakeholder-approved waiver recorded in the specification.
 - [ ] CHK063 Is every accepted requirement traceable to `CONTEXT.md`, ADR-0001, an accepted or Draft dependency identifier, or the 2026-08-05 stakeholder clarification, with no requirement resting on implementation evidence alone? [Traceability, Spec §FR-024, §SC-012]
 - [ ] CHK064 Are all four resolved decisions U-001 through U-004 recorded with their answers, the requirements they produced, and the conformance gaps they created, without any current-behavior alternative still presented as accepted? [Completeness, Spec §Unresolved Conflicts, §SC-011]
 - [ ] CHK065 Are all 17 conformance gaps in U-005 stated as findings that leave their contradicted requirement intact, rather than as grounds for weakening it? [Consistency, Spec §U-005, §FR-025]
-- [ ] CHK066 Is the distinction between accepted B2 and the Draft status of B1, B3, B6, and B8 stated accurately everywhere those baselines are cited as sources? [Traceability, Spec §Specification Lineage, §Assumptions]
+- [ ] CHK066 Is the distinction between Draft B2 and the Draft status of B1, B3, B6, and B8 stated accurately everywhere those baselines are cited as sources? [Traceability, Spec §Specification Lineage, §Assumptions]
 - [ ] CHK067 Are the retention consequences for service history when an Asset or a User is deleted either specified or explicitly assigned to B2 and B1? [Gap, Spec §Edge Cases]
 - [ ] CHK068 Is the boundary against B9 clear — that Dashboard counts, current-service and Vendor-service reports, and exports consume B5 data without defining B5 requirements — including the note that departmental cost attribution cannot be read from the live Asset department? [Scope, Spec §Out of Scope, §Edge Cases]
 - [ ] CHK069 Are Vendor administration, Procurement, Warranty/AMC, and automatic Checkout after service each excluded explicitly rather than by omission? [Scope, Spec §Out of Scope]

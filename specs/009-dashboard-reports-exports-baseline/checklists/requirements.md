@@ -18,7 +18,7 @@
 - [x] Accepted requirements are testable and unambiguous
 - [x] Test-backed and implementation-only observations are visibly classified
 - [x] Success criteria are measurable and technology-agnostic
-- [x] KPI, chart, catalog, column, access, Lost-reporting, export, and branding scenarios are defined
+- [x] KPI, chart, catalog, column, access, and Lost-reporting baseline scenarios are defined; prospective filtering, export, and branding scenarios are visibly classified and linked to CHG-B9-01
 - [x] The current report catalog, its row selection, and its columns are recorded as a reviewable table
 - [x] `report_access`, Admin-only Audit Trail, and the permission-free Dashboard are explicit
 - [x] The absence of any report filter or parameter is stated rather than implied
@@ -29,14 +29,14 @@
 - [x] Code and the single test are treated as evidence rather than product intent
 - [x] The one existing reporting test was run on 2026-08-05 and is cited
 - [x] The absence of automated coverage for every other B9 behavior is stated explicitly
-- [x] Accepted B2 is cited as accepted; B1 and B3–B8 are cited as Draft dependencies
+- [x] Draft B2 is cited as Draft; B1 and B3–B8 are cited as Draft dependencies
 - [x] The implementation-led (E3) evidence status is stated up front rather than implied
-- [x] Current metric and column definitions are not accepted while U-001 is open
-- [x] Current global visibility is not accepted while U-002 is open
-- [x] Current export divergence is not accepted while U-003 is open
-- [x] Current branding behavior is not accepted while U-004 is open
-- [x] Current unpaginated and silently truncated behavior is not accepted while U-005 is open
-- [x] The current "Asset Audit Report" title and access are not accepted while U-006 is open
+- [x] Current metric and column definitions are evidence-qualified; prospective definitions are owned by CHG-B9-01
+- [x] Current global visibility is evidence-qualified against the resolved U-002 decision
+- [x] Current export divergence is evidence-qualified; prospective parity is owned by CHG-B9-01
+- [x] Current branding behavior is evidence-qualified; prospective branding is owned by CHG-B9-01
+- [x] Current unpaginated and silently truncated behavior is evidence-qualified; prospective volume handling is owned by CHG-B9-01
+- [x] The current "Asset Audit Report" title and access are evidence-qualified against the resolved U-006 decision
 - [x] AuditLog and Audit Trail are not confused with physical Asset auditing
 - [x] No application code was modified
 
@@ -57,17 +57,14 @@
   identification, not missing content.
 - Validation iteration 2 (2026-08-05, after clarification) passes all 34 items.
   The clarification session resolved U-001 through U-006, so the seven items
-  that were blocked on them now pass. Their wording still describes the
-  decisions as open because it records the state each item was validated
-  against; the decisions themselves are recorded as RESOLVED in the spec.
-- Two review inputs remain acceptance preconditions and are tracked in FR-015,
-  not as unchecked checklist items: the per-figure written definitions owed
-  under FR-020, and the stated data volume with its approved response-time
-  budget owed under FR-026.
-- B9 is the roadmap's only `E3 — implementation-led` capability. The Draft now
-  carries 26 functional requirements against 20 current-system contract
-  candidates, because the clarification converted six open decisions into
-  governing rules rather than approving current behavior figure by figure.
+  that were blocked on them now pass.
+- The prospective per-figure definitions, standard filters, export parity,
+  branding, and volume target are not B9 acceptance preconditions. They are
+  normative only in
+  [`012-report-filter-export-parity-change`](../../012-report-filter-export-parity-change/spec.md).
+- B9 is the roadmap's only `E3 — implementation-led` capability. Its Draft
+  records current-system evidence without converting clarified prospective
+  behavior into AS-BUILT requirements.
 - The only authoritative product statement about any report remains
   `CONTEXT.md`'s Vendor entry. Every other accepted requirement traces to a
   dependency baseline or to the 2026-08-05 clarification.
@@ -77,8 +74,7 @@
   FR-016: the AuditLog projection is retitled and restricted to Admin and IT
   Manager, and the "Asset Audit" name is reserved for the deferred F1
   physical-verification capability.
-- U-001 is resolved in principle rather than figure by figure: FR-017 through
-  FR-020 set the recurring semantics and require a written definition before any
-  figure may be presented. Producing those definitions is a documentation task
-  under an accepted rule.
+- U-001 is resolved for baseline classification through FR-017 and FR-018.
+  Producing future written definitions and standard filters is delivery scope
+  owned by CHG-B9-01.
 - The selected evidence run passed 1 reporting test on 2026-08-05.

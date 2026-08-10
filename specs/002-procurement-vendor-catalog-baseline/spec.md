@@ -114,7 +114,7 @@ after acceptance must be recorded in a new specification and linked here with
   clarifications establish physical-arrival enforcement, archive-only
   Procurement, Asset-link history, linkage cardinality, and B6 permission and
   control visibility for this Draft.
-- The accepted B2 baseline at
+- The Draft B2 baseline at
   `specs/001-asset-register-lifecycle-baseline/spec.md` owns Asset register and
   lifecycle behavior and explicitly leaves indefinite absence of Procurement
   unresolved.
@@ -657,7 +657,7 @@ control with the authoritative outcome.
 - **ALR-004**: Recording or changing Procurement or its Asset associations MUST
   NOT itself change Asset status, condition, Custodian, or another lifecycle
   record.
-  *(Sources: `ROADMAP.md`, B6 scope boundary; accepted B2 baseline ownership.)*
+  *(Sources: `ROADMAP.md`, B6 scope boundary; Draft B2 baseline ownership.)*
 - **ALR-005**: Arrival-record and attestation validation MUST apply atomically
   to every linked Asset. A failed check MUST leave Procurement, arrival data,
   and Asset associations unchanged.
@@ -824,7 +824,7 @@ control with the authoritative outcome.
   seed values, and interfaces remain evidence rather than accepted intent.
 - The B1 stakeholder-confirmed Role matrix and custom-Role rules remain inputs;
   FR-015 and FR-016 define how those existing codes apply to B6.
-- The accepted B2 baseline owns Asset identity and lifecycle and is not
+- The Draft B2 baseline owns Asset identity and lifecycle and is not
   rewritten by this Draft. B6 resolves its previously open Procurement-link
   boundary through FR-013 and FR-014.
 - The Asset arrival record is a B6 Procurement precondition and does not add a
@@ -907,7 +907,7 @@ control with the authoritative outcome.
 - Employee- and team-lead-initiated Procurement requests and purchase approval
   are excluded: `CONTEXT.md`, Procurement; explicit stakeholder instruction
   dated 2026-08-03; B1 FR-009.
-- Asset register and lifecycle behavior remains owned by the accepted B2
+- Asset register and lifecycle behavior remains owned by the Draft B2
   baseline: `specs/001-asset-register-lifecycle-baseline/spec.md`.
 - Brownfield evidence, authorization, and acceptance rules:
   `.specify/memory/constitution.md`; `docs/agents/domain.md`.
@@ -1005,7 +1005,7 @@ control with the authoritative outcome.
 - Authentication, Role/permission administration, User data visibility,
   Department, and Location masters: B1.
 - Asset identity, status, condition, Custodian, direct lifecycle transitions,
-  Asset-owned files, barcode, and Asset deletion: accepted B2. B6 owns only the
+  Asset-owned files, barcode, and Asset deletion: Draft B2. B6 owns only the
   Procurement invoice and PO documents governed by FR-018.
 - Checkout/check-in: B3.
 - Approval-gated Transfer: B4.

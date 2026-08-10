@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User as AuthUser
 from django.test import TestCase
+from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from core.models import Setting
@@ -78,3 +79,58 @@ class PrivacyAuthorizationTests(TestCase):
         client.force_authenticate(account)
 
         self.assertEqual(client.get("/setting/").status_code, 403)
+
+
+class TokenRevocationOnDeactivationTests(TestCase):
+    """Deactivating a profile must drop its login tokens, not merely rely on every
+    endpoint re-checking profile status on each request."""
+
+    def test_disabling_through_the_api_revokes_the_token(self):
+        admin_account, _ = _create_profile("token-admin", ("user_management",))
+        target_account, target = _create_profile("to-disable", ("asset_view",))
+        token = Token.objects.create(user=target_account)
+        client = APIClient()
+        client.force_authenticate(admin_account)
+
+        response = client.patch(f"/user/{target.pk}/", {"status": "Disabled"}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Token.objects.filter(key=token.key).exists())
+
+    def test_disabling_outside_the_api_revokes_the_token(self):
+        account, profile = _create_profile("shell-disabled", ("asset_view",))
+        Token.objects.create(user=account)
+
+        profile.status = "Disabled"
+        profile.save(update_fields=["status"])
+
+        self.assertFalse(Token.objects.filter(user=account).exists())
+
+    def test_revoked_token_no_longer_authenticates(self):
+        account, profile = _create_profile("revoked", ("asset_view",))
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Token {Token.objects.create(user=account).key}")
+        self.assertEqual(client.get("/dashboard/").status_code, 200)
+
+        profile.status = "Disabled"
+        profile.save(update_fields=["status"])
+
+        self.assertEqual(client.get("/dashboard/").status_code, 401)
+
+    def test_an_active_profile_keeps_its_token(self):
+        account, profile = _create_profile("stays-active", ("asset_view",))
+        token = Token.objects.create(user=account)
+
+        profile.designation = "Technician"
+        profile.save()
+
+        self.assertTrue(Token.objects.filter(key=token.key).exists())
+
+    def test_a_profile_without_a_login_account_can_be_disabled(self):
+        profile = User.objects.create(
+            user_name="no-login", emp_id="EMP-no-login", email_id="no-login@example.com")
+
+        profile.status = "Disabled"
+        profile.save(update_fields=["status"])
+
+        self.assertEqual(User.objects.get(pk=profile.pk).status, "Disabled")

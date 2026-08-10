@@ -101,7 +101,7 @@ in a new specification and linked here with `Extends`, `Supersedes`, or
 - `docs/adr/0001-service-record-lifecycle.md` governs the adjacent Service
   Record/Custodian transition. It does not define Notification delivery or
   AuditLog policy.
-- The accepted B2 baseline owns Asset-register trigger selection: every
+- The Draft B2 baseline owns Asset-register trigger selection: every
   successful B2 mutation has a required operational audit effect, terminal
   transitions require expanded event content, and B2 actions send no
   Notifications.
@@ -338,7 +338,7 @@ verify that B8 neither invents nor suppresses the owner-defined trigger.
    recipient selection, message meaning, business destination, and additional
    audit detail while B8 owns the shared record and its cross-capability
    behavior.
-2. **AS-008 — Accepted B2 dependency**: **Given** a B2 Asset-register action,
+2. **AS-008 — Draft B2 dependency**: **Given** a B2 Asset-register action,
    **When** its side effects are evaluated, **Then** B8 preserves the B2 audit
    event supplied by that capability and creates no B2 Notification.
 3. **AS-009 — Stakeholder-confirmed B6 dependency**: **Given** a B6 action,
@@ -414,7 +414,7 @@ verify that B8 neither invents nor suppresses the owner-defined trigger.
   behavior, retry/deduplication, recipient visibility, read state, unread
   counts, polling, shared audit minimums, access, privacy, filtering, and
   retention after those inputs are supplied.
-- **FR-003 — Accepted B2 dependency**: B8 MUST accept and preserve B2's required
+- **FR-003 — Draft B2 dependency**: B8 MUST accept and preserve B2's required
   Asset-register audit effects and MUST NOT create Notifications for B2 actions.
   B8 MUST NOT weaken or expand B2's accepted event selection.
 - **FR-004 — Stakeholder-confirmed B6 dependency**: B8 MUST accept and preserve
@@ -675,8 +675,10 @@ verify that B8 neither invents nor suppresses the owner-defined trigger.
 - `User` means the B1 User profile when describing current Notification
   recipients; the separate linked login-account representation remains B1
   implementation detail.
-- B2's accepted audit/no-Notification rules and B6's stakeholder-confirmed
-  trigger rules are authoritative inputs. B8 does not reopen them.
+- B2's stakeholder-confirmed audit/no-Notification rules and B6's
+  stakeholder-confirmed trigger rules are current Draft inputs. B8 does not
+  independently redefine them, and B8 acceptance depends on the owning
+  baselines completing their own acceptance reviews.
 - B3, B4, B5, B6, and B7 each own an explicit audit and Notification trigger
   matrix. Current tests prove shared-facility use but do not establish a matrix
   entry until the owning baseline accepts it.

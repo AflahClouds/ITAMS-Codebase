@@ -29,7 +29,7 @@
 
 - [x] Code, migrations, and tests are treated as evidence rather than product intent
 - [x] All 18 selected B7 tests were run on 2026-08-05 and are cited
-- [x] Accepted B2 is cited as accepted; B1, B5, B6, and B8 are cited as Draft dependencies
+- [x] Draft B2 is cited as Draft; B1, B5, B6, and B8 are cited as Draft dependencies
 - [x] Runserver-only scheduling is explicitly not presented as reliable production delivery
 - [x] Current computed AMC flag semantics are not accepted while U-001 (C4) is open
 - [x] Current scheduling and delivery behavior is not accepted while U-002 (C5) is open
@@ -72,8 +72,7 @@
   constitution Principle I that divergence is surfaced in FR-029 as an
   acceptance precondition rather than absorbed silently.
 - U-002 was resolved by keeping scheduling in-process but requiring it to run
-  under the real production server with cross-worker mutual exclusion, a
-  configured timezone, once-only alert recording, and catch-up after downtime.
+  as prospective delivery in CHG-B7-01 rather than B7 AS-BUILT behavior.
   Nothing in this Draft treats the current development-server-only arrangement
   as satisfying FR-017.
 - The B7 Notification and Audit Trigger Matrix is accepted content under Draft

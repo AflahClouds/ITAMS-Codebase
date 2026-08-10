@@ -46,18 +46,24 @@ const ExpiryBreakdownCard = ({ title, expired, d7, d15, d30 }) => (
 const Dashboard = () => {
   const [data, setData] = useState(null);
   const [charts, setCharts] = useState({});
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    AxiosInstance.get('/dashboard/').then((res) => setData(res.data));
+    AxiosInstance.get('/dashboard/')
+      .then((res) => setData(res.data))
+      .catch((err) => setError(err.response?.status === 403
+        ? 'You do not have permission to view the dashboard.'
+        : 'The dashboard could not be loaded. Please try again.'));
     const names = ['category-distribution', 'status-distribution', 'department-usage',
                    'purchase-trend', 'transfer-trend', 'warranty-timeline', 'amc-timeline'];
     names.forEach((name) => {
       AxiosInstance.get(`/charts/${name}/`).then((res) => {
         setCharts((prev) => ({ ...prev, [name]: res.data }));
-      });
+      }).catch(() => { /* the dashboard-level message already covers a denial */ });
     });
   }, []);
 
+  if (error) return <Typography sx={{ padding: '20px' }}>{error}</Typography>;
   if (!data) return <Typography sx={{ padding: '20px' }}>Loading dashboard...</Typography>;
 
   const k = data.kpis;

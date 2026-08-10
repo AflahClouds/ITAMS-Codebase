@@ -44,7 +44,7 @@ changes must use a new feature directory and record reciprocal `Extends`,
 `Supersedes`, or `Superseded by` lineage rather than altering accepted
 requirements here.
 
-**Dependencies**: Accepted B1 identity and access baseline; accepted B2 Asset
+**Dependencies**: Draft B1 identity and access baseline; Draft B2 Asset
 register and lifecycle baseline; Draft B3 Checkout/check-in baseline; Draft B8
 Notifications and AuditLog baseline.
 
@@ -65,7 +65,7 @@ Notifications and AuditLog baseline.
   also holds this code may approve or reject their own request.
 - **Previous Custodian** and **previous department** are the custody values
   captured when the request is made. **Target User** is the intended new
-  Custodian. Under accepted B2 semantics, the target department is derived from
+  Custodian. Under Draft B2 semantics, the target department is derived from
   the target User rather than selected independently.
 - **Pending**, **Approved**, and **Rejected** are Transfer outcomes. They are not
   Asset statuses. A Pending request leaves the Asset unchanged; approval
@@ -84,11 +84,11 @@ Notifications and AuditLog baseline.
 - Accepted B1 FR-007 and FR-010 through FR-012: Transfer creation uses
   `transfer_request`; approval/rejection uses `asset_custody_manage`; named and
   custom Role grants and global-versus-Employee visibility follow B1.
-- Accepted B2 FR-006, FR-008, FR-012, FR-015, ALR-003, ALR-004, ALR-006, and
+- Draft B2 FR-006, FR-008, FR-012, FR-015, ALR-003, ALR-004, ALR-006, and
   ALR-007: approved Transfer owns entry to `Assigned`, sets Custodian, derives
   department from that Custodian, respects terminal states, and participates in
   atomic lifecycle processing.
-- Accepted B2's terminal-transition contract requires every Pending Transfer on
+- Draft B2's terminal-transition contract requires every Pending Transfer on
   an Asset to become Rejected atomically when the Asset validly enters a
   terminal state. The current Asset transition implementation does not yet do
   so; this is a B2 conformance gap that B4 must not redefine.
@@ -245,11 +245,11 @@ Asset or producing an Approved outcome.
    **Given** an Asset in `Sold`, `Scrapped`, or `Lost`, **When** a Transfer is
    requested, **Then** the request is rejected and no Transfer is created. The
    request-time Sold path is test-backed; the other terminal values follow the
-   accepted B2 boundary and shared current restriction.
+   Draft B2 boundary and shared current restriction.
 3. **AS-012 - Test-backed current behavior**: **Given** a Pending Transfer whose
    Asset later becomes `Under Repair` or `Scrapped`, **When** approval is
    attempted, **Then** approval is rejected and custody does not change.
-4. **AS-013 - Accepted B2 dependency**: **Given** a Pending Transfer when the
+4. **AS-013 - Draft B2 dependency**: **Given** a Pending Transfer when the
    Asset validly enters a terminal state, **When** that terminal operation
    commits, **Then** the Transfer becomes Rejected atomically with the terminal
    transition and no Transfer workflow Notification is emitted by that B2
@@ -353,7 +353,7 @@ and filename, and reject download of an out-of-scope record.
   The current request form captures it too early, while the backend accepts
   arbitrary text and substitutes the Asset's request-time condition for a blank
   request; both behaviors are conformance gaps.
-- The target User may have no department. Accepted B2 semantics allow the Asset
+- The target User may have no department. Draft B2 semantics allow the Asset
   department to be empty in that case; they do not allow an unrelated explicit
   department to replace the derived value.
 - Current approval is protected as one operation and reloads the Transfer and
@@ -397,7 +397,7 @@ and filename, and reject download of an out-of-scope record.
   or custom Role holding the code is authorized, and a requester who holds the
   code MAY approve or reject their own request; no different-actor requirement
   applies.
-  *(Sources: `CONTEXT.md`, Transfer; accepted B1 FR-010 and accepted B2
+  *(Sources: `CONTEXT.md`, Transfer; accepted B1 FR-010 and Draft B2
   permission contract.)*
 - **FR-004 - Accepted visibility dependency**: Reading Transfer records MUST
   require `asset_view` and follow B1 data visibility: authorized non-Employee
@@ -416,7 +416,7 @@ and filename, and reject download of an out-of-scope record.
 - **FR-006 - Accepted dependency**: The target department MUST be derived from
   the target User under B2. A separately selected target department that differs
   from the target User's department MUST NOT become accepted B4 behavior.
-  *(Source: accepted B2 FR-015. Current API and form are a conformance gap.)*
+  *(Source: Draft B2 FR-015. Current API and form are a conformance gap.)*
 - **FR-007 - Accepted intent**: A Pending Transfer MUST leave the live Asset
   status, Custodian, department, and condition unchanged until a valid decision
   completes.
@@ -425,12 +425,12 @@ and filename, and reject download of an out-of-scope record.
   Approved and set the Asset to `Assigned`, with the target User as Custodian
   and that User's department as Asset department. Valid rejection MUST mark the
   Transfer Rejected and leave the Asset untouched.
-  *(Sources: `CONTEXT.md`, Transfer; accepted B2 FR-006, FR-015, ALR-003, and
+  *(Sources: `CONTEXT.md`, Transfer; Draft B2 FR-006, FR-015, ALR-003, and
   ALR-004; current core is test-backed.)*
 - **FR-009 - Accepted lifecycle boundary**: A Transfer request MUST reject
   `Under Repair`, `Sold`, `Scrapped`, and `Lost` Assets without creating a
   request or changing the Asset.
-  *(Sources: `CONTEXT.md`; accepted B2 terminal and Service boundaries; current
+  *(Sources: `CONTEXT.md`; Draft B2 terminal and Service boundaries; current
   Under Repair and Sold request paths are test-backed, while the complete
   shared restriction is implementation evidence.)*
 - **FR-010 - Accepted lifecycle boundary**: Approval MUST revalidate that the
@@ -438,13 +438,13 @@ and filename, and reject download of an out-of-scope record.
   and that the live Custodian and department equal the captured previous
   values. A stale-snapshot failure MUST leave the Transfer Pending and the Asset
   unchanged.
-  *(Sources: accepted B2 lifecycle contract; stakeholder clarification,
+  *(Sources: Draft B2 lifecycle contract; stakeholder clarification,
   2026-08-04; current status checks are test-backed.)*
-- **FR-011 - Accepted B2 dependency**: A valid terminal transition MUST
+- **FR-011 - Draft B2 dependency**: A valid terminal transition MUST
   atomically mark every Pending Transfer for the Asset Rejected. That automatic
   rejection belongs to the B2 operation and MUST NOT emit a B4 workflow
   Notification.
-  *(Source: accepted B2 ALR-006 and Accepted Asset Audit and Notification
+  *(Source: Draft B2 ALR-006 and Accepted Asset Audit and Notification
   Effects.)*
 - **FR-012 - Stakeholder-confirmed condition validation**: Approval MUST require
   the approver to select exactly one of `New`, `Good`, `Average`, `Damaged`, or
@@ -452,12 +452,12 @@ and filename, and reject download of an out-of-scope record.
   applied to the Asset atomically with approval. A missing, blank, or
   noncanonical value MUST reject approval and leave the Transfer Pending and
   the Asset unchanged.
-  *(Sources: stakeholder clarification, 2026-08-04; accepted B2 canonical
+  *(Sources: stakeholder clarification, 2026-08-04; Draft B2 canonical
   condition contract; the current approval effect is test-backed.)*
 - **FR-013 - Lifecycle integrity**: A Transfer outcome and captured custody MUST
   NOT be changed through direct record update or deletion. State changes MUST
   use request, approve, reject, or a B2-owned terminal transition.
-  *(Sources: constitution Principle II; accepted B2 FR-012. Current generic
+  *(Sources: constitution Principle II; Draft B2 FR-012. Current generic
   update/delete endpoints are Admin-only implementation behavior, not accepted
   lifecycle actions.)*
 - **FR-014 - Implementation-only list behavior**: The current Transfer list is
@@ -548,7 +548,7 @@ and filename, and reject download of an out-of-scope record.
 | Approval succeeds | Target User and captured previous Custodian; custody has changed | `/asset/detail/{id}` | Required: actor, time, Transfer Pending-to-Approved, Asset Custodian/department old and new values, status effect, and required canonical condition old/new values | Notification stakeholder-confirmed; audit required by Draft B8 |
 | Rejection succeeds | Requester; request was rejected | `/transfer` | Required: actor, time, Transfer Pending-to-Rejected, Transfer/Asset identifiers; unchanged Asset values need not be duplicated | Notification stakeholder-confirmed; audit required by Draft B8 |
 | Permission, terminal/Service, already-processed, or other security-relevant rejection | No current B4 Notification | Not applicable | Required when the rejection is security-relevant: actor, time, attempted action, target identifiers when safe, and reason category; no submitted secrets or full remarks | Draft B8 requirement; current Transfer logging does not cover these failures |
-| B2 terminal transition automatically rejects Pending Transfer | None; accepted B2 explicitly emits no workflow Notification | Not applicable | Owned by the B2 terminal-transition entry, including every automatically rejected Transfer | Accepted B2 dependency |
+| B2 terminal transition automatically rejects Pending Transfer | None; Draft B2 explicitly emits no workflow Notification | Not applicable | Owned by the B2 terminal-transition entry, including every automatically rejected Transfer | Draft B2 dependency |
 | Transfer list/detail read | None | Not applicable | None as a routine business read | Current and Draft B8 minimum |
 | Transfer PDF download | None | Download response | None; this is a routine read | Access and no-audit effect stakeholder-confirmed |
 
@@ -591,7 +591,7 @@ access policy:
   department, and the accepted condition effect.
 - **User**: May act as requester, approver, previous Custodian, target User, or
   Notification recipient. Authorization and visibility are owned by B1.
-- **Department**: Organizational data attached to a User. Under accepted B2
+- **Department**: Organizational data attached to a User. Under Draft B2
   custody semantics the Asset and Transfer target department derive from the
   target User.
 - **Notification**: The shared in-app recipient record owned by B8. B4 owns the
@@ -649,11 +649,12 @@ access policy:
 
 ## Assumptions
 
-- B1 and B2 accepted contracts remain authoritative and are not reopened by
-  this Draft. B3 and B8 remain Draft dependencies until their own acceptance.
+- The B1 and B2 Draft contracts are current dependencies and remain subject to
+  their own acceptance reviews; this Draft does not independently redefine
+  them. B3 and B8 likewise remain Draft dependencies until their own acceptance.
 - A target User is an active User selected through B1's minimal directory;
   Employees cannot browse that directory or initiate Transfer in current scope.
-- The target department follows the accepted B2 Custodian-department invariant.
+- The target department follows the Draft B2 Custodian-department invariant.
   The current optional independent department control is a conformance gap.
 - Transfer condition is an approval-time accountability value selected by the
   approver from B2's five canonical conditions; request-time free-form capture
@@ -683,7 +684,7 @@ access policy:
   Admin and appropriately granted custom Roles: stakeholder clarification,
   2026-08-04.
 - Approved Transfer sets Custodian and derives department from the target User,
-  while terminal and Service boundaries come from accepted B2 FR-006, FR-008,
+  while terminal and Service boundaries come from Draft B2 FR-006, FR-008,
   FR-015, ALR-004, and ALR-006.
 - Store-to-User issuance is Checkout without an approval gate under stakeholder
   clarification dated 2026-08-04. The same session resolves C8: Transfer PDF

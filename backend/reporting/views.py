@@ -2,7 +2,6 @@ from datetime import date, timedelta
 
 from django.db.models import Count, Sum
 from rest_framework import status as http_status
-from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -11,7 +10,7 @@ from assets.models import AmcContract, Asset, AssetCheckout, AssetTransfer, Serv
 from assets.serializers import AssetSerializer, CheckoutSerializer, TransferSerializer
 from catalog.models import Category, Vendor
 from core.models import Setting
-from core.permissions import HasRolePermission
+from core.permissions import HasRolePermission, is_admin
 from core.services import log_action
 
 
@@ -20,8 +19,24 @@ from core.services import log_action
 EXPIRY_THRESHOLD_DAYS = (7, 15, 30)
 
 
-@api_view(['GET'])
-def dashboard(request):
+class DashboardView(APIView):
+    """Read-only operational summary.
+
+    Declared as an APIView rather than @api_view so HasRolePermission can read
+    ``required_permission`` off the view: for a function-based view it finds no
+    permission_map and no required_permission, falls through to code=None, and
+    lets any authenticated request pass — including one from a Disabled profile
+    whose token was never revoked.
+    """
+
+    permission_classes = [HasRolePermission]
+    required_permission = "asset_view"
+
+    def get(self, request):
+        return Response(build_dashboard())
+
+
+def build_dashboard():
     today = date.today()
     soon = today + timedelta(days=30)
     qs = Asset.objects
@@ -54,8 +69,8 @@ def dashboard(request):
     expiring_assets = AssetSerializer(
         Asset.objects.filter(warranty_end__range=(today, soon))
         .order_by('warranty_end')[:5], many=True).data
-    return Response({"kpis": kpis, "recent_transfers": recent_transfers,
-                     "open_checkouts": open_checkouts, "expiring_assets": expiring_assets})
+    return {"kpis": kpis, "recent_transfers": recent_transfers,
+            "open_checkouts": open_checkouts, "expiring_assets": expiring_assets}
 
 
 def _last_12_months():
@@ -70,8 +85,17 @@ def _last_12_months():
     return months
 
 
-@api_view(['GET'])
-def charts(request, name):
+class ChartView(APIView):
+    """Dashboard chart data. Same authorization contract as DashboardView."""
+
+    permission_classes = [HasRolePermission]
+    required_permission = "asset_view"
+
+    def get(self, request, name):
+        return build_chart(name)
+
+
+def build_chart(name):
     if name == "category-distribution":
         rows = (Category.objects.annotate(n=Count('asset')).filter(n__gt=0)
                 .values_list('category_name', 'n'))
@@ -278,6 +302,12 @@ def _report_lost():
     return (["Asset ID", "Name", "Last Known Custodian", "Department", "Condition"], rows)
 
 
+# The audit report serves the same AuditLog rows as the /audit/ endpoint, including
+# actor identity and source IP. That endpoint is Admin-only, so reaching the same data
+# through report_access — which IT Staff and Viewer also hold — was a way around it.
+# Both surfaces must move together if audit access is ever widened.
+ADMIN_ONLY_REPORTS = {"audit"}
+
 REPORTS = {
     "register": ("Asset Register Report", _report_register),
     "movement": ("Asset Movement Report", _report_movement),
@@ -299,11 +329,17 @@ class ReportView(APIView):
     def get(self, request, key=None):
         if key is None:
             return Response({"reports": [
-                {"key": k, "title": title} for k, (title, _) in REPORTS.items()]})
+                {"key": k, "title": title} for k, (title, _) in REPORTS.items()
+                if k not in ADMIN_ONLY_REPORTS or is_admin(request)]})
         if key not in REPORTS:
             return Response({"detail": "Unknown report."}, status=http_status.HTTP_404_NOT_FOUND)
+        if key in ADMIN_ONLY_REPORTS and not is_admin(request):
+            return Response({"detail": "You do not have permission to read this report."},
+                            status=http_status.HTTP_403_FORBIDDEN)
         title, fn = REPORTS[key]
         headers, rows = fn()
+        if key in ADMIN_ONLY_REPORTS:
+            log_action(request, "Report View", "Reports", new_value=key)
         return Response({"key": key, "title": title, "headers": headers, "rows": rows})
 
 
@@ -318,6 +354,9 @@ class ReportExportView(APIView):
         if key not in REPORTS or fmt not in ("pdf", "excel"):
             return Response({"detail": "Unknown report or format."},
                             status=http_status.HTTP_404_NOT_FOUND)
+        if key in ADMIN_ONLY_REPORTS and not is_admin(request):
+            return Response({"detail": "You do not have permission to export this report."},
+                            status=http_status.HTTP_403_FORBIDDEN)
         title, fn = REPORTS[key]
         headers, rows = fn()
         company = Setting.get("company_name", "Cloud Shoe Factory")

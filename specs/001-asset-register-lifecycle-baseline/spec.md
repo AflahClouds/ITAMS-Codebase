@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-29
 
-**Status**: Baseline — accepted 2026-07-29
+**Status**: Draft
 
 **Evidence Date**: 2026-07-29
 

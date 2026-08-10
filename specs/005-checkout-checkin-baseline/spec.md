@@ -23,7 +23,7 @@ boundaries. Use Checkout, never Assignment. Do not modify application code."
 ### Session 2026-08-04
 
 - Q: What value should the Asset department hold after a check-in? → A: Clear it
-  with the Custodian, confirming accepted B2 FR-015; Checkout sets department to
+  with the Custodian, confirming Draft B2 FR-015; Checkout sets department to
   the Checkout User's department and empties it when that User has none.
 - Q: When a check-in supplies no return condition, what happens, and how is the
   resulting Asset condition change recorded? → A: The return condition is
@@ -100,7 +100,7 @@ contract), B8 (shared Notification and AuditLog facility, Draft).
   terminal transition. A Checkout so closed is **closed-as-interrupted** and
   stays distinguishable from one closed by a check-in.
 - **Asset**, **status**, **condition**, **Department**, **Transfer**, **Service
-  Record**, and **Notification** follow `CONTEXT.md` and the accepted B2
+  Record**, and **Notification** follow `CONTEXT.md` and the Draft B2
   baseline.
 - `Assignment` is rejected terminology for this lifecycle and MUST NOT appear on
   any user-visible Checkout surface. `Assigned` remains the canonical Asset
@@ -123,7 +123,7 @@ contract), B8 (shared Notification and AuditLog facility, Draft).
   opening a Service Record mirrors check-in by clearing the Custodian, and
   closing it never restores the previous Custodian — IT must perform a fresh
   Checkout. This is the B3/B5 integration boundary.
-- Accepted B2 baseline (`specs/001-asset-register-lifecycle-baseline/spec.md`):
+- Draft B2 baseline (`specs/001-asset-register-lifecycle-baseline/spec.md`):
   AS-004, AS-005, FR-006, FR-012, FR-015, ALR-004, ALR-006, ALR-007, the
   Accepted Lifecycle Boundary table, and the Accepted Asset Permission Contract
   are authoritative inputs to B3 and are not reopened here.
@@ -146,7 +146,7 @@ contract), B8 (shared Notification and AuditLog facility, Draft).
 **Lifecycle and Actors**:
 
 - Admin, IT Manager, and IT Staff hold `asset_custody_manage` and are the only
-  actors who may create a Checkout or perform a check-in (accepted B2 permission
+  actors who may create a Checkout or perform a check-in (Draft B2 permission
   contract; `CONTEXT.md`, **Checkout**).
 - Any actor whose Role grants `asset_view` may read Checkout records. Employee
   Asset-read scope is owned by B1 and B2 and is not extended here.
@@ -158,7 +158,7 @@ contract), B8 (shared Notification and AuditLog facility, Draft).
   Service Record (B5) and an accepted terminal transition (B2). Both are
   integration boundaries; B3 owns only the resulting closure of its own record.
 - Checkout sets the Asset department from the Checkout User and check-in clears
-  it with the Custodian, confirming accepted B2 FR-015.
+  it with the Custodian, confirming Draft B2 FR-015.
 - `asset_custody_manage` holders are both the accepted actors and, from the
   2026-08-04 clarification, Notification recipients for every Checkout,
   check-in, and Overdue Checkout.
@@ -626,31 +626,31 @@ Notifications to the Custodian and to custody operators.
 - **FR-001 — Accepted intent**: A Checkout MUST move an Asset from `Available`
   to `Assigned` for exactly one Checkout User, and MUST record that usage
   session as a Checkout record.
-  *(Source: `CONTEXT.md`, **Checkout**; accepted B2 AS-004.)*
+  *(Source: `CONTEXT.md`, **Checkout**; Draft B2 AS-004.)*
 - **FR-002 — Accepted intent**: A check-in MUST move an `Assigned` Asset back to
   `Available` and MUST close its Checkout record as returned.
-  *(Source: `CONTEXT.md`, **Checkout**; accepted B2 AS-005.)*
+  *(Source: `CONTEXT.md`, **Checkout**; Draft B2 AS-005.)*
 - **FR-003 — Accepted intent**: Checkout MUST NOT have an approval gate, a
   `Pending` state, or a second approving actor. Any requirement for those
   belongs to Transfer.
   *(Source: `CONTEXT.md`, **Checkout** and **Transfer**.)*
 - **FR-004 — Accepted intent**: Checkout MUST set the Custodian to the Checkout
   User, and check-in MUST clear the Custodian.
-  *(Sources: `CONTEXT.md`, **Custodian**; accepted B2 FR-006.)*
+  *(Sources: `CONTEXT.md`, **Custodian**; Draft B2 FR-006.)*
 - **FR-005 — Accepted intent**: Asset status MUST remain the authoritative
   availability value; the presence or absence of a Custodian MUST NOT by itself
   determine whether an Asset can be checked out.
-  *(Sources: `CONTEXT.md`, **Custodian**; accepted B2 FR-005.)*
+  *(Sources: `CONTEXT.md`, **Custodian**; Draft B2 FR-005.)*
 - **FR-006 — Stakeholder-confirmed**: Checkout MUST set the Asset department to
   the Checkout User's department, and MUST empty it when that User has no
   department, so the department always describes the current holder.
-  *(Sources: accepted B2 FR-015 and the Accepted Lifecycle Boundary table;
+  *(Sources: Draft B2 FR-015 and the Accepted Lifecycle Boundary table;
   stakeholder clarification, 2026-08-04.)*
 - **FR-007 — Accepted intent**: `Assigned` MUST be entered only through Checkout
   and left for a nonterminal status only through check-in. A direct Asset status
   edit MUST NOT substitute for either operation, and a rejected attempt MUST
   leave the Asset and any open Checkout unchanged.
-  *(Sources: accepted B2 FR-012 and ALR-004.)*
+  *(Sources: Draft B2 FR-012 and ALR-004.)*
 - **FR-008 — Accepted intent**: A Checkout MUST be rejected when the Asset is
   not `Available`, and the Asset MUST remain unchanged.
   *(Sources: `CONTEXT.md`, **Checkout**; current rejection is test-verified.)*
@@ -662,12 +662,12 @@ Notifications to the Custodian and to custody operators.
   `Average`, `Damaged`, or `Repair Required`. A noncanonical value MUST be
   rejected without changing the Checkout, the Asset status, the Custodian, or
   the Asset condition.
-  *(Sources: `CONTEXT.md`, **Asset**; accepted B2 FR-003 and FR-011; current
+  *(Sources: `CONTEXT.md`, **Asset**; Draft B2 FR-003 and FR-011; current
   rejection is test-verified.)*
 - **FR-011 — Accepted intent**: A Checkout and a check-in MUST each apply their
   record change, Asset status change, and Custodian effect as one atomic
   operation, so that no partial custody state is user-visible.
-  *(Sources: `.specify/memory/constitution.md`, Principle II; accepted B2
+  *(Sources: `.specify/memory/constitution.md`, Principle II; Draft B2
   ALR-003.)*
 - **FR-012 — Accepted intent**: A closed Checkout MUST NOT be reopened, and a
   check-in MUST NOT retain or later restore the previous Custodian. Returning an
@@ -695,16 +695,16 @@ Notifications to the Custodian and to custody operators.
   test-verified.)*
 - **FR-016 — Accepted intent**: An accepted terminal transition on an Asset with
   an open Checkout MUST close that Checkout atomically with the transition.
-  *(Source: accepted B2 ALR-006; current behavior is test-verified.)*
+  *(Source: Draft B2 ALR-006; current behavior is test-verified.)*
 - **FR-017 — Accepted intent**: A Checkout closed by an interrupting operation
   MUST remain distinguishable from one closed by an ordinary check-in, and MUST
   remain visible in the Asset's custody history.
-  *(Sources: accepted B2 ALR-006 and AS-022; `CONTEXT.md`, **Checkout**.)*
+  *(Sources: Draft B2 ALR-006 and AS-022; `CONTEXT.md`, **Checkout**.)*
 - **FR-018 — Accepted intent (C3)**: Every user-visible Checkout surface, label,
   history panel, message, and record field name MUST use `Checkout` and MUST NOT
   use `Assignment`. A field or label that implies an approval step MUST NOT be
   presented for this lifecycle.
-  *(Sources: `CONTEXT.md`, **Checkout**; `ROADMAP.md` decision C3; accepted B2
+  *(Sources: `CONTEXT.md`, **Checkout**; `ROADMAP.md` decision C3; Draft B2
   FR-004.)*
 - **FR-019 — Accepted intent**: The current Checkout MUST NOT be described or
   offered as employee self-service. An employee MUST NOT be able to create a
@@ -734,7 +734,7 @@ Notifications to the Custodian and to custody operators.
   Principle III.)*
 - **FR-023 — Stakeholder-confirmed**: Check-in MUST clear the Asset department
   together with the Custodian.
-  *(Sources: accepted B2 FR-015 and AS-005; stakeholder clarification,
+  *(Sources: Draft B2 FR-015 and AS-005; stakeholder clarification,
   2026-08-04.)*
 - **FR-024 — Stakeholder-confirmed**: A return condition MUST be supplied at
   check-in. A check-in that omits it MUST be rejected without changing the
@@ -744,7 +744,7 @@ Notifications to the Custodian and to custody operators.
 - **FR-025 — Stakeholder-confirmed**: A check-in that changes the Asset condition
   MUST create an Asset condition-inspection history row recording that change,
   so the Asset's condition history remains complete.
-  *(Sources: stakeholder clarification, 2026-08-04; accepted B2 condition-history
+  *(Sources: stakeholder clarification, 2026-08-04; Draft B2 condition-history
   ownership.)*
 - **FR-026 — Stakeholder-confirmed**: An expected return date is optional. When
   supplied it MUST be the current date or later, and an earlier date MUST be
@@ -770,7 +770,7 @@ Notifications to the Custodian and to custody operators.
   take its return condition from the Asset's current condition because no
   operator supplies one. It MUST NOT be treated as a check-in for the purposes
   of FR-014 or FR-024.
-  *(Sources: `CONTEXT.md`, **Service Record**; ADR-0001; accepted B2 ALR-006;
+  *(Sources: `CONTEXT.md`, **Service Record**; ADR-0001; Draft B2 ALR-006;
   stakeholder clarification, 2026-08-04.)*
 
 ### Current-System Contract Candidates — Not Accepted Requirements
@@ -852,12 +852,12 @@ registered in U-006.
 - **ALR-001 — Accepted intent**: Creating a Checkout and performing a check-in
   MUST require `asset_custody_manage`. Reading Checkout records MUST require
   `asset_view`.
-  *(Sources: `CONTEXT.md`, **Checkout**; accepted B2 Accepted Asset Permission
+  *(Sources: `CONTEXT.md`, **Checkout**; Draft B2 Accepted Asset Permission
   Contract; the create permission requirement is test-verified.)*
 - **ALR-002 — Accepted intent**: Admin, IT Manager, and IT Staff are the accepted
   actors for Checkout and check-in. Every other named Role MUST be denied both
   operations, including HR, Viewer, and Employee.
-  *(Sources: `CONTEXT.md`, **Checkout**; accepted B2 Accepted Asset Permission
+  *(Sources: `CONTEXT.md`, **Checkout**; Draft B2 Accepted Asset Permission
   Contract.)*
 - **ALR-003 — Governance requirement**: Authorization MUST be enforced at the
   protected action boundary. Hiding a Checkout or check-in control in a frontend
@@ -866,13 +866,13 @@ registered in U-006.
 - **ALR-004 — Accepted intent**: A denied or rejected Checkout or check-in MUST
   leave the Asset status, Custodian, department, condition, and every Checkout
   record unchanged.
-  *(Sources: `.specify/memory/constitution.md`, Principle II; accepted B2
+  *(Sources: `.specify/memory/constitution.md`, Principle II; Draft B2
   ALR-002.)*
 - **ALR-005 — Accepted intent**: Checkout and check-in MUST be the only
   operations that move an Asset into and out of `Assigned` for a nonterminal
   outcome. Editing a Checkout record directly MUST NOT be a supported way to
   change Asset status, Custodian, or department.
-  *(Sources: accepted B2 ALR-004 and ALR-007. The current Admin-only direct
+  *(Sources: Draft B2 ALR-004 and ALR-007. The current Admin-only direct
   record path is a conformance gap.)*
 - **ALR-006 — Accepted intent**: The Checkout User is a subject of the record,
   not an actor in it. No permission is granted to a User by being the Custodian,
@@ -883,7 +883,7 @@ registered in U-006.
   B5 or B2 MUST be able to close an open Checkout as part of its own atomic
   operation. B3 MUST NOT require a check-in in those paths and MUST NOT leave
   the Checkout open.
-  *(Sources: ADR-0001; accepted B2 ALR-006; current behavior is test-verified.)*
+  *(Sources: ADR-0001; Draft B2 ALR-006; current behavior is test-verified.)*
 - **ALR-008 — Stakeholder-confirmed**: The AuditLog entries required by FR-027
   MUST be created for successful, rejected, denied, and interrupted Checkout
   operations. A required entry MUST commit with its business action, and a
@@ -1005,7 +1005,7 @@ concern for the two owning baselines, not a change to either accepted trigger.
   semantics after check-in, default return condition, expected-return
   obligations, and audit requirements — carry an explicit stakeholder decision
   recorded in the Clarifications section, leaving exactly one open blocker (C1).
-- **SC-010**: Every accepted B2 requirement that B3 depends upon is either
+- **SC-010**: Every Draft B2 requirement that B3 depends upon is either
   satisfied by current behavior or recorded as a named conformance gap; the
   current review returns three gaps (department retention at check-in,
   department retention when the Checkout User has none, and the Admin-only
@@ -1031,11 +1031,11 @@ concern for the two owning baselines, not a change to either accepted trigger.
 - This is a documentation-only AS-BUILT baseline. It records current evidence
   and accepted adjacent intent without changing application code, tests,
   routes, interfaces, or configuration.
-- The accepted B2 baseline is authoritative for Asset status, condition,
-  Custodian, department, terminal transitions, and Asset permissions. B3
-  consumes those rules and does not reopen them; where B3 must record a
-  divergence, it does so as a conformance gap or an unresolved conflict rather
-  than as a new rule.
+- The Draft B2 baseline is the current dependency for Asset status, condition,
+  Custodian, department, terminal transitions, and Asset permissions, and
+  remains subject to its own acceptance review. B3 consumes those rules without
+  independently redefining them; where B3 records a divergence, it does so as a
+  conformance gap or unresolved conflict rather than as a new rule.
 - B1 owns User identity, Role administration, Department master data, the User
   directory, and User deletion. B3 consumes the resulting User and Department
   values.
@@ -1082,7 +1082,7 @@ concern for the two owning baselines, not a change to either accepted trigger.
   Checkout in person and employees cannot check out Assets to themselves:
   `CONTEXT.md`, **Checkout**.
 - `Checkout` is the canonical term and `Assignment` is rejected:
-  `CONTEXT.md`, **Checkout**; `ROADMAP.md` decision C3; accepted B2 FR-004.
+  `CONTEXT.md`, **Checkout**; `ROADMAP.md` decision C3; Draft B2 FR-004.
 - Employee self-service Checkout is deferred future scope, not current behavior:
   `CONTEXT.md`, **Checkout**; `ROADMAP.md`, F2.
 - Checkout sets Custodian and department, and check-in clears the Custodian;
@@ -1197,7 +1197,7 @@ frontend Checkout surface. No frontend behavioral test harness exists
 ### Unresolved Conflicts
 
 - **U-001 — Department semantics after check-in — RESOLVED 2026-08-04**: The
-  stakeholder confirmed accepted B2 FR-015: check-in clears the department with
+  stakeholder confirmed Draft B2 FR-015: check-in clears the department with
   the Custodian, and Checkout sets it from the Checkout User or empties it when
   that User has none. B2 needs no amendment. Recorded in FR-006 and FR-023;
   current retention at both points is now a conformance gap in U-006.

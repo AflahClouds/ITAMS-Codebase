@@ -16,7 +16,7 @@ an explicit stakeholder-approved waiver recorded in the specification.
 - [ ] CHK002 Is the absence of any Warranty status, renewal, or discontinuation workflow stated as a requirement rather than left as an unmentioned omission? [Completeness, Spec §FR-003, §AS-002]
 - [ ] CHK003 Is the requirement that AMC coverage be queryable data rather than only an uploaded document stated with its consequence for alerts and reporting? [Traceability, Spec §FR-004, §AS-005]
 - [ ] CHK004 Are `Incomplete`, `Active`, and `Ended` consistently described as AMC contract states and never as Asset statuses across scenarios, requirements, and entities? [Consistency, Spec §FR-005, §AS-038, §Key Entities]
-- [ ] CHK005 Is the rejected `Assignment` terminology on the Warranty panel identified as owned by accepted B2 and `ROADMAP.md` C3, so B7 neither adopts nor silently inherits it? [Scope, Spec §OBS-AS-002]
+- [ ] CHK005 Is the rejected `Assignment` terminology on the Warranty panel identified as owned by Draft B2 and `ROADMAP.md` C3, so B7 neither adopts nor silently inherits it? [Scope, Spec §OBS-AS-002]
 
 ## No-AMC, Incomplete, and Flag Semantics
 
@@ -44,7 +44,7 @@ an explicit stakeholder-approved waiver recorded in the specification.
 
 - [ ] CHK022 Is the renewal restriction on terminal Assets stated with its rationale and its zero-mutation outcome? [Clarity, Spec §FR-011, §AS-014]
 - [ ] CHK023 Is there an accepted requirement that End Support is also restricted on terminal Assets, or is the asymmetry with renewal deliberately accepted? The conformance table currently cites FR-011, which governs renewal only. [Conflict, Spec §U-006 row 5, §OBS-AS-008, §FR-011]
-- [ ] CHK024 Is the exclusion of terminal Assets from expiry alerts stated as a requirement, and is its derivation from accepted B2 rather than `CONTEXT.md` disclosed? [Assumption/Gap, Spec §FR-020, §AS-030, §Remaining Evidence-Led Confirmation Items]
+- [ ] CHK024 Is the exclusion of terminal Assets from expiry alerts stated as a requirement, and is its derivation from Draft B2 rather than `CONTEXT.md` disclosed? [Assumption/Gap, Spec §FR-020, §AS-030, §Remaining Evidence-Led Confirmation Items]
 - [ ] CHK025 Is it specified whether renewal is permitted when an Asset has no current contract — the path that would restart AMC coverage after a deliberate End Support? [Gap, Spec §FR-009, §FR-012]
 - [ ] CHK026 Is the assumption that an Asset has at most one current AMC contract stated as an enforceable invariant or explicitly recorded as unmodelled? [Assumption, Spec §Assumptions]
 - [ ] CHK027 Are concurrent renewal or End Support attempts on the same Asset addressed, or is the absence of a concurrency rule recorded? [Gap, Spec §ALR-002, §FR-014]
@@ -62,7 +62,7 @@ an explicit stakeholder-approved waiver recorded in the specification.
 
 ## Expiry Triggers, Recipients, and Channel
 
-- [ ] CHK036 Are the 30, 15, and 7-day thresholds specified as exact days-before-expiry checkpoints for both Warranty and `Active` AMC, and preserved as such alongside the catch-up rule? [Consistency, Spec §FR-016, §FR-039, §Assumptions]
+- [ ] CHK036 Are the current exact 30/15/7-day threshold behaviors kept separate from prospective catch-up behavior owned by CHG-B7-01? [Consistency, Spec §FR-016, §FWD-B7-001]
 - [ ] CHK037 Is the silence requirement complete for off-threshold dates, `Ended` contracts, Assets with no current AMC, and terminal Assets? [Negative Coverage, Spec §FR-019, §FR-020, §AS-026, §AS-028]
 - [ ] CHK038 Is the recipient rule stated as a permission grant rather than a Role display name, with the named Roles retained as the business description? [Clarity, Spec §FR-018, §Assumptions]
 - [ ] CHK039 Is the "IT Manager grant" used for AMC decision notifications identified as a specific permission code, given that no such code currently exists and only a Role name does? [Gap, Spec §FR-021, §CAND-018]
@@ -74,23 +74,23 @@ an explicit stakeholder-approved waiver recorded in the specification.
 
 ## Scheduling, Deduplication, and Failure Recovery
 
-- [ ] CHK045 Is the scheduling requirement explicit that alerts must run under the deployment the organization actually operates, and that the development-server-only arrangement does not satisfy it? [Clarity, Spec §FR-036, §OBS-AS-014, §U-002]
-- [ ] CHK046 Is the single-execution guarantee stated as an outcome across every worker and host, rather than as a named locking mechanism? [Measurability, Spec §FR-036]
-- [ ] CHK047 Is the dependency of alert production on application process lifetime disclosed, together with the requirement that a stalled or non-running scheduler be operator-visible? [Reliability Coverage, Spec §FR-036]
-- [ ] CHK048 Is the timezone requirement specific enough to be verifiable — one configured organizational timezone, with the configuration source identified? [Ambiguity, Spec §FR-037]
-- [ ] CHK049 Is the deduplication key stated precisely as the combination of Asset, coverage type, and threshold, with a rerun defined as a no-op? [Clarity, Spec §FR-038]
-- [ ] CHK050 Is the behavior specified when a coverage end date changes after an alert was already issued, so it is clear whether thresholds re-arm against the new date? [Gap, Spec §FR-038]
-- [ ] CHK051 Is the catch-up rule complete — which thresholds are evaluated, over what window, and what happens to a threshold whose coverage has already expired by the time the system recovers? [Coverage, Spec §FR-039]
-- [ ] CHK052 Is the interdependence of catch-up and once-only recording stated, so re-evaluating a window is safe by construction rather than by implementation care? [Consistency, Spec §FR-038, §FR-039, §Edge Cases]
-- [ ] CHK053 Is a failed or overdue run required to be operator-visible in a way that can be objectively checked? [Measurability, Spec §FR-039, §FR-036]
-- [ ] CHK054 Is the supersession of the source-code note proposing an external scheduler recorded, so the accepted in-process decision is not later reversed by reading that comment? [Traceability, Spec §FR-036, §U-002]
+- [ ] CHK045 Is development-server-only scheduling classified as current evidence and explicitly not presented as reliable production delivery? [Clarity, Spec §OBS-AS-014, §FWD-B7-001]
+- [ ] CHK046 Is exactly-one production execution assigned only to CHG-B7-01 rather than treated as B7 current behavior? [Scope, Spec §FWD-B7-001]
+- [ ] CHK047 Is operator-visible run health assigned only to CHG-B7-01? [Scope, Spec §FWD-B7-001]
+- [ ] CHK048 Is organizational-timezone delivery assigned only to CHG-B7-01? [Scope, Spec §FWD-B7-001]
+- [ ] CHK049 Is once-only delivery assigned only to CHG-B7-01? [Scope, Spec §FWD-B7-001]
+- [ ] CHK050 Is coverage-date re-arming excluded from B7 acceptance and left to CHG-B7-01 review? [Boundary, Spec §FWD-B7-001]
+- [ ] CHK051 Is downtime catch-up assigned only to CHG-B7-01? [Scope, Spec §FWD-B7-001]
+- [ ] CHK052 Is the relationship between catch-up and once-only delivery reviewed in CHG-B7-01 rather than B7? [Boundary, Spec §FWD-B7-001]
+- [ ] CHK053 Is production run-health measurability excluded from B7 and retained in CHG-B7-01? [Boundary, Spec §FWD-B7-001]
+- [ ] CHK054 Does B7 preserve the stakeholder decision and reciprocal link without prescribing an implementation mechanism? [Traceability, Spec §Extended by, §U-002]
 
 ## Notifications and AuditLog
 
 - [ ] CHK055 Is the trigger matrix complete for both expiry thresholds, both AMC decisions, initial entry, rejections, and routine reads, with every deliberate no-notification case stated as deliberate? [Completeness, Spec §FR-024, §B7 Notification and Audit Trigger Matrix]
 - [ ] CHK056 Are notification destinations specified as resolvable outcomes, covering both the unresolvable alert destination and the entirely absent AMC decision destination? [Clarity, Spec §AS-033, §CAND-016, §CAND-018]
 - [ ] CHK057 Is the required audit content defined per event, including previous and new contract dates and state, the reason where one applies, and the actor? [Completeness, Spec §FR-025, §B7 Notification and Audit Trigger Matrix]
-- [ ] CHK058 Is the boundary between B7's own audit entries and the accepted B2 Asset-mutation entry that initial AMC entry already produces stated without double-counting or gaps? [Dependency Consistency, Spec §FR-025, §OBS-AS-021]
+- [ ] CHK058 Is the boundary between B7's own audit entries and the Draft B2 Asset-mutation entry that initial AMC entry already produces stated without double-counting or gaps? [Dependency Consistency, Spec §FR-025, §OBS-AS-021]
 - [ ] CHK059 Is audit atomicity stated consistently — required-audit failure rolls back the owning AMC action, notification failure does not roll back completed work? [Reliability/Consistency, Spec §ALR-007, §AS-034, §AS-035, §SC-012]
 - [ ] CHK060 Are B8-owned delivery, read state, retry, deduplication of recipient records, access, privacy, and retention clearly separated from B7-owned trigger selection? [Dependency Coverage, Spec §FR-024, §FR-035, §Out of Scope]
 - [ ] CHK061 Is the requirement that the expiry check mutate nothing stated, so an alert can never be mistaken for a state change? [Security/Clarity, Spec §ALR-006]
@@ -109,7 +109,7 @@ an explicit stakeholder-approved waiver recorded in the specification.
 - [ ] CHK068 Are the two remaining acceptance preconditions in FR-028 — the `CONTEXT.md` reconciliation and confirmation of the derived FR-020 — stated as blocking, with owners? [Clarity, Spec §FR-028, §FR-029]
 - [ ] CHK069 Are all 18 conformance gaps in U-006 stated as findings that leave their contradicted requirement intact, rather than as grounds for weakening it? [Consistency, Spec §U-006]
 - [ ] CHK070 Is the coverage of the 18 cited tests accurately bounded, including the explicit statement of what has no automated coverage? [Traceability, Spec §Verified Behavior Evidence]
-- [ ] CHK071 Is the distinction between accepted B2 and the Draft status of B1, B5, B6, and B8 stated accurately everywhere those baselines are cited as sources? [Traceability, Spec §Specification Lineage, §Assumptions]
+- [ ] CHK071 Is the distinction between Draft B2 and the Draft status of B1, B5, B6, and B8 stated accurately everywhere those baselines are cited as sources? [Traceability, Spec §Specification Lineage, §Assumptions]
 - [ ] CHK072 Are the retention consequences for AMC history when an Asset is deleted either specified or explicitly assigned to B2? [Gap, Spec §Edge Cases, §Remaining Evidence-Led Confirmation Items]
 - [ ] CHK073 Is the exclusion of Warranty renewal, extended-warranty products, AMC cost and payment terms, claim workflows, and automatic contract changes explicit rather than by omission? [Scope, Spec §Out of Scope]
 - [ ] CHK074 Is the B5 boundary stated in both directions — a Service Record is not a coverage claim, and B7 infers no coverage from repair activity? [Dependency Consistency, Spec §FR-026, §Out of Scope]
