@@ -10,22 +10,39 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
+def _env_flag(name, default):
+    return os.environ.get(name, str(default)).lower() in ("1", "true", "yes", "on")
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-7c5y-!22255etg2023mun9#s6adq%^n*lcmi*$$7h_4%84$@iz'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Defaults OFF so that forgetting to configure a deployment fails safe rather than
+# serving tracebacks under a published key. manage.py opts developers back in.
+DEBUG = _env_flag("ITAMS_DEBUG", False)
 
-ALLOWED_HOSTS = []
+# The development key is only a fallback while DEBUG is on. With DEBUG off the
+# process refuses to start without ITAMS_SECRET_KEY rather than silently signing
+# sessions and password-reset tokens with a value published in the repository.
+_DEV_SECRET_KEY = 'django-insecure-7c5y-!22255etg2023mun9#s6adq%^n*lcmi*$$7h_4%84$@iz'
+SECRET_KEY = os.environ.get("ITAMS_SECRET_KEY", "")
+if not SECRET_KEY:
+    if not DEBUG:
+        raise RuntimeError(
+            "ITAMS_SECRET_KEY must be set when ITAMS_DEBUG is off.")
+    SECRET_KEY = _DEV_SECRET_KEY
+
+# Empty is correct while DEBUG is on (Django then allows localhost). A deployment
+# supplies its hostnames as a comma-separated ITAMS_ALLOWED_HOSTS.
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ITAMS_ALLOWED_HOSTS", "").split(",")
+                 if h.strip()]
+if not DEBUG and not ALLOWED_HOSTS:
+    raise RuntimeError(
+        "ITAMS_ALLOWED_HOSTS must list at least one host when ITAMS_DEBUG is off.")
 
 
 # Application definition

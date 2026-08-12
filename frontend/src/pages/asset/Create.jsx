@@ -12,7 +12,10 @@ import DescriptionForm from "../../components/forms/DescriptionForm";
 import MyMessage from "../../components/forms/Message";
 import Button from '@mui/material/Button';
 
-const STATUS_OPTIONS = ["Available", "Assigned", "Under Repair", "In Storage", "Sold", "Scrapped", "Lost"]
+// A new asset enters the register unheld: every other status is reached through the
+// operation that owns it (Checkout, Transfer, a Service Record, or a disposal edit),
+// so offering them here would only produce a rejected save.
+const STATUS_OPTIONS = ["Available", "In Storage"]
   .map((s) => ({ id: s, label: s }));
 const CONDITION_OPTIONS = ["New", "Good", "Average", "Damaged", "Repair Required"]
   .map((s) => ({ id: s, label: s }));
@@ -24,7 +27,6 @@ const AssetCreate = () => {
   const [models, setModel] = useState([])
   const [locations, setLocations] = useState([])
   const [departments, setDepartments] = useState([])
-  const [users, setUsers] = useState([])
   const [message, setMessage] = useState([])
   const navigate = useNavigate()
 
@@ -34,7 +36,6 @@ const AssetCreate = () => {
     AxiosInstance.get('/model/').then((res) => setModel(res.data))
     AxiosInstance.get('/location/').then((res) => setLocations(res.data))
     AxiosInstance.get('/department/').then((res) => setDepartments(res.data))
-    AxiosInstance.get('/user/directory/').then((res) => setUsers(res.data))
   }
 
   useEffect(() => {
@@ -88,7 +89,6 @@ const AssetCreate = () => {
       condition: 'New',
       location: '',
       department: '',
-      custodian: '',
       warranty_start: null,
       warranty_end: null,
       has_amc: false,
@@ -108,7 +108,6 @@ const AssetCreate = () => {
         asset_life: toNumberOrNull(values.asset_life),
         location: toIdOrNull(values.location),
         department: toIdOrNull(values.department),
-        custodian: toIdOrNull(values.custodian),
         warranty_start: toDateOrNull(values.warranty_start),
         warranty_end: toDateOrNull(values.warranty_end),
         amc_start: values.has_amc ? toDateOrNull(values.amc_start) : null,
@@ -291,20 +290,6 @@ const AssetCreate = () => {
               onBlur={formik.handleBlur}
               error={formik.touched.department && Boolean(formik.errors.department)}
               helperText={formik.touched.department && formik.errors.department}
-            />
-          </Box>
-
-          <Box className={"FormArea"}>
-            <SelectForm
-              label={"Custodian"}
-              options={users}
-              labelKey="user_name"
-              name="custodian"
-              value={formik.values.custodian}
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
-              error={formik.touched.custodian && Boolean(formik.errors.custodian)}
-              helperText={formik.touched.custodian && formik.errors.custodian}
             />
           </Box>
 

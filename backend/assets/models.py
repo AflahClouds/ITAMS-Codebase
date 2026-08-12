@@ -71,7 +71,15 @@ class Asset(models.Model):
 
     @property
     def has_amc(self):
-        return self.latest_amc is not None
+        """True while a current AMC contract exists — `Active` or `Incomplete`.
+
+        An `Ended` contract stays in history but reports False, so the flag answers
+        "is this asset under AMC now" rather than "was it ever" (ROADMAP.md decision
+        C4). CONTEXT.md still describes has_amc as a deliberate no-AMC marker; that
+        glossary reconciliation is outstanding.
+        """
+        contract = self.latest_amc
+        return contract is not None and contract.status in ("Active", "Incomplete")
 
     @property
     def amc_start(self):
@@ -144,7 +152,10 @@ class AssetCheckout(models.Model):
     purpose = models.CharField(max_length=255, blank=True, default="")
     checkout_condition = models.CharField(max_length=32, blank=True, default="")
     return_condition = models.CharField(max_length=32, blank=True, default="")
+    # Intake and return notes are separate records of separate events: a check-in
+    # must not overwrite what was recorded when the asset went out.
     remarks = models.TextField(blank=True, default="")
+    return_remarks = models.TextField(blank=True, default="")
     status = models.CharField(max_length=16, default="Open")  # Open / Returned
 
     def __str__(self):

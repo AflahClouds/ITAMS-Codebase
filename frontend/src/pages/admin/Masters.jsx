@@ -30,7 +30,16 @@ const Masters = () => {
     AxiosInstance.get(master.endpoint).then((res) => setRows(res.data));
   };
 
-  useEffect(() => { setRows([]); setName(''); setExtra(''); load(); }, [tab]);
+  // Switching tabs swaps to a different master: drop the previous rows and inputs,
+  // then load. Done in one state update so the reset is a single render, not four.
+  const selectTab = (next) => {
+    setTab(next);
+    setRows([]);
+    setName('');
+    setExtra('');
+  };
+
+  useEffect(() => { load(); }, [tab]);
 
   const add = async (event) => {
     event.preventDefault();
@@ -71,7 +80,7 @@ const Masters = () => {
       {message}
 
       <Paper sx={{ marginBottom: '16px' }}>
-        <Tabs value={tab} onChange={(e, v) => setTab(v)} variant="scrollable">
+        <Tabs value={tab} onChange={(e, v) => selectTab(v)} variant="scrollable">
           {MASTERS.map((m) => <Tab key={m.key} label={m.label} />)}
         </Tabs>
       </Paper>

@@ -5,13 +5,15 @@ from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from accounts.models import Department
+from accounts.models import Department, Role
 from accounts.tests import _create_profile
 from catalog.models import Brand, Category, Model, PurchaseMode, Vendor
 
 from .alerts import check_expiring_dates
 from .checkout import check_in, check_out
-from .models import AmcContract, Asset, LifecycleError, Procurement
+from .models import (AmcContract, Asset, AssetCheckout, AssetConditionLog,
+                     AssetDocument, AssetImage, LifecycleError, Procurement,
+                     ServiceRecord)
 from .service import close_service, open_service
 from .transfer import approve, reject, request_transfer
 
@@ -30,6 +32,109 @@ def _create_catalog(invoice_number):
         invoice_number=invoice_number,
     )
     return category, brand, model, procurement
+
+
+def _amc_vendor():
+    """A dated AMC contract records the Vendor it is with (B7)."""
+    return Vendor.objects.get_or_create(name="AMC Vendor")[0]
+
+
+class ServiceClosureContractTests(TestCase):
+    """B5: closing is where cost becomes known and where custody operators learn the
+    asset is back."""
+
+    def setUp(self):
+        category, brand, model, procurement = _create_catalog("SVC-CLOSE-001")
+        self.asset = _create_asset("SVC-CLOSE-A", category, brand, model, procurement)
+        self.vendor = Vendor.objects.create(name="Closing Vendor")
+        _, self.operator = _create_profile("svc-operator", ("asset_custody_manage",))
+        _, self.watcher = _create_profile("svc-watcher", ("asset_custody_manage",))
+
+    def _open(self):
+        return open_service(self.asset, self.vendor, self.operator)
+
+    def test_closing_without_a_cost_is_rejected(self):
+        record = self._open()
+
+        with self.assertRaises(LifecycleError):
+            close_service(record, self.operator)
+
+        record.refresh_from_db()
+        self.assertEqual(record.status, "Open")
+
+    def test_zero_cost_means_no_charge_and_is_accepted(self):
+        record = close_service(self._open(), self.operator, cost=0)
+
+        self.assertEqual(record.status, "Closed")
+        self.assertEqual(record.cost, 0)
+
+    def test_a_negative_cost_is_rejected(self):
+        with self.assertRaises(LifecycleError):
+            close_service(self._open(), self.operator, cost=-5)
+
+    def test_closing_notifies_every_custody_operator(self):
+        from core.models import Notification
+        before = Notification.objects.filter(user=self.watcher).count()
+
+        close_service(self._open(), self.operator, cost=250)
+
+        self.assertGreater(Notification.objects.filter(user=self.watcher).count(), before)
+
+
+class AmcContractPartyTests(TestCase):
+    """B7: a dated contract names its Vendor, and decision notices are addressed by
+    permission rather than by Role display name."""
+
+    def setUp(self):
+        category, brand, model, procurement = _create_catalog("AMC-PARTY-001")
+        self.asset = _create_asset("AMC-PARTY-A", category, brand, model, procurement)
+        self.account, _ = _create_profile("amc-party-operator", ("asset_edit",))
+        self.client_op = APIClient()
+        self.client_op.force_authenticate(self.account)
+
+    def test_renewal_without_a_vendor_is_rejected(self):
+        response = self.client_op.post(
+            f"/asset/{self.asset.pk}/renew_amc/",
+            {"amc_start": "2026-01-01", "amc_end": "2027-01-01"}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(AmcContract.objects.filter(asset=self.asset).exists())
+
+    def test_renewal_records_the_vendor_on_the_new_contract(self):
+        vendor = _amc_vendor()
+
+        response = self.client_op.post(
+            f"/asset/{self.asset.pk}/renew_amc/",
+            {"amc_start": "2026-01-01", "amc_end": "2027-01-01", "vendor": vendor.pk},
+            format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.asset.latest_amc.vendor, vendor)
+
+    def test_an_unknown_vendor_is_rejected(self):
+        response = self.client_op.post(
+            f"/asset/{self.asset.pk}/renew_amc/",
+            {"amc_start": "2026-01-01", "amc_end": "2027-01-01", "vendor": 9999},
+            format="json")
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_decision_notices_follow_the_permission_not_the_role_name(self):
+        from core.models import Notification
+        # Holds the manager-level code under a Role named something else.
+        _, by_permission = _create_profile("amc-by-permission", ("asset_delete",))
+        # Named "IT Manager" but granted nothing.
+        _, by_name = _create_profile("amc-by-name")
+        by_name.role.name = "IT Manager Renamed"
+        by_name.role.save(update_fields=["name"])
+        AmcContract.objects.create(asset=self.asset, vendor=_amc_vendor(),
+                                   start_date=date(2026, 1, 1), end_date=date(2027, 1, 1))
+
+        self.client_op.post(f"/asset/{self.asset.pk}/end_amc_support/",
+                            {"reason": "Vendor exited"}, format="json")
+
+        self.assertTrue(Notification.objects.filter(user=by_permission).exists())
+        self.assertFalse(Notification.objects.filter(user=by_name).exists())
 
 
 def _create_asset(asset_id, category, brand, model, procurement, **extra):
@@ -160,7 +265,8 @@ class CheckoutLifecycleTests(TestCase):
             check_out(self.asset, self.user, self.user)
 
     def test_check_in_returns_asset_to_available_with_new_condition(self):
-        checkout = check_out(self.asset, self.user, self.user)
+        checkout = check_out(self.asset, self.user, self.user,
+                             remarks="Issued with charger")
 
         checkout = check_in(checkout, "Damaged", remarks="Screen cracked")
 
@@ -169,7 +275,9 @@ class CheckoutLifecycleTests(TestCase):
         self.assertIsNone(self.asset.custodian)
         self.assertEqual(self.asset.condition, "Damaged")
         self.assertEqual(checkout.status, "Returned")
-        self.assertEqual(checkout.remarks, "Screen cracked")
+        # Return notes are their own field; the intake note survives the check-in.
+        self.assertEqual(checkout.return_remarks, "Screen cracked")
+        self.assertEqual(checkout.remarks, "Issued with charger")
 
     def test_check_in_rejects_an_already_closed_checkout(self):
         checkout = check_out(self.asset, self.user, self.user)
@@ -349,10 +457,10 @@ class ServiceRecordLifecycleTests(TestCase):
 
     def test_close_service_rejects_an_already_closed_record(self):
         record = open_service(self.asset, self.vendor, self.user)
-        close_service(record, self.user)
+        close_service(record, self.user, cost=0)
 
         with self.assertRaises(LifecycleError):
-            close_service(record, self.user)
+            close_service(record, self.user, cost=0)
 
 
 class ServiceRecordEndpointTests(TestCase):
@@ -405,7 +513,8 @@ class AmcActionTests(TestCase):
         client.force_authenticate(account)
 
         response = client.post(f"/asset/{self.asset.pk}/renew_amc/",
-                               {"amc_start": "2026-01-01", "amc_end": "2027-01-01"})
+                               {"amc_start": "2026-01-01", "amc_end": "2027-01-01",
+                                "vendor": _amc_vendor().pk})
 
         self.assertEqual(response.status_code, 200)
         self.asset.refresh_from_db()
@@ -421,7 +530,8 @@ class AmcActionTests(TestCase):
         client.force_authenticate(account)
 
         response = client.post(f"/asset/{self.asset.pk}/renew_amc/",
-                               {"amc_start": "2026-01-01", "amc_end": "2027-01-01"})
+                               {"amc_start": "2026-01-01", "amc_end": "2027-01-01",
+                                "vendor": _amc_vendor().pk})
 
         self.assertEqual(response.status_code, 400)
         self.asset.refresh_from_db()
@@ -495,7 +605,8 @@ class AmcActionTests(TestCase):
         client.force_authenticate(account)
 
         response = client.post(f"/asset/{self.asset.pk}/renew_amc/",
-                               {"amc_start": "2026-01-01", "amc_end": "2027-01-01"})
+                               {"amc_start": "2026-01-01", "amc_end": "2027-01-01",
+                                "vendor": _amc_vendor().pk})
 
         self.assertEqual(response.status_code, 200)
         contracts = list(AmcContract.objects.filter(asset=self.asset).order_by('start_date'))
@@ -546,7 +657,8 @@ class AmcIncompleteStateTests(TestCase):
         AmcContract.objects.create(asset=self.asset, status="Incomplete")
 
         response = self.client.post(f"/asset/{self.asset.pk}/renew_amc/",
-                                    {"amc_start": "2026-01-01", "amc_end": "2027-01-01"})
+                                    {"amc_start": "2026-01-01", "amc_end": "2027-01-01",
+                                "vendor": _amc_vendor().pk})
 
         self.assertEqual(response.status_code, 200)
         contracts = list(AmcContract.objects.filter(asset=self.asset).order_by('id'))
@@ -864,3 +976,360 @@ class CheckoutTransferEndpointTests(TestCase):
         reject_response = client.post(f"/transfer/{create_response.data['id']}/reject/")
         self.assertEqual(reject_response.status_code, 200)
         self.assertEqual(reject_response.data["status"], "Rejected")
+
+
+class BaselineConformanceTests(TestCase):
+    """Covers decisions the roadmap records as resolved but the implementation did
+    not enforce: C2 creation limits, C4 AMC flag semantics, C6 Employee scope,
+    C8 Transfer document access, and the B3/B4 lifecycle rules."""
+
+    def setUp(self):
+        self.category, self.brand, self.model, self.procurement = _create_catalog("CONF-1")
+        self.department = Department.objects.create(name="Conformance Dept")
+        _, self.employee = _create_profile("conf-employee")
+        # The named Employee Role is seeded by accounts migration 0002 and already
+        # carries asset_view; scope comes from the Role, not from the permission.
+        self.employee.role = Role.objects.get(name="Employee")
+        self.employee.department = self.department
+        self.employee.save(update_fields=["role", "department"])
+        _, self.colleague = _create_profile("conf-colleague", ("asset_view",))
+        self.operator_account, self.operator = _create_profile(
+            "conf-operator", ("asset_view", "asset_create", "asset_edit",
+                              "asset_custody_manage", "transfer_request"))
+        self.client_op = APIClient()
+        self.client_op.force_authenticate(self.operator_account)
+
+    def _asset(self, asset_id, **extra):
+        return _create_asset(asset_id, self.category, self.brand, self.model,
+                             self.procurement, **extra)
+
+    # --- C2: creation cannot short-circuit custody ---
+
+    def test_create_rejects_a_lifecycle_managed_status(self):
+        response = self.client_op.post("/asset/", {
+            "asset_id": "C2-A", "tag_number": "C2-A-T", "serial_number": "C2-A-S",
+            "category": self.category.pk, "brand": self.brand.pk, "model": self.model.pk,
+            "status": "Assigned"}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("status", response.data)
+
+    def test_create_rejects_a_custodian(self):
+        response = self.client_op.post("/asset/", {
+            "asset_id": "C2-B", "tag_number": "C2-B-T", "serial_number": "C2-B-S",
+            "category": self.category.pk, "brand": self.brand.pk, "model": self.model.pk,
+            "custodian": self.employee.pk}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("custodian", response.data)
+
+    def test_edit_cannot_assign_a_custodian_directly(self):
+        asset = self._asset("C2-EDIT")
+
+        response = self.client_op.patch(
+            f"/asset/{asset.pk}/", {"custodian": self.employee.pk}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("custodian", response.data)
+
+    def test_marking_an_asset_lost_still_retains_its_custodian(self):
+        asset = self._asset("C2-LOST", status="Assigned", custodian=self.employee)
+
+        response = self.client_op.patch(
+            f"/asset/{asset.pk}/", {"status": "Lost"}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        asset.refresh_from_db()
+        self.assertEqual(asset.custodian, self.employee)
+
+    def test_create_still_accepts_available_and_in_storage(self):
+        for i, status_value in enumerate(("Available", "In Storage")):
+            response = self.client_op.post("/asset/", {
+                "asset_id": f"C2-OK{i}", "tag_number": f"C2-OK{i}-T",
+                "serial_number": f"C2-OK{i}-S", "category": self.category.pk,
+                "brand": self.brand.pk, "model": self.model.pk,
+                "status": status_value}, format="json")
+            self.assertEqual(response.status_code, 201, status_value)
+
+    # --- C6: Employee reads only its own custodial records ---
+
+    def test_employee_sees_only_assets_it_holds(self):
+        mine = self._asset("C6-MINE", status="Assigned", custodian=self.employee)
+        self._asset("C6-THEIRS", status="Assigned", custodian=self.colleague)
+        client = APIClient()
+        client.force_authenticate(self.employee.account)
+
+        rows = client.get("/asset/").data
+
+        self.assertEqual([row["asset_id"] for row in rows], [mine.asset_id])
+
+    def test_employee_cannot_reach_another_holders_asset_by_id(self):
+        theirs = self._asset("C6-BYID", status="Assigned", custodian=self.colleague)
+        client = APIClient()
+        client.force_authenticate(self.employee.account)
+
+        self.assertEqual(client.get(f"/asset/{theirs.pk}/").status_code, 404)
+
+    def test_employee_is_denied_the_user_directory(self):
+        client = APIClient()
+        client.force_authenticate(self.employee.account)
+
+        self.assertEqual(client.get("/user/directory/").status_code, 403)
+
+    def test_a_non_employee_role_still_reads_globally(self):
+        self._asset("C6-GLOBAL", status="Assigned", custodian=self.colleague)
+        client = APIClient()
+        client.force_authenticate(self.colleague.account)
+
+        self.assertTrue(client.get("/asset/").data)
+        self.assertEqual(client.get("/user/directory/").status_code, 200)
+
+    def _employee_client(self):
+        client = APIClient()
+        client.force_authenticate(self.employee.account)
+        return client
+
+    def test_employee_sees_only_its_own_checkouts(self):
+        mine = self._asset("C6-CO-MINE")
+        theirs = self._asset("C6-CO-THEIRS")
+        self.client_op.post("/checkout/", {"asset": mine.pk, "user": self.employee.pk},
+                            format="json")
+        self.client_op.post("/checkout/", {"asset": theirs.pk, "user": self.colleague.pk},
+                            format="json")
+
+        rows = self._employee_client().get("/checkout/").data
+
+        self.assertEqual([row["asset_details"]["asset_id"] for row in rows], [mine.asset_id])
+
+    def test_employee_sees_service_records_only_for_assets_it_holds(self):
+        held = self._asset("C6-SVC-MINE", status="Assigned", custodian=self.employee)
+        other = self._asset("C6-SVC-OTHER")
+        vendor, _ = Vendor.objects.get_or_create(name="Vendor")
+        ServiceRecord.objects.create(asset=held, vendor=vendor)
+        ServiceRecord.objects.create(asset=other, vendor=vendor)
+
+        rows = self._employee_client().get("/service/").data
+
+        self.assertEqual([row["asset_details"]["asset_id"] for row in rows], [held.asset_id])
+
+    def test_employee_sees_files_only_for_assets_it_holds(self):
+        held = self._asset("C6-DOC-MINE", status="Assigned", custodian=self.employee)
+        other = self._asset("C6-DOC-OTHER", status="Assigned", custodian=self.colleague)
+        AssetDocument.objects.create(asset=held, file="a.pdf", file_name="mine.pdf")
+        AssetDocument.objects.create(asset=other, file="b.pdf", file_name="theirs.pdf")
+        AssetImage.objects.create(asset=other, file="c.png", file_name="theirs.png")
+        client = self._employee_client()
+
+        self.assertEqual([d["file_name"] for d in client.get("/asset_document/").data],
+                         ["mine.pdf"])
+        self.assertEqual(client.get("/asset_image/").data, [])
+
+    def test_employee_is_denied_procurement_entirely(self):
+        client = self._employee_client()
+
+        self.assertEqual(client.get("/procurement/").status_code, 403)
+        self.assertEqual(
+            client.get(f"/procurement/{self.procurement.pk}/").status_code, 403)
+
+    def test_employee_dashboard_counts_only_its_own_assets(self):
+        self._asset("C6-DASH-MINE", status="Assigned", custodian=self.employee)
+        self._asset("C6-DASH-A")
+        self._asset("C6-DASH-B")
+        client = self._employee_client()
+
+        kpis = client.get("/dashboard/").data["kpis"]
+        chart = client.get("/charts/status-distribution/").data
+
+        self.assertEqual(kpis["total_assets"], 1)
+        self.assertEqual(sum(chart["data"]), 1)
+
+    def test_a_global_reader_still_sees_every_record(self):
+        held = self._asset("C6-ALL-MINE", status="Assigned", custodian=self.employee)
+        other = self._asset("C6-ALL-OTHER")
+        vendor, _ = Vendor.objects.get_or_create(name="Vendor")
+        ServiceRecord.objects.create(asset=held, vendor=vendor)
+        ServiceRecord.objects.create(asset=other, vendor=vendor)
+        AssetDocument.objects.create(asset=held, file="a.pdf", file_name="mine.pdf")
+        self.client_op.post("/checkout/", {"asset": other.pk, "user": self.colleague.pk},
+                            format="json")
+
+        self.assertEqual(len(self.client_op.get("/service/").data), 2)
+        self.assertEqual(len(self.client_op.get("/asset_document/").data), 1)
+        self.assertEqual(len(self.client_op.get("/checkout/").data), 1)
+        self.assertEqual(self.client_op.get("/procurement/").status_code, 200)
+        self.assertEqual(self.client_op.get("/dashboard/").data["kpis"]["total_assets"],
+                         Asset.objects.count())
+
+    # --- B3: check-in records an inspection and preserves intake data ---
+
+    def test_check_in_requires_a_return_condition(self):
+        asset = self._asset("B3-COND", department=self.department)
+        checkout = self.client_op.post(
+            "/checkout/", {"asset": asset.pk, "user": self.employee.pk}, format="json")
+
+        response = self.client_op.post(
+            f"/checkout/{checkout.data['id']}/checkin/", {}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_check_in_clears_department_and_logs_the_inspection(self):
+        asset = self._asset("B3-DEPT", department=self.department)
+        checkout = self.client_op.post(
+            "/checkout/", {"asset": asset.pk, "user": self.employee.pk,
+                           "remarks": "Issued with charger"}, format="json")
+        logs_before = AssetConditionLog.objects.filter(asset=asset).count()
+
+        response = self.client_op.post(
+            f"/checkout/{checkout.data['id']}/checkin/",
+            {"condition": "Damaged", "remarks": "Screen cracked"}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        asset.refresh_from_db()
+        self.assertIsNone(asset.department)
+        self.assertIsNone(asset.custodian)
+        self.assertEqual(AssetConditionLog.objects.filter(asset=asset).count(),
+                         logs_before + 1)
+        record = AssetCheckout.objects.get(pk=checkout.data["id"])
+        self.assertEqual(record.remarks, "Issued with charger")
+        self.assertEqual(record.return_remarks, "Screen cracked")
+
+    def test_an_interrupting_closure_also_preserves_intake_remarks(self):
+        asset = self._asset("B3-INT")
+        self.client_op.post("/checkout/", {"asset": asset.pk, "user": self.employee.pk,
+                                           "remarks": "Issued with dock"}, format="json")
+        vendor, _ = Vendor.objects.get_or_create(name="Vendor")
+
+        self.client_op.post("/service/", {"asset": asset.pk, "vendor": vendor.pk},
+                            format="json")
+
+        record = asset.checkouts.get()
+        self.assertEqual(record.status, "Returned")
+        self.assertEqual(record.remarks, "Issued with dock")
+        self.assertIn("Auto-closed", record.return_remarks)
+
+    # --- B4: a transfer needs two parties and one open request ---
+
+    def test_transfer_rejects_the_current_custodian_as_target(self):
+        asset = self._asset("B4-SAME", status="Assigned", custodian=self.employee)
+
+        response = self.client_op.post(
+            "/transfer/", {"asset": asset.pk, "new_owner": self.employee.pk}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_transfer_rejects_a_second_pending_request(self):
+        asset = self._asset("B4-DUP", status="Assigned", custodian=self.employee)
+        first = self.client_op.post(
+            "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
+        self.assertEqual(first.status_code, 201)
+
+        second = self.client_op.post(
+            "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
+
+        self.assertEqual(second.status_code, 400)
+
+    def test_a_new_request_is_allowed_once_the_previous_one_is_decided(self):
+        asset = self._asset("B4-AFTER", status="Assigned", custodian=self.employee)
+        first = self.client_op.post(
+            "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
+        self.client_op.post(f"/transfer/{first.data['id']}/reject/", format="json")
+
+        second = self.client_op.post(
+            "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
+
+        self.assertEqual(second.status_code, 201)
+
+    # --- C8: Transfer document access, limited to records visible under B1 ---
+
+    def test_asset_view_holder_may_download_the_transfer_document(self):
+        asset = self._asset("C8-PDF", status="Assigned", custodian=self.employee)
+        transfer = self.client_op.post(
+            "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
+        client = APIClient()
+        client.force_authenticate(self.colleague.account)
+
+        response = client.get(f"/transfer/{transfer.data['id']}/document/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+
+    def test_employee_may_download_the_document_for_a_transfer_it_is_party_to(self):
+        asset = self._asset("C8-MINE", status="Assigned", custodian=self.employee)
+        transfer = self.client_op.post(
+            "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
+        client = APIClient()
+        client.force_authenticate(self.employee.account)
+
+        response = client.get(f"/transfer/{transfer.data['id']}/document/")
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_employee_cannot_download_someone_elses_transfer_document(self):
+        asset = self._asset("C8-THEIRS", status="Assigned", custodian=self.colleague)
+        transfer = self.client_op.post(
+            "/transfer/", {"asset": asset.pk, "new_owner": self.operator.pk}, format="json")
+        client = APIClient()
+        client.force_authenticate(self.employee.account)
+
+        self.assertEqual(
+            client.get(f"/transfer/{transfer.data['id']}/document/").status_code, 404)
+
+    def test_employee_lists_only_transfers_it_is_party_to(self):
+        mine = self._asset("C8-LIST-MINE", status="Assigned", custodian=self.employee)
+        theirs = self._asset("C8-LIST-THEIRS", status="Assigned", custodian=self.colleague)
+        self.client_op.post("/transfer/", {"asset": mine.pk, "new_owner": self.colleague.pk},
+                            format="json")
+        self.client_op.post("/transfer/", {"asset": theirs.pk, "new_owner": self.operator.pk},
+                            format="json")
+        client = APIClient()
+        client.force_authenticate(self.employee.account)
+
+        rows = client.get("/transfer/").data
+
+        self.assertEqual([row["asset_details"]["asset_id"] for row in rows],
+                         [mine.asset_id])
+
+    def test_a_non_employee_role_still_sees_every_transfer(self):
+        mine = self._asset("C8-ALL-A", status="Assigned", custodian=self.employee)
+        theirs = self._asset("C8-ALL-B", status="Assigned", custodian=self.colleague)
+        self.client_op.post("/transfer/", {"asset": mine.pk, "new_owner": self.colleague.pk},
+                            format="json")
+        self.client_op.post("/transfer/", {"asset": theirs.pk, "new_owner": self.operator.pk},
+                            format="json")
+        client = APIClient()
+        client.force_authenticate(self.colleague.account)
+
+        self.assertEqual(len(client.get("/transfer/").data), 2)
+
+    # --- C4: the AMC flag describes the current contract only ---
+
+    def test_has_amc_is_false_once_the_contract_is_ended(self):
+        asset = self._asset("C4-END")
+        contract = AmcContract.objects.create(
+            asset=asset, start_date=date(2026, 1, 1), end_date=date(2027, 1, 1))
+        self.assertTrue(asset.has_amc)
+
+        contract.status = "Ended"
+        contract.save(update_fields=["status"])
+
+        self.assertFalse(asset.has_amc)
+        self.assertEqual(asset.amc_status, "Ended")
+
+    def test_has_amc_is_true_while_a_contract_is_incomplete(self):
+        asset = self._asset("C4-INC")
+        AmcContract.objects.create(asset=asset, status="Incomplete")
+
+        self.assertTrue(asset.has_amc)
+
+    def test_renewing_after_an_ended_contract_reports_has_amc_again(self):
+        asset = self._asset("C4-RENEW")
+        AmcContract.objects.create(asset=asset, status="Ended", end_reason="Lapsed")
+
+        response = self.client_op.post(
+            f"/asset/{asset.pk}/renew_amc/",
+            {"amc_start": "2026-01-01", "amc_end": "2027-01-01",
+             "vendor": _amc_vendor().pk}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(asset.has_amc)
+        self.assertEqual(asset.amc_contracts.count(), 2)

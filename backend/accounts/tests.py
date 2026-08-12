@@ -81,6 +81,95 @@ class PrivacyAuthorizationTests(TestCase):
         self.assertEqual(client.get("/setting/").status_code, 403)
 
 
+class MasterDataAccessTests(TestCase):
+    """Master reads need a permission, but either the code that consumes the data or
+    the code that maintains it will do."""
+
+    def test_asset_view_may_read_master_data(self):
+        account, _ = _create_profile("master-consumer", ("asset_view",))
+        client = APIClient()
+        client.force_authenticate(account)
+
+        self.assertEqual(client.get("/category/").status_code, 200)
+
+    def test_settings_access_may_read_the_master_data_it_maintains(self):
+        account, _ = _create_profile("master-maintainer", ("settings_access",))
+        client = APIClient()
+        client.force_authenticate(account)
+
+        self.assertEqual(client.get("/category/").status_code, 200)
+        self.assertEqual(client.get("/vendor/").status_code, 200)
+
+    def test_a_role_with_neither_code_is_denied(self):
+        account, _ = _create_profile("master-nobody")
+        client = APIClient()
+        client.force_authenticate(account)
+
+        self.assertEqual(client.get("/category/").status_code, 403)
+
+    def test_the_employee_role_gets_no_b6_surface(self):
+        account, profile = _create_profile("master-employee", ("asset_view",))
+        profile.role = Role.objects.get(name="Employee")
+        profile.save(update_fields=["role"])
+        client = APIClient()
+        client.force_authenticate(account)
+
+        self.assertEqual(client.get("/vendor/").status_code, 403)
+
+
+class PasswordPolicyTests(TestCase):
+    """Password changes go through AUTH_PASSWORD_VALIDATORS, not a local length floor."""
+
+    def _client(self):
+        account = AuthUser.objects.create_user(username="pw-user", password="Str0ng-Passphrase!")
+        User.objects.create(account=account, user_name="pw", emp_id="EMP-pw",
+                            email_id="pw@example.com")
+        client = APIClient()
+        client.force_authenticate(account)
+        return client
+
+    def test_a_common_password_is_rejected_even_though_it_is_long_enough(self):
+        response = self._client().post("/auth/change-password/", {
+            "old_password": "Str0ng-Passphrase!", "new_password": "password123"}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_a_strong_password_is_accepted(self):
+        response = self._client().post("/auth/change-password/", {
+            "old_password": "Str0ng-Passphrase!",
+            "new_password": "quartz-lantern-98-oxide"}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+
+
+class PermissionLookupTests(TestCase):
+    """users_with_permission runs on every Transfer request and every expiry sweep, so
+    it must not scale its query count with the size of the directory."""
+
+    def test_recipients_resolve_in_a_constant_number_of_queries(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from .models import users_with_permission
+
+        # The seeded System Administrator already qualifies: Admins are recipients.
+        baseline = len(users_with_permission("asset_custody_manage"))
+
+        for i in range(15):
+            _create_profile(f"bulk-{i}", ("asset_custody_manage",))
+        with CaptureQueriesContext(connection) as small:
+            self.assertEqual(len(users_with_permission("asset_custody_manage")),
+                             baseline + 15)
+
+        for i in range(15, 45):
+            _create_profile(f"bulk-{i}", ("asset_custody_manage",))
+        with CaptureQueriesContext(connection) as large:
+            self.assertEqual(len(users_with_permission("asset_custody_manage")),
+                             baseline + 45)
+
+        self.assertEqual(len(small.captured_queries), len(large.captured_queries))
+
+
 class TokenRevocationOnDeactivationTests(TestCase):
     """Deactivating a profile must drop its login tokens, not merely rely on every
     endpoint re-checking profile status on each request."""

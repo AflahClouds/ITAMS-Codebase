@@ -8,7 +8,7 @@ import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import BuildIcon from '@mui/icons-material/Build';
 import AxiosInstance from '../../api/client';
 import MyMessage from '../../components/forms/Message';
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../auth/useAuth';
 
 const Services = () => {
   const [rows, setRows] = useState([]);
@@ -107,14 +107,17 @@ const Services = () => {
             Returning from {closeTarget?.vendor_details?.name}. The asset becomes Available —
             check it back out separately if needed.
           </Typography>
-          <TextField fullWidth size="small" label="Cost" type="number" sx={{ marginBottom: '12px' }}
+          <TextField fullWidth size="small" label="Cost" type="number" required
+            sx={{ marginBottom: '12px' }} helperText="Enter 0 if there was no charge."
             value={cost} onChange={(e) => setCost(e.target.value)} />
           <TextField fullWidth size="small" label="Remarks" multiline rows={2}
             value={remarks} onChange={(e) => setRemarks(e.target.value)} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCloseTarget(null)}>Cancel</Button>
-          <Button variant="contained" onClick={doClose}>Close Service</Button>
+          <Button variant="contained" onClick={doClose} disabled={cost === ''}>
+            Close Service
+          </Button>
         </DialogActions>
       </Dialog>
     </div>

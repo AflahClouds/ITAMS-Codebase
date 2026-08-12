@@ -88,9 +88,30 @@ class AssetSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
+        if self.instance is None:
+            # A new asset enters the register unheld. Custody is only ever granted by
+            # the operation that records it, so creation cannot short-circuit into a
+            # lifecycle-managed status or hand the asset to someone (decision C2).
+            new_status = attrs.get('status') or "Available"
+            if new_status not in ("Available", "In Storage"):
+                raise serializers.ValidationError(
+                    {"status": "A new asset may only be created as Available or "
+                               "In Storage; use Checkout or a Service Record to move it."})
+            if attrs.get('custodian') is not None:
+                raise serializers.ValidationError(
+                    {"custodian": "A new asset cannot be created with a Custodian; "
+                                  "use Checkout or Transfer to assign custody."})
         if self.instance is not None:
             current_status = self.instance.status
             new_status = attrs.get('status', current_status)
+            if ('custodian' in attrs and attrs['custodian'] != self.instance.custodian
+                    and new_status not in TERMINAL_STATUSES):
+                # Otherwise the creation guard above is bypassable by saving the asset
+                # and editing a Custodian in. Terminal transitions are exempt: update()
+                # clears or retains the Custodian itself for Sold/Scrapped and Lost.
+                raise serializers.ValidationError(
+                    {"custodian": "Custody changes through Checkout or Transfer, "
+                                  "not a direct edit."})
             if new_status != current_status:
                 if current_status in TERMINAL_STATUSES:
                     raise serializers.ValidationError(
@@ -231,8 +252,10 @@ class CheckoutSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssetCheckout
         fields = "__all__"
+        # return_condition and return_remarks are written by check_in, not by a
+        # client PATCH — the checkout record is created with intake data only.
         read_only_fields = ('checkout_date', 'return_date', 'approved_by',
-                            'return_condition', 'status')
+                            'return_condition', 'return_remarks', 'status')
 
 
 class TransferSerializer(serializers.ModelSerializer):

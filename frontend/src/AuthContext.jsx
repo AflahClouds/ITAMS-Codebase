@@ -1,7 +1,6 @@
-import { createContext, useContext, useState } from 'react';
+import { useState } from 'react';
 import AxiosInstance from './api/client';
-
-const AuthContext = createContext(null);
+import { AuthContext } from './auth/context';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -38,13 +37,13 @@ export function AuthProvider({ children }) {
     return (user.permissions || []).includes(code);
   };
 
+  // Mirrors the backend's own-records scope so the menu does not offer pages that
+  // will answer 403. The backend remains the authorization boundary.
+  const hasOwnRecordsScope = () => user?.role === 'Employee';
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, can, setToken }}>
+    <AuthContext.Provider value={{ user, login, logout, can, hasOwnRecordsScope, setToken }}>
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
 }

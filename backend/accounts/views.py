@@ -1,4 +1,6 @@
 from django.contrib.auth import authenticate
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from rest_framework import status as http_status
 from rest_framework import viewsets
@@ -96,8 +98,13 @@ class ChangePasswordView(APIView):
         if not request.user.check_password(old):
             return Response({"detail": "Current password is incorrect."},
                             status=http_status.HTTP_400_BAD_REQUEST)
-        if len(new) < 6:
-            return Response({"detail": "New password must be at least 6 characters."},
+        # Defer to AUTH_PASSWORD_VALIDATORS rather than a local length floor, so the
+        # configured policy (length, common passwords, similarity to the username)
+        # is what actually applies.
+        try:
+            validate_password(new, user=request.user)
+        except DjangoValidationError as exc:
+            return Response({"detail": " ".join(exc.messages)},
                             status=http_status.HTTP_400_BAD_REQUEST)
         request.user.set_password(new)
         request.user.save()
@@ -166,6 +173,12 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def directory(self, request):
+        profile = get_profile(request)
+        if profile is not None and profile.has_own_records_scope():
+            # The directory is a cross-User listing, which Employee scope excludes
+            # entirely — not merely filtered down to themselves (decision C6).
+            return Response({"detail": "You do not have permission to browse the user directory."},
+                            status=http_status.HTTP_403_FORBIDDEN)
         users = User.objects.filter(status="Active").select_related(
             'department').order_by('user_name')
         return Response(UserLiteSerializer(users, many=True).data)

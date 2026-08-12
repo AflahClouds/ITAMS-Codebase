@@ -7,7 +7,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import AxiosInstance from '../../api/client';
 import MyMessage from '../../components/forms/Message';
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../auth/useAuth';
 
 const CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required"];
 const DOCUMENT_TYPES = ["Purchase Invoice", "Warranty Card", "AMC Document", "PO Document",
@@ -32,6 +32,8 @@ const AssetDetail = () => {
   const [amcStart, setAmcStart] = useState('');
   const [amcEnd, setAmcEnd] = useState('');
   const [amcEndReason, setAmcEndReason] = useState('');
+  const [amcVendor, setAmcVendor] = useState('');
+  const [vendors, setVendors] = useState([]);
   const [message, setMessage] = useState(null);
   const imageInput = useRef(null);
   const documentInput = useRef(null);
@@ -40,6 +42,11 @@ const AssetDetail = () => {
   const load = () => {
     AxiosInstance.get(`/asset/${id}/`).then((res) => setAsset(res.data));
     AxiosInstance.get(`/asset/${id}/history/`).then((res) => setHistory(res.data));
+    // Only the renewal form needs the Vendor list, and only asset_edit holders see
+    // it — readers without that permission would just be issued a 403 per page view.
+    if (can('asset_edit')) {
+      AxiosInstance.get('/vendor/').then((res) => setVendors(res.data)).catch(() => setVendors([]));
+    }
   };
 
   useEffect(() => { load(); }, [id]);
@@ -116,9 +123,10 @@ const AssetDetail = () => {
   const renewAmc = async (event) => {
     event.preventDefault();
     try {
-      await AxiosInstance.post(`/asset/${id}/renew_amc/`, { amc_start: amcStart, amc_end: amcEnd });
+      await AxiosInstance.post(`/asset/${id}/renew_amc/`,
+        { amc_start: amcStart, amc_end: amcEnd, vendor: amcVendor });
       setMessage(<MyMessage messageText="AMC renewed. IT Manager notified." messageColor="green" />);
-      setAmcStart(''); setAmcEnd('');
+      setAmcStart(''); setAmcEnd(''); setAmcVendor('');
       load();
     } catch (err) {
       setMessage(<MyMessage
@@ -175,7 +183,7 @@ const AssetDetail = () => {
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ padding: '16px' }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 'bold', marginBottom: '8px' }}>
-              Assignment & Warranty
+              Custody & Warranty
             </Typography>
             <Row label="Custodian" value={asset.custodian_details?.user_name} />
             <Row label="Department" value={asset.department_details?.name} />
@@ -201,7 +209,10 @@ const AssetDetail = () => {
             <Typography variant="subtitle2" sx={{ fontWeight: 'bold', marginBottom: '8px' }}>
               AMC (Annual Maintenance Contract)
             </Typography>
-            {asset.has_amc ? (
+            {/* Keyed on whether a contract exists at all, not on has_amc: an Ended
+                contract reports has_amc false, and its status, end reason, and history
+                still have to be readable — and renewable — after it ends. */}
+            {asset.amc_status ? (
               <>
                 <Row label="AMC Start" value={asset.amc_start} />
                 <Row label="AMC End" value={asset.amc_end} />
@@ -224,6 +235,13 @@ const AssetDetail = () => {
                         <TextField size="small" type="date" label="New End"
                           InputLabelProps={{ shrink: true }}
                           value={amcEnd} onChange={(e) => setAmcEnd(e.target.value)} />
+                        <Select size="small" displayEmpty sx={{ minWidth: '160px' }}
+                          value={amcVendor} onChange={(e) => setAmcVendor(e.target.value)}>
+                          <MenuItem value=""><em>Select vendor</em></MenuItem>
+                          {vendors.map((v) => (
+                            <MenuItem key={v.id} value={v.id}>{v.name}</MenuItem>
+                          ))}
+                        </Select>
                         <Button type="submit" size="small" variant="contained">Renew</Button>
                       </Box>
                     </form>

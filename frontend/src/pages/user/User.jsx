@@ -6,7 +6,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AxiosInstance from '../../api/client'
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../auth/useAuth';
 
 const User = () => {
 

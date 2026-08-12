@@ -3,7 +3,7 @@ import { Box, Button, TextField, Typography } from '@mui/material';
 import KeyIcon from '@mui/icons-material/Key';
 import AxiosInstance from '../api/client';
 import MyMessage from '../components/forms/Message';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../auth/useAuth';
 
 const ChangePassword = () => {
   const [oldPassword, setOldPassword] = useState('');

@@ -7,6 +7,12 @@ import sys
 def main():
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'itams.settings')
+    # manage.py is the developer entrypoint (runserver, test, shell, migrate), so it
+    # opts into development mode. A deployment is served through itams/wsgi.py, which
+    # does not pass through here and therefore gets the safe default: DEBUG off, and
+    # no start-up at all without a real ITAMS_SECRET_KEY. Set ITAMS_DEBUG=0 to
+    # exercise production settings locally.
+    os.environ.setdefault('ITAMS_DEBUG', '1')
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

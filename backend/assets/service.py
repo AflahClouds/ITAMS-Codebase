@@ -1,8 +1,11 @@
 """Service Record lifecycle: an asset goes to a Vendor for repair, then comes back Available."""
+from decimal import Decimal, InvalidOperation
+
 from django.db import transaction
 from django.utils import timezone
 
-from core.services import notify
+from accounts.models import users_with_permission
+from core.services import notify, notify_many
 
 from .checkout import close_all_open_checkouts
 from .models import Asset, LifecycleError, ServiceRecord, TERMINAL_STATUSES
@@ -60,6 +63,17 @@ def open_service(asset, vendor, opened_by, *, expected_return_date=None, reason=
 def close_service(record, closed_by, *, cost=None, remarks=""):
     if record.status == "Closed":
         raise LifecycleError("This service record is already closed.")
+    if cost is None or str(cost).strip() == "":
+        # Closing is where the repair's price becomes known. Zero is a valid answer
+        # (in-warranty, goodwill); absent is not, or vendor spend can never be totalled.
+        raise LifecycleError(
+            "A cost is required to close this service record. Enter 0 for no charge.")
+    try:
+        cost = Decimal(str(cost))
+    except (InvalidOperation, ValueError):
+        raise LifecycleError("Cost must be a number.")
+    if cost < 0:
+        raise LifecycleError("Cost cannot be negative.")
 
     with transaction.atomic():
         record.status = "Closed"
@@ -73,4 +87,8 @@ def close_service(record, closed_by, *, cost=None, remarks=""):
         asset.status = "Available"
         asset.save()
 
+    notify_many(users_with_permission("asset_custody_manage"),
+                f"Asset {asset.asset_id} has returned from {record.vendor.name} "
+                f"and is Available.",
+                link=f"/asset/{asset.id}")
     return record

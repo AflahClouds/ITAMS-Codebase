@@ -37,3 +37,16 @@ def notify(profile, message, link=""):
     if profile is None:
         return
     Notification.objects.create(user=profile, message=message, link=link or "")
+
+
+def notify_many(profiles, message, link=""):
+    """Send one message to a group in a single INSERT.
+
+    The daily expiry sweep fans out over assets x recipients, so a per-recipient
+    create makes the job's cost the product of the two.
+    """
+    rows = [Notification(user=profile, message=message, link=link or "")
+            for profile in profiles if profile is not None]
+    if rows:
+        Notification.objects.bulk_create(rows)
+    return rows

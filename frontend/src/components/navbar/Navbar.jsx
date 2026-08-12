@@ -19,7 +19,7 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 
 import { Link, useNavigate } from 'react-router';
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../auth/useAuth';
 import AxiosInstance from '../../api/client';
 
 const drawerWidth = 240;

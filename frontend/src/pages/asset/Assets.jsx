@@ -7,7 +7,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AxiosInstance from '../../api/client'
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../auth/useAuth';
 
 const STATUS_COLORS = {
   'Available': 'success', 'Assigned': 'info', 'Under Repair': 'warning',

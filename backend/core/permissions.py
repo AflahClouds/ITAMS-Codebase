@@ -28,6 +28,22 @@ def is_admin(request):
     return profile.role is not None and profile.role.name == "Admin"
 
 
+class NotOwnRecordsScope(BasePermission):
+    """Denies a reader whose visibility is bounded to its own records.
+
+    Some data has no own-records subset to fall back on: B6 Procurement is purchase
+    administration, and decision C9 puts no Procurement surface in front of the
+    Employee Role at all. Filtering it to nothing would answer 200 with an empty
+    list and imply the data merely does not exist.
+    """
+
+    message = "You do not have permission to view this data."
+
+    def has_permission(self, request, view):
+        profile = getattr(getattr(request, "user", None), "profile", None)
+        return not (profile is not None and profile.has_own_records_scope())
+
+
 class HasRolePermission(BasePermission):
     message = "You do not have permission to perform this action."
 
@@ -55,4 +71,9 @@ class HasRolePermission(BasePermission):
             return True
         if code == "__admin__":
             return False
+        if isinstance(code, (tuple, list)):
+            # Several codes reach the same data by different routes — master data is
+            # readable both by the roles that consume it (`asset_view`) and by the role
+            # that maintains it (`settings_access`). Holding any one of them is enough.
+            return any(profile.can(c) for c in code)
         return profile.can(code)

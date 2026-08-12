@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router';
 import { Box, Typography } from '@mui/material';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../auth/useAuth';
 
 const ProtectedRoute = ({ permission, adminOnly = false, children }) => {
   const { user, can } = useAuth();

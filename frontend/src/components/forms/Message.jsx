@@ -1,5 +1,3 @@
-import * as React from 'react';
-import TextField from '@mui/material/TextField';
 import { Box, Typography } from '@mui/material';
 
 export default function MyMessage({messageText, messageColor}) {

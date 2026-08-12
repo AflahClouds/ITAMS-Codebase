@@ -62,10 +62,28 @@ class User(models.Model):
             return True
         return self.role.has_permission(permission_code) if self.role else False
 
+    def has_own_records_scope(self):
+        """True for the named Employee Role, which reads only its own custodial
+        records. Every other named Role — and any custom Role — reads globally for
+        the permission codes it holds (ROADMAP.md decision C6). This is a Role
+        decision rather than a permission one: Employee, HR, and Viewer all hold
+        `asset_view`, and only Employee is scoped.
+        """
+        return self.role is not None and self.role.name == "Employee"
+
     def __str__(self):
         return self.user_name
 
 
 def users_with_permission(code):
-    """Active employee profiles whose role grants the permission (Admins included)."""
-    return [u for u in User.objects.filter(status="Active").select_related("role") if u.can(code)]
+    """Active employee profiles whose role grants the permission (Admins included).
+
+    Resolved in one query. The obvious loop calling ``u.can(code)`` costs a query per
+    user, and this runs on every Transfer request and every daily expiry sweep.
+    """
+    return list(
+        User.objects.filter(status="Active")
+        .filter(models.Q(role__name="Admin") | models.Q(role__permissions__code=code))
+        .select_related("role")
+        .distinct()
+    )

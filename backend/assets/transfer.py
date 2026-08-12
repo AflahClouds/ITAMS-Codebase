@@ -3,7 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import users_with_permission
-from core.services import notify
+from core.services import notify, notify_many
 
 from .models import Asset, AssetTransfer, LifecycleError, TERMINAL_STATUSES
 
@@ -18,6 +18,15 @@ def request_transfer(asset, new_owner, requested_by, *, new_department=None,
                       condition=None, remarks=""):
     if asset.status in NOT_TRANSFERABLE_STATUSES:
         raise LifecycleError(f"This asset is {asset.status} and cannot be transferred.")
+    if asset.custodian_id and asset.custodian_id == new_owner.pk:
+        # A handoff needs two parties; approving this would record a custody change
+        # that never happened.
+        raise LifecycleError("This asset is already in that user's custody.")
+    if asset.transfers.filter(status="Pending").exists():
+        # Two Pending requests on one asset can both be approved, and the later
+        # approval would silently overwrite the earlier one's custody change.
+        raise LifecycleError(
+            "This asset already has a transfer request awaiting approval.")
 
     transfer = AssetTransfer.objects.create(
         asset=asset,
@@ -29,9 +38,9 @@ def request_transfer(asset, new_owner, requested_by, *, new_department=None,
         condition=condition or asset.condition,
         remarks=remarks or "",
     )
-    for approver in users_with_permission("asset_custody_manage"):
-        notify(approver, f"Transfer request for {asset.asset_id} awaiting approval.",
-               link="/transfer?status=Pending")
+    notify_many(users_with_permission("asset_custody_manage"),
+                f"Transfer request for {asset.asset_id} awaiting approval.",
+                link="/transfer?status=Pending")
     return transfer
 
 

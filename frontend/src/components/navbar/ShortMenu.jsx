@@ -14,7 +14,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import TuneIcon from '@mui/icons-material/Tune';
 
 import { Link, useLocation } from 'react-router';
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../auth/useAuth';
 
 
 const Item = ({ to, icon, selected }) => (

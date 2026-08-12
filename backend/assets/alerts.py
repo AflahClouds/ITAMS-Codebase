@@ -2,7 +2,7 @@
 from datetime import date, timedelta
 
 from accounts.models import users_with_permission
-from core.services import notify
+from core.services import notify_many
 
 from .models import AmcContract, Asset
 
@@ -23,12 +23,12 @@ def check_expiring_dates():
         target = date.today() + timedelta(days=days)
 
         for asset in Asset.objects.filter(warranty_end=target):
-            message = f"Warranty for {asset.asset_id} expires in {days} days."
-            for user in recipients:
-                notify(user, message, link=f"/asset/{asset.id}")
+            notify_many(recipients,
+                        f"Warranty for {asset.asset_id} expires in {days} days.",
+                        link=f"/asset/{asset.id}")
 
         for contract in AmcContract.objects.filter(status="Active", end_date=target).select_related('asset'):
             asset = contract.asset
-            message = f"AMC for {asset.asset_id} expires in {days} days."
-            for user in recipients:
-                notify(user, message, link=f"/asset/{asset.id}")
+            notify_many(recipients,
+                        f"AMC for {asset.asset_id} expires in {days} days.",
+                        link=f"/asset/{asset.id}")

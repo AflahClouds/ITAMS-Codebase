@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from rest_framework import status as http_status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -11,7 +11,7 @@ from assets.serializers import AssetSerializer, CheckoutSerializer, TransferSeri
 from catalog.models import Category, Vendor
 from core.models import Setting
 from core.permissions import HasRolePermission, is_admin
-from core.services import log_action
+from core.services import get_profile, log_action
 
 
 # ---------- Dashboard / charts ----------
@@ -33,13 +33,26 @@ class DashboardView(APIView):
     required_permission = "asset_view"
 
     def get(self, request):
-        return Response(build_dashboard())
+        return Response(build_dashboard(visible_assets(request)))
 
 
-def build_dashboard():
+def visible_assets(request):
+    """The Asset rows this reader may also read one at a time.
+
+    Every dashboard figure is derived from this queryset, so no aggregate can
+    summarize records the reader could not open individually (decision C6 applied
+    to B9). A global reader gets the whole register.
+    """
+    qs = Asset.objects.all()
+    profile = get_profile(request)
+    if profile is not None and profile.has_own_records_scope():
+        qs = qs.filter(custodian=profile)
+    return qs
+
+
+def build_dashboard(qs):
     today = date.today()
     soon = today + timedelta(days=30)
-    qs = Asset.objects
 
     kpis = {
         "total_assets": qs.count(),
@@ -48,26 +61,29 @@ def build_dashboard():
         "assigned": qs.filter(status="Assigned").count(),
         "repair": qs.filter(status="Under Repair").count(),
         "total_value": float(qs.aggregate(v=Sum('purchase_cost'))['v'] or 0),
-        "open_checkouts": AssetCheckout.objects.filter(status="Open").count(),
-        "pending_transfers": AssetTransfer.objects.filter(status="Pending").count(),
-        "open_services": ServiceRecord.objects.filter(status="Open").count(),
+        "open_checkouts": AssetCheckout.objects.filter(status="Open", asset__in=qs).count(),
+        "pending_transfers": AssetTransfer.objects.filter(status="Pending", asset__in=qs).count(),
+        "open_services": ServiceRecord.objects.filter(status="Open", asset__in=qs).count(),
         "warranty_expired": qs.filter(warranty_end__lt=today).count(),
-        "amc_expired": AmcContract.objects.filter(status="Active", end_date__lt=today).count(),
+        "amc_expired": AmcContract.objects.filter(
+            status="Active", end_date__lt=today, asset__in=qs).count(),
     }
     for days in EXPIRY_THRESHOLD_DAYS:
         until = today + timedelta(days=days)
         kpis[f"warranty_expiring_{days}"] = qs.filter(warranty_end__range=(today, until)).count()
         kpis[f"amc_expiring_{days}"] = AmcContract.objects.filter(
-            status="Active", end_date__range=(today, until)).count()
+            status="Active", end_date__range=(today, until), asset__in=qs).count()
 
     recent_transfers = TransferSerializer(
-        AssetTransfer.objects.select_related('asset', 'new_owner', 'previous_owner')
+        AssetTransfer.objects.filter(asset__in=qs)
+        .select_related('asset', 'new_owner', 'previous_owner')
         .order_by('-transfer_date')[:5], many=True).data
     open_checkouts = CheckoutSerializer(
-        AssetCheckout.objects.filter(status="Open").select_related('asset', 'user')
+        AssetCheckout.objects.filter(status="Open", asset__in=qs)
+        .select_related('asset', 'user')
         .order_by('-checkout_date')[:5], many=True).data
     expiring_assets = AssetSerializer(
-        Asset.objects.filter(warranty_end__range=(today, soon))
+        qs.filter(warranty_end__range=(today, soon))
         .order_by('warranty_end')[:5], many=True).data
     return {"kpis": kpis, "recent_transfers": recent_transfers,
             "open_checkouts": open_checkouts, "expiring_assets": expiring_assets}
@@ -92,22 +108,23 @@ class ChartView(APIView):
     required_permission = "asset_view"
 
     def get(self, request, name):
-        return build_chart(name)
+        return build_chart(name, visible_assets(request))
 
 
-def build_chart(name):
+def build_chart(name, assets):
     if name == "category-distribution":
-        rows = (Category.objects.annotate(n=Count('asset')).filter(n__gt=0)
-                .values_list('category_name', 'n'))
+        rows = (Category.objects.annotate(n=Count('asset', filter=Q(asset__in=assets)))
+                .filter(n__gt=0).values_list('category_name', 'n'))
         return Response({"labels": [r[0] for r in rows], "data": [r[1] for r in rows]})
 
     if name == "status-distribution":
-        rows = Asset.objects.values('status').annotate(n=Count('id')).order_by()
+        rows = assets.values('status').annotate(n=Count('id')).order_by()
         return Response({"labels": [r['status'] for r in rows],
                          "data": [r['n'] for r in rows]})
 
     if name == "department-usage":
-        rows = (Department.objects.annotate(n=Count('asset')).values_list('name', 'n'))
+        rows = (Department.objects.annotate(n=Count('asset', filter=Q(asset__in=assets)))
+                .values_list('name', 'n'))
         return Response({"labels": [r[0] for r in rows], "data": [r[1] for r in rows]})
 
     if name == "purchase-trend":
@@ -115,7 +132,7 @@ def build_chart(name):
         for y, m in _last_12_months():
             start = date(y, m, 1)
             end = date(y + (m == 12), (m % 12) + 1, 1)
-            total = (Asset.objects
+            total = (assets
                      .filter(procurement__purchase_date__gte=start,
                              procurement__purchase_date__lt=end)
                      .aggregate(v=Sum('purchase_cost'))['v'] or 0)
@@ -130,7 +147,7 @@ def build_chart(name):
             end = date(y + (m == 12), (m % 12) + 1, 1)
             count = AssetTransfer.objects.filter(
                 transfer_date__date__gte=start, transfer_date__date__lt=end,
-                status="Approved").count()
+                status="Approved", asset__in=assets).count()
             labels.append(start.strftime("%b %y"))
             data.append(count)
         return Response({"labels": labels, "data": data})
@@ -141,7 +158,7 @@ def build_chart(name):
                    ("61-90 days", 61, 90), ("90+ days", 91, None)]
         labels, data = [], []
         for label, lo, hi in buckets:
-            q = Asset.objects.filter(warranty_end__isnull=False)
+            q = assets.filter(warranty_end__isnull=False)
             if label == "Expired":
                 q = q.filter(warranty_end__lt=today)
             else:
@@ -158,7 +175,7 @@ def build_chart(name):
                    ("61-90 days", 61, 90), ("90+ days", 91, None)]
         labels, data = [], []
         for label, lo, hi in buckets:
-            q = AmcContract.objects.filter(status="Active")
+            q = AmcContract.objects.filter(status="Active", asset__in=assets)
             if label == "Expired":
                 q = q.filter(end_date__lt=today)
             else:

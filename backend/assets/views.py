@@ -1,16 +1,17 @@
 from datetime import date as date_cls
 
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import Max, Q
 from rest_framework import status as http_status
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from catalog.models import Vendor
 from core.exports import build_transfer_pdf
 from core.models import Setting
-from core.permissions import HasRolePermission
-from core.services import get_profile, log_action, notify
+from core.permissions import HasRolePermission, NotOwnRecordsScope
+from core.services import get_profile, log_action, notify_many
 
 from .barcodes import generate_asset_barcode
 from .checkout import check_in, check_out
@@ -30,10 +31,26 @@ from .transfer import request_transfer
 
 # ---------- Assets ----------
 
+def scoped_profile(request):
+    """The profile whose own records bound this request, or None when the reader is
+    global. B1 scopes the named Employee Role to its own Assets and the lifecycle
+    records it is party to; every other Role reads globally (decision C6).
+    """
+    profile = get_profile(request)
+    if profile is not None and profile.has_own_records_scope():
+        return profile
+    return None
+
+
 def _notify_it_managers(message, link=""):
-    from accounts.models import User
-    for manager in User.objects.filter(role__name="IT Manager", status="Active"):
-        notify(manager, message, link=link)
+    """Notify the operators who decide AMC contracts.
+
+    Selected by permission code, not by Role display name: a custom Role holding
+    `asset_delete` is an IT-Manager-equivalent under B1's custom-Role policy, and a
+    Role merely renamed "IT Manager" is not automatically one.
+    """
+    from accounts.models import users_with_permission
+    notify_many(users_with_permission("asset_delete"), message, link=link)
 
 
 class AssetViewSet(viewsets.ModelViewSet):
@@ -50,13 +67,17 @@ class AssetViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        profile = scoped_profile(self.request)
+        if profile is not None:
+            # Scopes list, retrieve, and every detail action that resolves through
+            # get_object(), so an Employee cannot reach a colleague's asset by id.
+            qs = qs.filter(custodian=profile)
         p = self.request.query_params
         if p.get('status'):
             qs = qs.filter(status=p['status'])
         if p.get('category'):
             qs = qs.filter(category_id=p['category'])
         if p.get('q'):
-            from django.db.models import Q
             like = p['q']
             qs = qs.filter(Q(asset_id__icontains=like) | Q(name__icontains=like) |
                            Q(tag_number__icontains=like) | Q(serial_number__icontains=like))
@@ -120,11 +141,22 @@ class AssetViewSet(viewsets.ModelViewSet):
         if amc_end <= amc_start:
             return Response({"detail": "amc_end must be after amc_start."},
                             status=http_status.HTTP_400_BAD_REQUEST)
+        # A dated contract is with somebody: vendor-grouped AMC reporting is the point
+        # of Vendor being a managed entity. Only an Incomplete contract may lack one.
+        vendor_id = request.data.get('vendor')
+        if not vendor_id:
+            return Response({"detail": "A vendor is required to renew an AMC."},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        vendor = Vendor.objects.filter(pk=vendor_id).first()
+        if vendor is None:
+            return Response({"detail": "That vendor does not exist."},
+                            status=http_status.HTTP_400_BAD_REQUEST)
         with transaction.atomic():
             AmcContract.objects.filter(asset=asset, status__in=("Active", "Incomplete")).update(
                 status="Ended", end_reason="Renewed")
             AmcContract.objects.create(
-                asset=asset, start_date=amc_start, end_date=amc_end, status="Active")
+                asset=asset, vendor=vendor, start_date=amc_start, end_date=amc_end,
+                status="Active")
         description = f"AMC renewed for {asset.asset_id}: {amc_start} to {amc_end}"
         log_action(request, "AMC Renewed", "Assets", new_value=description)
         _notify_it_managers(description)
@@ -168,7 +200,7 @@ class AssetViewSet(viewsets.ModelViewSet):
 
 
 class ProcurementViewSet(viewsets.ModelViewSet):
-    permission_classes = [HasRolePermission]
+    permission_classes = [HasRolePermission, NotOwnRecordsScope]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "asset_create", "update": "asset_edit",
                       "partial_update": "asset_edit", "destroy": "asset_delete"}
@@ -201,6 +233,12 @@ class ServiceRecordViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        profile = scoped_profile(self.request)
+        if profile is not None:
+            # A Service Record names no User, so it is visible through the Asset:
+            # the repair history of something the Employee currently holds. Opening a
+            # Service Record clears custody, so an in-flight repair is not visible.
+            qs = qs.filter(asset__custodian=profile)
         if self.request.query_params.get('status'):
             qs = qs.filter(status=self.request.query_params['status'])
         return qs
@@ -254,6 +292,11 @@ class AssetImageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = AssetImage.objects.all().select_related('uploaded_by').order_by('-upload_date')
+        profile = scoped_profile(self.request)
+        if profile is not None:
+            # Files inherit their Asset's visibility — otherwise the register is
+            # scoped but everything attached to it is not.
+            qs = qs.filter(asset__custodian=profile)
         if self.request.query_params.get('asset'):
             qs = qs.filter(asset_id=self.request.query_params['asset'])
         return qs
@@ -289,6 +332,9 @@ class AssetDocumentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = AssetDocument.objects.all().select_related('uploaded_by').order_by('-upload_date')
+        profile = scoped_profile(self.request)
+        if profile is not None:
+            qs = qs.filter(asset__custodian=profile)
         if self.request.query_params.get('asset'):
             qs = qs.filter(asset_id=self.request.query_params['asset'])
         return qs
@@ -333,6 +379,10 @@ class CheckoutViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        profile = scoped_profile(self.request)
+        if profile is not None:
+            # A Checkout directly involves the Employee it was issued to.
+            qs = qs.filter(user=profile)
         if self.request.query_params.get('status'):
             qs = qs.filter(status=self.request.query_params['status'])
         return qs
@@ -360,9 +410,10 @@ class CheckoutViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def checkin(self, request, pk=None):
         checkout = self.get_object()
-        condition = request.data.get('condition') or "Good"
         try:
-            checkout = check_in(checkout, condition, request.data.get('remarks'))
+            checkout = check_in(checkout, request.data.get('condition'),
+                                request.data.get('remarks'),
+                                performed_by=get_profile(request))
         except LifecycleError as exc:
             return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
         asset = checkout.asset
@@ -377,7 +428,8 @@ class TransferViewSet(viewsets.ModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "transfer_request", "approve": "asset_custody_manage",
-                      "reject": "asset_custody_manage", "*": "__admin__"}
+                      "reject": "asset_custody_manage", "document": "asset_view",
+                      "*": "__admin__"}
     queryset = AssetTransfer.objects.all().select_related(
         'asset', 'previous_owner', 'new_owner', 'previous_department',
         'new_department', 'requested_by', 'approved_by').order_by('-transfer_date')
@@ -385,6 +437,13 @@ class TransferViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        profile = scoped_profile(self.request)
+        if profile is not None:
+            # A Transfer is a record the Employee is party to only when it moves custody
+            # to or from them. This scopes the list and, through get_object(), the
+            # Transfer document — `asset_view` opens the PDF for the records a reader
+            # can already see, not for every Transfer in the system.
+            qs = qs.filter(Q(previous_owner=profile) | Q(new_owner=profile))
         if self.request.query_params.get('status'):
             qs = qs.filter(status=self.request.query_params['status'])
         return qs
@@ -395,12 +454,15 @@ class TransferViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         asset = data['asset']
         new_owner = data['new_owner']
-        transfer = request_transfer(
-            asset, new_owner, get_profile(request),
-            new_department=data.get('new_department'),
-            condition=data.get('condition'),
-            remarks=data.get('remarks', ""),
-        )
+        try:
+            transfer = request_transfer(
+                asset, new_owner, get_profile(request),
+                new_department=data.get('new_department'),
+                condition=data.get('condition'),
+                remarks=data.get('remarks', ""),
+            )
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
         log_action(request, "Transfer Request", "Transfers",
                    new_value=f"{asset.asset_id} -> {new_owner.user_name}")
         return Response(self.get_serializer(transfer).data, status=http_status.HTTP_201_CREATED)

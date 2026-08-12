@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Box, Button, Paper, TextField, Typography, Alert } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../auth/useAuth';
 import logo from '../assets/CLOUDS-LOGO_3.jpg';
 
 const Login = () => {

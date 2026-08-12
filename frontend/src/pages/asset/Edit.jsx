@@ -53,12 +53,11 @@ const AssetEdit = () => {
   const [models, setModel] = useState([])
   const [locations, setLocations] = useState([])
   const [departments, setDepartments] = useState([])
-  const [users, setUsers] = useState([])
   const [message, setMessage] = useState([])
   const [myData, setMyData] = useState({
     asset_id: "", name: "", tag_number: "", serial_number: "",
     category: "", brand: "", model: "", status: "Available", condition: "New",
-    location: "", department: "", custodian: "",
+    location: "", department: "",
     warranty_start: null, warranty_end: null,
     has_amc: false, amc_start: null, amc_end: null,
     purchase_cost: "", depreciation_rate: "", asset_life: "", notes: "",
@@ -72,7 +71,6 @@ const AssetEdit = () => {
     AxiosInstance.get('/model/').then((res) => setModel(res.data))
     AxiosInstance.get('/location/').then((res) => setLocations(res.data))
     AxiosInstance.get('/department/').then((res) => setDepartments(res.data))
-    AxiosInstance.get('/user/directory/').then((res) => setUsers(res.data))
     AxiosInstance.get(`/asset/${MyId}/`).then((res) => setMyData(res.data))
   }
 
@@ -127,7 +125,6 @@ const AssetEdit = () => {
       condition: myData.condition || 'New',
       location: myData.location ?? '',
       department: myData.department ?? '',
-      custodian: myData.custodian ?? '',
       warranty_start: myData.warranty_start,
       warranty_end: myData.warranty_end,
       has_amc: myData.has_amc || false,
@@ -148,7 +145,6 @@ const AssetEdit = () => {
         asset_life: toNumberOrNull(values.asset_life),
         location: toIdOrNull(values.location),
         department: toIdOrNull(values.department),
-        custodian: toIdOrNull(values.custodian),
         warranty_start: toDateOrNull(values.warranty_start),
         warranty_end: toDateOrNull(values.warranty_end),
         amc_start: values.has_amc ? toDateOrNull(values.amc_start) : null,
@@ -331,20 +327,6 @@ const AssetEdit = () => {
               onBlur={formik.handleBlur}
               error={formik.touched.department && Boolean(formik.errors.department)}
               helperText={formik.touched.department && formik.errors.department}
-            />
-          </Box>
-
-          <Box className={"FormArea"}>
-            <SelectForm
-              label={"Custodian"}
-              options={users}
-              labelKey="user_name"
-              name="custodian"
-              value={formik.values.custodian}
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
-              error={formik.touched.custodian && Boolean(formik.errors.custodian)}
-              helperText={formik.touched.custodian && formik.errors.custodian}
             />
           </Box>
 

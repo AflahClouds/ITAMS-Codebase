@@ -25,7 +25,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import SettingsIcon from '@mui/icons-material/Settings';
 
 import { Link, useLocation } from 'react-router';
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../auth/useAuth';
 
 
 function Section({ icon, label, to, path, open, onToggle, children }) {
@@ -63,7 +63,7 @@ export default function Menu() {
 
   const location = useLocation()
   const path = location.pathname
-  const { can, user } = useAuth();
+  const { can, user, hasOwnRecordsScope } = useAuth();
 
   return (
     <List
@@ -106,7 +106,7 @@ export default function Menu() {
         </ListItemButton>
       )}
 
-      {can('asset_view') && (
+      {can('asset_view') && !hasOwnRecordsScope() && (
         <Section icon={<ReceiptLongIcon />} label="Procurement" to="/procurement" path={path}
           open={procurementOpen} onToggle={() => setProcurementOpen(!procurementOpen)}>
           <SubItem icon={<ListAltIcon />} label="All" to="/procurement" path={path} />
@@ -123,7 +123,7 @@ export default function Menu() {
         </ListItemButton>
       )}
 
-      {can('asset_view') && (
+      {can('asset_view') && !hasOwnRecordsScope() && (
         <Section icon={<StorefrontIcon />} label="Vendors" to="/vendor" path={path}
           open={vendorOpen} onToggle={() => setVendorOpen(!vendorOpen)}>
           <SubItem icon={<ListAltIcon />} label="All" to="/vendor" path={path} />

@@ -8,7 +8,7 @@ import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import LaptopChromebookIcon from '@mui/icons-material/LaptopChromebook';
 import AxiosInstance from '../../api/client';
 import MyMessage from '../../components/forms/Message';
-import { useAuth } from '../../AuthContext';
+import { useAuth } from '../../auth/useAuth';
 
 const CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required"];
 

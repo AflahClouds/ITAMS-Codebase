@@ -3,7 +3,14 @@ from django.db.models.deletion import ProtectedError
 from rest_framework import status as http_status
 from rest_framework.response import Response
 
-MASTER_WRITE = {"create": "settings_access", "update": "settings_access",
+# Reads are listed explicitly: with no "list"/"retrieve" key and no "*" fallback,
+# HasRolePermission finds no required code and admits any authenticated user. They
+# accept either code, because a Role that maintains master data does not necessarily
+# also hold `asset_view`.
+MASTER_READ_CODES = ("asset_view", "settings_access")
+
+MASTER_WRITE = {"list": MASTER_READ_CODES, "retrieve": MASTER_READ_CODES,
+                "create": "settings_access", "update": "settings_access",
                 "partial_update": "settings_access", "destroy": "settings_access"}
 
 
