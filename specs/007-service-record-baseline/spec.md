@@ -79,7 +79,7 @@ it to accepted; until then the fields stay marked pending.*
 | Reviewed evidence date | 2026-08-05 (specification Created date; this baseline declares no separate Evidence Date) |
 | Acceptance checklist result | 70 of 70 items closed; executed 2026-08-12 — see `checklists/baseline-acceptance.md` |
 | Unresolved items deliberately carried forward | **All 17 rows in §U-005 are carried forward as conformance gaps** against accepted requirements. The three highest-consequence: row 13 — cost was optional at closure, so historical Vendor spend totals are incomplete and no report can state by how much; rows 1 and 2 — department is neither cleared at opening nor left clear at closing, so an Asset at a Vendor still presents a department that holds nothing; and row 3 — a closure overwrites the opening remarks, destroying the operator's account of why the Asset was sent. The three §Remaining Evidence-Led Confirmation Items are recorded on their own row and are review items rather than carried gaps. Carrying a conformance gap forward accepts the baseline as an accurate statement of intent while delivery catches up. It does **not** weaken the requirement, and a gap is closed by changing the code, never by editing the rule. |
-| Evidence-led confirmation items | *Pending — confirm the condition-history question (CAND-009), the Employee visibility question owned by B1, and the CHG-B5-01 delivery dependency on C5* |
+| Evidence-led confirmation items | **All three confirmed 2026-08-12.** *(a) Condition history* — a closure that records a condition change MUST create an Asset condition-inspection row, for the same reason Draft B3 FR-025 requires one at check-in and `CONTEXT.md` calls a condition change "evidence of" a Service Record. B5 does **not** require closure to change condition at all; the obligation attaches only when it does, so a `Repaired` or `No Fault Found` closure that leaves condition untouched creates no row. Recorded as FR-035. *(b) Employee visibility of a subject-less record* — no B1 amendment is needed. FR-012's enumeration already resolves it: a Service Record is not a record that names the Employee, so it is visible only while the related Asset remains visible under the Custodian rule. Because opening clears custody, an Employee does not see a repair in flight — a consequence of FR-005, not a separate access rule. This matches what the implementation now enforces. *(c) CHG-B5-01 delivery reliability* — confirmed as **not a B5 acceptance dependency**. B5 accepts no overdue requirement; the prospective behavior and its C5 scheduling risk belong wholly to CHG-B5-01, which cannot be delivered until that scheduling question is answered. Accepting B5 therefore implies nothing about overdue delivery. |
 
 **Immutability boundary**: on the acceptance date recorded above, the
 requirement and acceptance content of this specification becomes an immutable
@@ -911,6 +911,23 @@ the reader's B1 visibility scope.
   *(Sources: `CONTEXT.md`, **Service Record**; stakeholder clarification,
   2026-08-05. The current single remarks value that a closure replaces is a
   conformance gap.)*
+- **FR-035 — Accepted intent (condition history on closure)**: Closing a Service
+  Record MUST NOT be required to change the Asset's condition. When a closure
+  does record a condition change, it MUST create an Asset condition-inspection
+  history row for that change, so the Asset's condition history stays complete.
+  A closure that leaves the condition untouched MUST NOT create a row.
+  *(Derived, not newly decided, and confirming the CAND-009 review item on
+  2026-08-12. Draft B3 FR-025 already requires a check-in condition change to
+  create such a row, and `CONTEXT.md` describes a Service Record as the fuller
+  event that a condition change is often evidence of — so a repair that changes
+  condition cannot leave a thinner trail than a check-in that does. Draft B2 owns
+  the condition-history record itself; this states only when B5 must contribute
+  to it.)*
+
+  **Implementation conformance gap**: `close_service` sets status without
+  touching condition and writes no condition-inspection row, so no closure
+  currently contributes to condition history.
+
 - **FR-031 — Accepted intent (correction of a closed record)**: A mistaken cost,
   outcome, bill reference, or date on a closed Service Record MUST be
   correctable only through a named correction operation requiring

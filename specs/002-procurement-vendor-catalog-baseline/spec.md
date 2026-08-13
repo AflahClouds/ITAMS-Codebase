@@ -88,7 +88,7 @@ it to accepted; until then the fields stay marked pending.*
 | Acceptance date | *Pending* |
 | Reviewed evidence date | 2026-07-29 |
 | Acceptance checklist result | 40 of 40 items closed; executed 2026-08-12 — see `checklists/baseline-acceptance.md` |
-| Review basis used for the Success Criteria | *Pending — record the population or sample defined in §Success Criteria* |
+| Review basis used for the Success Criteria | **Full population at the reviewed Evidence Date (2026-07-29).** §Success Criteria permits either the whole population or a stratified sample; the whole population is chosen because the deployment's Procurement count is small enough to inspect individually, and a census removes any argument about whether a sample covered the FR-014 and FR-022 exception states — the cases most likely to be rare and most likely to matter. If the population later exceeds practical inspection, the stratified rule in §Success Criteria applies and the basis actually used MUST be re-recorded here rather than inherited from this entry. |
 | Unresolved items deliberately carried forward | Concurrent Asset linking — **operator-facing behavior only**: conflict presentation, retry, and stale-edit handling. The atomicity half of that finding is *not* carried forward; it is an implementation conformance gap against ALR-007. See §Unresolved Conflicts, finding 1 disposition. |
 
 **Immutability boundary**: on the acceptance date recorded above, the

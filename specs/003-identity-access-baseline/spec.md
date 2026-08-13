@@ -72,7 +72,7 @@ it to accepted; until then the fields stay marked pending.*
 | Reviewed evidence date | 2026-07-29 |
 | Acceptance checklist result | 40 of 40 items closed; executed 2026-08-12 — see `checklists/baseline-acceptance.md` |
 | Unresolved items deliberately carried forward | **Carried forward as conformance gaps**: the remainder of finding 1 — the seeded Employee Role description still reads "View own assets and raise requests", contradicting FR-009. **Accepted as current with the forward policy deferred**: findings 2, 3, 5, 6, 7, 8, 9, 12, and 13 — named-matrix and custom-Role test coverage, administrative bypass mechanics, the authentication and session contract, password policy beyond self-service change, User/account lifecycle atomicity, the custom-Role User-administration route gap, audit and Notification effects, and frontend authorization behavior. Each is recorded as current, not endorsed as target policy. **NOT carried — requires action before or alongside acceptance**: finding 11, the hard-coded initial administrative username and password in `accounts` migration 0002. Accepting a baseline that silently carries a committed default credential would make it look reviewed and approved. It needs a rotation and bootstrap decision, or an explicit written exception naming who accepted the risk. Finding 4 is closed. Finding 14 has its own row below and must be decided, not carried. Carrying a conformance gap forward accepts the baseline as an accurate statement of intent while delivery catches up. It does **not** weaken the requirement, and a gap is closed by changing the code, never by editing the rule. |
-| Employee self-identity field set (Unresolved Conflict 14) | *Pending — enumerate the accepted fields, or confirm the limit to an existing accepted field set* |
+| Employee self-identity field set (Unresolved Conflict 14) | **Resolved 2026-08-12 by enumeration** — FR-013 accepts identity, employee ID, email, designation, Department, Role name, granted permission codes, and the linked login username, and excludes every form of authentication material. Neither existing field set fitted: the minimal directory is too thin for self-identification and the full `user_management` record is a cross-User construct. The current login payload already matches, so this fixes a boundary that was previously incidental. |
 
 **Immutability boundary**: on the acceptance date recorded above, the
 requirement and acceptance content of this specification becomes an immutable
@@ -513,6 +513,30 @@ administrative bypass, including referenced and duplicate records.
   Employee MUST NOT browse the cross-User directory. Department MUST NOT expand
   or restrict visibility for any Role.
   *(Source: stakeholder clarification, 2026-07-29.)*
+- **FR-013 — Employee self-identity representation**: An Employee reading their
+  **own** User record MUST receive their identity, employee ID, email address,
+  designation, Department, Role name, granted permission codes, and their linked
+  login username. Authentication material MUST NOT be returned in any
+  representation — no password, password hash, reset token, or session token.
+  The route serving self-identity MUST be incapable of returning another User's
+  record; satisfying FR-012 by filtering a cross-User route is not sufficient.
+  *(Derived, not newly decided. B1's privacy rules protect against **cross-User**
+  exposure: FR-001 denies the full User list and detail, FR-003 limits the
+  directory to four fields, and ALR-003 keeps directory access from implying
+  full-record access. None of those concerns apply to a User reading their own
+  record — a person already knows their own email and the username they signed in
+  with, so withholding them protects nobody and would break the current-session
+  identity every authenticated surface depends on. The excluded set is drawn from
+  Draft B8 FR-015, which prohibits credentials and tokens in any retained record.
+  This resolves Unresolved Conflict 14 by bounding the clause rather than leaving
+  it open to the full `user_management` representation.)*
+
+  **Conformance note**: the current login and current-session payloads
+  (`backend/accounts/views.py::_auth_payload`) return exactly this set and no
+  authentication material beyond the session token they exist to issue. This
+  requirement therefore describes current behavior rather than requiring a
+  change; it is stated so that the boundary is a rule rather than an accident of
+  the payload's shape.
 
 ### Authorization Requirements
 
@@ -959,9 +983,13 @@ The following details are observations awaiting confirmation:
     `frontend/src/components/ProtectedRoute.jsx`;
     `frontend/src/App.jsx`;
     `frontend/package.json`.
-14. **Employee self-identity field set**: FR-012 accepts that an Employee may
-    read their own User identity, but the clarification of 2026-07-29 did not
-    state which fields that representation contains. FR-002 establishes that the
+14. **Employee self-identity field set — RESOLVED 2026-08-12**: FR-012 accepts
+    that an Employee may read their own User identity, but the clarification of
+    2026-07-29 did not state which fields that representation contains.
+    **Resolved by FR-013**, which enumerates the accepted set and excludes all
+    authentication material, on the reasoning that B1's privacy rules address
+    cross-User exposure rather than self-access. The finding text below is
+    preserved as the dated record of what review found. FR-002 establishes that the
     full record carries the email address and linked login username, and ALR-003
     establishes that minimal-directory access never implies full-record access —
     but no rule bounds an Employee's view of their *own* record. The current
