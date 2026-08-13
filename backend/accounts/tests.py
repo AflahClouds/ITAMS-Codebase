@@ -28,6 +28,7 @@ def _create_profile(username, permission_codes=()):
 
 class PrivacyAuthorizationTests(TestCase):
     def test_ordinary_user_cannot_read_privileged_apis(self):
+        """Covers: B1 FR-001, B1 ALR-002."""
         account, profile = _create_profile("ordinary")
         Setting.objects.create(key="smtp_server", value="private.example.com")
         client = APIClient()
@@ -45,6 +46,7 @@ class PrivacyAuthorizationTests(TestCase):
                 self.assertEqual(client.get(path).status_code, 403)
 
     def test_user_manager_can_read_full_user_records(self):
+        """Covers: B1 FR-002."""
         account, profile = _create_profile("user-manager", ("user_management",))
         client = APIClient()
         client.force_authenticate(account)
@@ -56,6 +58,7 @@ class PrivacyAuthorizationTests(TestCase):
         self.assertEqual(response.data["login_username"], account.username)
 
     def test_asset_user_gets_only_minimal_active_user_directory(self):
+        """Covers: B1 FR-003, B1 FR-004, B1 ALR-003."""
         account, _ = _create_profile("asset-user", ("asset_view",))
         _, disabled_profile = _create_profile("disabled", ("asset_view",))
         disabled_profile.status = "Disabled"
@@ -74,6 +77,7 @@ class PrivacyAuthorizationTests(TestCase):
         )
 
     def test_settings_access_does_not_expose_admin_configuration(self):
+        """Covers: B1 FR-005, B1 ALR-002."""
         account, _ = _create_profile("master-manager", ("settings_access",))
         client = APIClient()
         client.force_authenticate(account)
@@ -86,6 +90,7 @@ class MasterDataAccessTests(TestCase):
     the code that maintains it will do."""
 
     def test_asset_view_may_read_master_data(self):
+        """Covers: B6 FR-015."""
         account, _ = _create_profile("master-consumer", ("asset_view",))
         client = APIClient()
         client.force_authenticate(account)
@@ -93,6 +98,7 @@ class MasterDataAccessTests(TestCase):
         self.assertEqual(client.get("/category/").status_code, 200)
 
     def test_settings_access_may_read_the_master_data_it_maintains(self):
+        """Covers: B6 FR-015, B6 FR-016."""
         account, _ = _create_profile("master-maintainer", ("settings_access",))
         client = APIClient()
         client.force_authenticate(account)
@@ -101,6 +107,7 @@ class MasterDataAccessTests(TestCase):
         self.assertEqual(client.get("/vendor/").status_code, 200)
 
     def test_a_role_with_neither_code_is_denied(self):
+        """Covers: B6 FR-015, B6 ALR-001."""
         account, _ = _create_profile("master-nobody")
         client = APIClient()
         client.force_authenticate(account)
@@ -108,6 +115,7 @@ class MasterDataAccessTests(TestCase):
         self.assertEqual(client.get("/category/").status_code, 403)
 
     def test_the_employee_role_gets_no_b6_surface(self):
+        """Covers: B6 FR-015, B1 FR-012."""
         account, profile = _create_profile("master-employee", ("asset_view",))
         profile.role = Role.objects.get(name="Employee")
         profile.save(update_fields=["role"])
@@ -129,12 +137,14 @@ class PasswordPolicyTests(TestCase):
         return client
 
     def test_a_common_password_is_rejected_even_though_it_is_long_enough(self):
+        """Covers: B1 FR-001."""
         response = self._client().post("/auth/change-password/", {
             "old_password": "Str0ng-Passphrase!", "new_password": "password123"}, format="json")
 
         self.assertEqual(response.status_code, 400)
 
     def test_a_strong_password_is_accepted(self):
+        """Covers: B1 FR-001."""
         response = self._client().post("/auth/change-password/", {
             "old_password": "Str0ng-Passphrase!",
             "new_password": "quartz-lantern-98-oxide"}, format="json")
@@ -147,6 +157,7 @@ class PermissionLookupTests(TestCase):
     it must not scale its query count with the size of the directory."""
 
     def test_recipients_resolve_in_a_constant_number_of_queries(self):
+        """Covers: B7 FR-017."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 
@@ -175,6 +186,7 @@ class TokenRevocationOnDeactivationTests(TestCase):
     endpoint re-checking profile status on each request."""
 
     def test_disabling_through_the_api_revokes_the_token(self):
+        """Covers: B1 ALR-001."""
         admin_account, _ = _create_profile("token-admin", ("user_management",))
         target_account, target = _create_profile("to-disable", ("asset_view",))
         token = Token.objects.create(user=target_account)
@@ -187,6 +199,7 @@ class TokenRevocationOnDeactivationTests(TestCase):
         self.assertFalse(Token.objects.filter(key=token.key).exists())
 
     def test_disabling_outside_the_api_revokes_the_token(self):
+        """Covers: B1 ALR-001."""
         account, profile = _create_profile("shell-disabled", ("asset_view",))
         Token.objects.create(user=account)
 
@@ -196,6 +209,7 @@ class TokenRevocationOnDeactivationTests(TestCase):
         self.assertFalse(Token.objects.filter(user=account).exists())
 
     def test_revoked_token_no_longer_authenticates(self):
+        """Covers: B1 ALR-001, B9 ALR-001."""
         account, profile = _create_profile("revoked", ("asset_view",))
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION=f"Token {Token.objects.create(user=account).key}")
@@ -207,6 +221,7 @@ class TokenRevocationOnDeactivationTests(TestCase):
         self.assertEqual(client.get("/dashboard/").status_code, 401)
 
     def test_an_active_profile_keeps_its_token(self):
+        """Covers: B1 ALR-001."""
         account, profile = _create_profile("stays-active", ("asset_view",))
         token = Token.objects.create(user=account)
 
@@ -216,6 +231,7 @@ class TokenRevocationOnDeactivationTests(TestCase):
         self.assertTrue(Token.objects.filter(key=token.key).exists())
 
     def test_a_profile_without_a_login_account_can_be_disabled(self):
+        """Covers: B1 ALR-001."""
         profile = User.objects.create(
             user_name="no-login", emp_id="EMP-no-login", email_id="no-login@example.com")
 

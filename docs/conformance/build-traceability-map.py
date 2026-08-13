@@ -6,10 +6,10 @@ Run from the repository root:
 
 The map answers one question per requirement: can we currently demonstrate that the
 system does what the baseline says? It is derived entirely from what the specifications
-already assert — the *(Source: ...)* line on each requirement and the bulk mappings in
-each §Verified Behavior Evidence section — cross-checked against the test symbols that
-actually exist in backend/*/tests.py. Nothing here is inferred from reading application
-code; that is the conformance suite's job, not this map's.
+is derived from `Covers:` tags in backend/*/test*.py, then from the *(Source: ...)* line
+on each requirement and the bulk mappings in each §Verified Behavior Evidence section,
+cross-checked against test symbols that actually exist. Nothing here is inferred from
+reading application code; that is the conformance suite's job, not this map's.
 """
 import io
 import json
@@ -43,15 +43,39 @@ USER_INTERFACE = re.compile(
 
 def test_symbols():
     found = set()
-    for path in glob.glob(os.path.join("backend", "*", "tests.py")):
+    for path in glob.glob(os.path.join("backend", "*", "test*.py")):
         text = io.open(path, encoding="utf-8").read()
         found |= set(re.findall(r"^class (\w+)", text, re.M))
         found |= set(re.findall(r"^    def (test_\w+)", text, re.M))
     return found
 
 
+def covers_tags():
+    """Read `Covers: B<n> FR-xxx, ...` docstring tags out of the test suite.
+
+    This is the authoritative direction. Evidence lives in the tests, not the
+    specifications: once a baseline is accepted its requirement content is immutable
+    under Constitution III, so a test written afterwards could never be recorded in
+    that baseline's §Verified Behavior Evidence. Tagging the test instead keeps this
+    map regenerable for the life of the project.
+    """
+    out = {}
+    for path in glob.glob(os.path.join("backend", "*", "test*.py")):
+        current = None
+        for line in io.open(path, encoding="utf-8").read().split("\n"):
+            hit = re.match(r"^    def (test_\w+)\(", line)
+            if hit:
+                current = hit.group(1)
+            tag = re.search(r"Covers:\s*(.+?)\.?$", line)
+            if tag and current:
+                for code, ident in re.findall(r"\b(B[1-9])\s+((?:FR|ALR)-\d+)", tag.group(1)):
+                    out.setdefault(code, {}).setdefault(ident, set()).add(current)
+    return out
+
+
 def collect():
     symbols = test_symbols()
+    tags = covers_tags()
     rows = []
     for path in sorted(glob.glob(os.path.join("specs", "0*", "spec.md"))):
         directory = os.path.basename(os.path.dirname(path))
@@ -60,7 +84,7 @@ def collect():
         code = BASELINE[directory]
         spec = io.open(path, encoding="utf-8").read()
 
-        bulk = {}
+        bulk = {k: set(v) for k, v in tags.get(code, {}).items()}
         section = re.search(r"### Verified Behavior Evidence(.*?)\n### ", spec, re.S)
         if section:
             for line in re.split(r"\n(?=- )", section.group(1)):

@@ -54,6 +54,7 @@ class ServiceClosureContractTests(TestCase):
         return open_service(self.asset, self.vendor, self.operator)
 
     def test_closing_without_a_cost_is_rejected(self):
+        """Covers: B5 FR-011, B5 ALR-006."""
         record = self._open()
 
         with self.assertRaises(LifecycleError):
@@ -63,16 +64,19 @@ class ServiceClosureContractTests(TestCase):
         self.assertEqual(record.status, "Open")
 
     def test_zero_cost_means_no_charge_and_is_accepted(self):
+        """Covers: B5 FR-011."""
         record = close_service(self._open(), self.operator, cost=0)
 
         self.assertEqual(record.status, "Closed")
         self.assertEqual(record.cost, 0)
 
     def test_a_negative_cost_is_rejected(self):
+        """Covers: B5 FR-011, B5 ALR-006."""
         with self.assertRaises(LifecycleError):
             close_service(self._open(), self.operator, cost=-5)
 
     def test_closing_notifies_every_custody_operator(self):
+        """Covers: B5 FR-021, B5 FR-022."""
         from core.models import Notification
         before = Notification.objects.filter(user=self.watcher).count()
 
@@ -175,6 +179,7 @@ class ProtectedMasterDataTests(TestCase):
         )
 
     def test_referenced_master_records_cannot_delete_operational_data(self):
+        """Covers: B6 FR-006, B6 FR-007, B6 ALR-003."""
         for master in (self.category, self.brand, self.model, self.purchase_mode, self.vendor):
             with self.subTest(master=master):
                 with self.assertRaises(ProtectedError):
@@ -184,6 +189,7 @@ class ProtectedMasterDataTests(TestCase):
         self.assertTrue(Procurement.objects.filter(pk=self.procurement.pk).exists())
 
     def test_delete_api_returns_conflict_for_referenced_master_records(self):
+        """Covers: B6 FR-007, B6 ALR-003."""
         account = AuthUser.objects.create_superuser(
             username="master-delete-admin",
             email="master-delete@example.com",
@@ -212,6 +218,7 @@ class ProtectedMasterDataTests(TestCase):
         self.assertTrue(Procurement.objects.filter(pk=self.procurement.pk).exists())
 
     def test_unused_master_records_can_still_be_deleted(self):
+        """Covers: B6 FR-008."""
         unused_records = (
             Category.objects.create(category_name="Unused category"),
             Brand.objects.create(brand_name="Unused brand"),
@@ -238,6 +245,7 @@ class CheckoutLifecycleTests(TestCase):
         self.user.save(update_fields=["department"])
 
     def test_check_out_assigns_asset_to_user_and_their_department(self):
+        """Covers: B3 FR-001, B3 FR-004, B3 FR-006, B2 FR-006."""
         checkout = check_out(self.asset, self.user, self.user)
 
         self.asset.refresh_from_db()
@@ -247,17 +255,20 @@ class CheckoutLifecycleTests(TestCase):
         self.assertEqual(checkout.checkout_condition, self.asset.condition)
 
     def test_check_out_persists_intake_remarks(self):
+        """Covers: B3 FR-014."""
         checkout = check_out(self.asset, self.user, self.user, remarks="Assigned for onboarding")
 
         self.assertEqual(checkout.remarks, "Assigned for onboarding")
 
     def test_check_out_notifies_the_new_custodian(self):
+        """Covers: B3 FR-020."""
         from core.models import Notification
         check_out(self.asset, self.user, self.user)
 
         self.assertTrue(Notification.objects.filter(user=self.user).exists())
 
     def test_check_out_rejects_an_unavailable_asset(self):
+        """Covers: B3 FR-008, B3 ALR-004."""
         self.asset.status = "Assigned"
         self.asset.save(update_fields=["status"])
 
@@ -265,6 +276,7 @@ class CheckoutLifecycleTests(TestCase):
             check_out(self.asset, self.user, self.user)
 
     def test_check_in_returns_asset_to_available_with_new_condition(self):
+        """Covers: B3 FR-002, B3 FR-014, B3 FR-023, B2 FR-006."""
         checkout = check_out(self.asset, self.user, self.user,
                              remarks="Issued with charger")
 
@@ -280,6 +292,7 @@ class CheckoutLifecycleTests(TestCase):
         self.assertEqual(checkout.remarks, "Issued with charger")
 
     def test_check_in_rejects_an_already_closed_checkout(self):
+        """Covers: B3 FR-009, B3 FR-012, B3 ALR-004."""
         checkout = check_out(self.asset, self.user, self.user)
         check_in(checkout, "Good")
 
@@ -287,6 +300,7 @@ class CheckoutLifecycleTests(TestCase):
             check_in(checkout, "Good")
 
     def test_check_in_rejects_an_invalid_condition(self):
+        """Covers: B3 FR-010, B3 ALR-004, B2 FR-011."""
         checkout = check_out(self.asset, self.user, self.user)
 
         with self.assertRaises(LifecycleError):
@@ -306,12 +320,14 @@ class TransferLifecycleTests(TestCase):
             status="Assigned", custodian=self.previous_owner, department=self.dept_a)
 
     def test_request_transfer_notifies_users_with_approval_permission(self):
+        """Covers: B4 FR-016, B4 FR-017."""
         from core.models import Notification
         request_transfer(self.asset, self.new_owner, self.previous_owner)
 
         self.assertTrue(Notification.objects.filter(user=self.approver).exists())
 
     def test_request_transfer_captures_the_current_owner_and_department(self):
+        """Covers: B4 FR-005, B4 FR-007."""
         transfer = request_transfer(self.asset, self.new_owner, self.previous_owner,
                                     new_department=self.dept_b)
 
@@ -321,6 +337,7 @@ class TransferLifecycleTests(TestCase):
         self.assertEqual(transfer.new_department, self.dept_b)
 
     def test_approve_reassigns_custodian_department_and_condition(self):
+        """Covers: B4 FR-008, B4 ALR-002, B2 FR-006, B2 ALR-004."""
         transfer = request_transfer(self.asset, self.new_owner, self.previous_owner,
                                     new_department=self.dept_b, condition="Average")
 
@@ -334,6 +351,7 @@ class TransferLifecycleTests(TestCase):
         self.assertEqual(transfer.status, "Approved")
 
     def test_approve_rejects_an_already_processed_transfer(self):
+        """Covers: B4 ALR-003, B4 ALR-004."""
         transfer = request_transfer(self.asset, self.new_owner, self.previous_owner)
         approve(transfer, self.approver)
 
@@ -341,6 +359,7 @@ class TransferLifecycleTests(TestCase):
             approve(transfer, self.approver)
 
     def test_reject_leaves_the_asset_untouched(self):
+        """Covers: B4 FR-008, B4 ALR-003."""
         transfer = request_transfer(self.asset, self.new_owner, self.previous_owner)
 
         transfer = reject(transfer, self.approver)
@@ -351,6 +370,7 @@ class TransferLifecycleTests(TestCase):
         self.assertEqual(transfer.status, "Rejected")
 
     def test_reject_rejects_an_already_processed_transfer(self):
+        """Covers: B4 ALR-003, B4 ALR-004."""
         transfer = request_transfer(self.asset, self.new_owner, self.previous_owner)
         reject(transfer, self.approver)
 
@@ -358,6 +378,7 @@ class TransferLifecycleTests(TestCase):
             reject(transfer, self.approver)
 
     def test_request_transfer_rejects_a_terminal_asset(self):
+        """Covers: B4 FR-009, B4 ALR-003."""
         self.asset.status = "Sold"
         self.asset.save(update_fields=["status"])
 
@@ -365,6 +386,7 @@ class TransferLifecycleTests(TestCase):
             request_transfer(self.asset, self.new_owner, self.previous_owner)
 
     def test_approve_rejects_an_asset_that_turned_terminal_after_the_request(self):
+        """Covers: B4 FR-010, B4 ALR-003."""
         transfer = request_transfer(self.asset, self.new_owner, self.previous_owner)
         self.asset.status = "Scrapped"
         self.asset.save(update_fields=["status"])
@@ -373,6 +395,7 @@ class TransferLifecycleTests(TestCase):
             approve(transfer, self.approver)
 
     def test_request_transfer_rejects_an_asset_under_repair(self):
+        """Covers: B4 FR-009, B4 ALR-003."""
         self.asset.status = "Under Repair"
         self.asset.custodian = None
         self.asset.save(update_fields=["status", "custodian"])
@@ -381,6 +404,7 @@ class TransferLifecycleTests(TestCase):
             request_transfer(self.asset, self.new_owner, self.previous_owner)
 
     def test_approve_rejects_an_asset_sent_for_service_after_the_request(self):
+        """Covers: B4 FR-010, B4 ALR-003."""
         transfer = request_transfer(self.asset, self.new_owner, self.previous_owner)
         self.asset.status = "Under Repair"
         self.asset.custodian = None
@@ -401,6 +425,7 @@ class ServiceRecordLifecycleTests(TestCase):
             status="Assigned", custodian=self.user, department=self.department)
 
     def test_open_service_clears_custodian_and_marks_under_repair(self):
+        """Covers: B5 FR-003, B5 FR-004, B2 FR-007, B2 ALR-005."""
         record = open_service(self.asset, self.vendor, self.user, reason="Screen flicker")
 
         self.asset.refresh_from_db()
@@ -410,12 +435,14 @@ class ServiceRecordLifecycleTests(TestCase):
         self.assertEqual(record.status, "Open")
 
     def test_open_service_notifies_the_previous_custodian(self):
+        """Covers: B5 FR-021."""
         from core.models import Notification
         open_service(self.asset, self.vendor, self.user)
 
         self.assertTrue(Notification.objects.filter(user=self.user).exists())
 
     def test_open_service_closes_the_open_checkout_it_interrupts(self):
+        """Covers: B5 FR-014, B5 ALR-007, B3 FR-015, B3 FR-028."""
         asset = _create_asset("SVC-CHECKOUT-ASSET-001", self.asset.category, self.asset.brand,
                               self.asset.model, self.asset.procurement)
         checkout = check_out(asset, self.user, self.user)
@@ -430,6 +457,7 @@ class ServiceRecordLifecycleTests(TestCase):
         self.assertIsNone(asset.custodian)
 
     def test_open_service_rejects_an_asset_already_under_repair(self):
+        """Covers: B5 FR-007, B5 ALR-006."""
         self.asset.status = "Under Repair"
         self.asset.save(update_fields=["status"])
 
@@ -437,6 +465,7 @@ class ServiceRecordLifecycleTests(TestCase):
             open_service(self.asset, self.vendor, self.user)
 
     def test_open_service_rejects_a_terminal_asset(self):
+        """Covers: B5 FR-007, B5 FR-008, B5 ALR-006."""
         self.asset.status = "Scrapped"
         self.asset.save(update_fields=["status"])
 
@@ -444,6 +473,7 @@ class ServiceRecordLifecycleTests(TestCase):
             open_service(self.asset, self.vendor, self.user)
 
     def test_close_service_returns_asset_to_available_without_reassigning_custodian(self):
+        """Covers: B5 FR-010, B5 FR-012, B2 FR-007."""
         record = open_service(self.asset, self.vendor, self.user)
 
         record = close_service(record, self.user, cost=1500, remarks="Replaced screen")
@@ -456,6 +486,7 @@ class ServiceRecordLifecycleTests(TestCase):
         self.assertIsNotNone(record.returned_date)
 
     def test_close_service_rejects_an_already_closed_record(self):
+        """Covers: B5 FR-013, B5 ALR-006."""
         record = open_service(self.asset, self.vendor, self.user)
         close_service(record, self.user, cost=0)
 
@@ -472,6 +503,7 @@ class ServiceRecordEndpointTests(TestCase):
         self.vendor = Vendor.objects.create(name="Endpoint Repair Co")
 
     def test_service_create_requires_asset_custody_manage_permission(self):
+        """Covers: B5 ALR-001, B5 ALR-003, B1 FR-006."""
         account, _ = _create_profile("no-service-permission")
         client = APIClient()
         client.force_authenticate(account)
@@ -482,6 +514,7 @@ class ServiceRecordEndpointTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_service_open_and_close_round_trip(self):
+        """Covers: B5 FR-003, B5 FR-010."""
         account, _ = _create_profile("service-operator", ("asset_custody_manage",))
         client = APIClient()
         client.force_authenticate(account)
@@ -507,6 +540,7 @@ class AmcActionTests(TestCase):
         self.manager.save(update_fields=["role"])
 
     def test_renew_amc_sets_dates_and_notifies_it_manager(self):
+        """Covers: B7 FR-009, B7 FR-021, B7 FR-033."""
         from core.models import Notification
         account, _ = _create_profile("amc-operator", ("asset_edit",))
         client = APIClient()
@@ -523,6 +557,7 @@ class AmcActionTests(TestCase):
         self.assertTrue(Notification.objects.filter(user=self.manager).exists())
 
     def test_renew_amc_rejects_a_terminal_asset(self):
+        """Covers: B7 FR-011, B7 ALR-003."""
         self.asset.status = "Sold"
         self.asset.save(update_fields=["status"])
         account, _ = _create_profile("amc-operator-terminal", ("asset_edit",))
@@ -538,6 +573,7 @@ class AmcActionTests(TestCase):
         self.assertFalse(self.asset.has_amc)
 
     def test_renew_amc_rejects_an_unparseable_date(self):
+        """Covers: B7 FR-010, B7 ALR-003."""
         account, _ = _create_profile("amc-operator-baddate", ("asset_edit",))
         client = APIClient()
         client.force_authenticate(account)
@@ -550,6 +586,7 @@ class AmcActionTests(TestCase):
         self.assertFalse(self.asset.has_amc)
 
     def test_renew_amc_rejects_end_before_start(self):
+        """Covers: B7 FR-010, B7 ALR-003."""
         account, _ = _create_profile("amc-operator-order", ("asset_edit",))
         client = APIClient()
         client.force_authenticate(account)
@@ -562,6 +599,7 @@ class AmcActionTests(TestCase):
         self.assertFalse(self.asset.has_amc)
 
     def test_end_amc_support_requires_a_reason(self):
+        """Covers: B7 FR-012, B7 ALR-003."""
         account, _ = _create_profile("amc-operator-2", ("asset_edit",))
         client = APIClient()
         client.force_authenticate(account)
@@ -571,6 +609,7 @@ class AmcActionTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_end_amc_support_rejects_when_no_active_amc(self):
+        """Covers: B7 FR-012, B7 ALR-003."""
         account, _ = _create_profile("amc-operator-none", ("asset_edit",))
         client = APIClient()
         client.force_authenticate(account)
@@ -581,6 +620,7 @@ class AmcActionTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_end_amc_support_sets_status_and_notifies_it_manager(self):
+        """Covers: B7 FR-012, B7 FR-021."""
         from core.models import Notification
         AmcContract.objects.create(
             asset=self.asset, start_date=date(2026, 1, 1), end_date=date(2027, 1, 1), status="Active")
@@ -598,6 +638,7 @@ class AmcActionTests(TestCase):
         self.assertTrue(Notification.objects.filter(user=self.manager).exists())
 
     def test_renew_amc_ends_previous_contract_and_creates_new_one(self):
+        """Covers: B7 FR-009, B7 FR-015, B7 ALR-004."""
         AmcContract.objects.create(
             asset=self.asset, start_date=date(2025, 1, 1), end_date=date(2026, 1, 1), status="Active")
         account, _ = _create_profile("amc-operator-renew-history", ("asset_edit",))
@@ -628,6 +669,7 @@ class AmcIncompleteStateTests(TestCase):
         self.client.force_authenticate(self.account)
 
     def test_checking_has_amc_without_dates_creates_an_incomplete_contract(self):
+        """Covers: B7 FR-007."""
         response = self.client.patch(
             f"/asset/{self.asset.pk}/", {"has_amc": True}, format="json")
 
@@ -640,6 +682,7 @@ class AmcIncompleteStateTests(TestCase):
         self.assertIsNone(contract.start_date)
 
     def test_supplying_dates_later_completes_the_incomplete_contract(self):
+        """Covers: B7 FR-008."""
         self.client.patch(f"/asset/{self.asset.pk}/", {"has_amc": True}, format="json")
 
         response = self.client.patch(
@@ -654,6 +697,7 @@ class AmcIncompleteStateTests(TestCase):
         self.assertEqual(str(contract.start_date), "2026-01-01")
 
     def test_renew_amc_supersedes_an_incomplete_contract(self):
+        """Covers: B7 FR-009, B7 FR-015."""
         AmcContract.objects.create(asset=self.asset, status="Incomplete")
 
         response = self.client.post(f"/asset/{self.asset.pk}/renew_amc/",
@@ -667,6 +711,7 @@ class AmcIncompleteStateTests(TestCase):
         self.assertEqual(contracts[1].status, "Active")
 
     def test_end_amc_support_can_end_an_incomplete_contract(self):
+        """Covers: B7 FR-012."""
         AmcContract.objects.create(asset=self.asset, status="Incomplete")
 
         response = self.client.post(f"/asset/{self.asset.pk}/end_amc_support/",
@@ -677,6 +722,7 @@ class AmcIncompleteStateTests(TestCase):
         self.assertEqual(contract.status, "Ended")
 
     def test_incomplete_contract_created_after_an_ended_one_is_correctly_latest(self):
+        """Covers: B7 FR-005, B7 FR-006."""
         # latest_amc must not fall back to a stale, fully-dated Ended contract just
         # because the new Incomplete row has no start_date to sort by.
         AmcContract.objects.create(
@@ -709,6 +755,7 @@ class AssetStatusTransitionTests(TestCase):
                              self.procurement, **extra)
 
     def test_cannot_reverse_out_of_a_terminal_status(self):
+        """Covers: B2 FR-008, B2 ALR-006."""
         asset = self._asset("STATUS-ASSET-001", status="Sold")
 
         response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Available"})
@@ -718,6 +765,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertEqual(asset.status, "Sold")
 
     def test_entering_sold_clears_custodian_even_if_payload_keeps_it(self):
+        """Covers: B2 FR-009, B2 ALR-006."""
         asset = self._asset("STATUS-ASSET-002", status="Assigned", custodian=self.holder)
 
         response = self.client.patch(
@@ -729,6 +777,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertIsNone(asset.custodian)
 
     def test_entering_lost_retains_custodian_even_if_payload_clears_it(self):
+        """Covers: B2 FR-009, B2 ALR-006."""
         asset = self._asset("STATUS-ASSET-003", status="Assigned", custodian=self.holder)
 
         response = self.client.patch(
@@ -741,6 +790,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertEqual(asset.custodian, self.holder)
 
     def test_administrative_status_edits_are_unaffected(self):
+        """Covers: B2 FR-002."""
         asset = self._asset("STATUS-ASSET-004", status="Available")
 
         response = self.client.patch(f"/asset/{asset.pk}/", {"status": "In Storage"})
@@ -750,6 +800,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertEqual(asset.status, "In Storage")
 
     def test_editing_unrelated_fields_without_a_status_change_is_unaffected(self):
+        """Covers: B2 FR-002."""
         asset = self._asset("STATUS-ASSET-005", status="Assigned", custodian=self.holder)
 
         response = self.client.patch(f"/asset/{asset.pk}/", {"notes": "checked screen"})
@@ -761,6 +812,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertEqual(asset.notes, "checked screen")
 
     def test_cannot_enter_assigned_by_direct_edit(self):
+        """Covers: B2 FR-012, B2 ALR-004, B3 FR-007."""
         asset = self._asset("STATUS-ASSET-006", status="Available")
 
         response = self.client.patch(
@@ -772,6 +824,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertIsNone(asset.custodian)
 
     def test_cannot_enter_under_repair_by_direct_edit(self):
+        """Covers: B2 FR-012, B2 ALR-005, B5 FR-006."""
         asset = self._asset("STATUS-ASSET-007", status="Available")
 
         response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Under Repair"})
@@ -781,6 +834,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertEqual(asset.status, "Available")
 
     def test_cannot_leave_assigned_by_direct_edit(self):
+        """Covers: B2 FR-012, B2 ALR-004, B3 FR-007."""
         asset = self._asset("STATUS-ASSET-008", status="Assigned", custodian=self.holder)
 
         response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Available"})
@@ -790,6 +844,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertEqual(asset.status, "Assigned")
 
     def test_cannot_leave_under_repair_by_direct_edit(self):
+        """Covers: B2 FR-012, B2 ALR-005, B5 FR-006."""
         asset = self._asset("STATUS-ASSET-009", status="Under Repair")
 
         response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Available"})
@@ -799,6 +854,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertEqual(asset.status, "Under Repair")
 
     def test_cannot_move_directly_between_assigned_and_under_repair(self):
+        """Covers: B2 FR-012, B2 ALR-004, B2 ALR-005."""
         asset = self._asset("STATUS-ASSET-010", status="Assigned", custodian=self.holder)
 
         response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Under Repair"})
@@ -808,6 +864,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertEqual(asset.status, "Assigned")
 
     def test_disposal_is_still_allowed_directly_from_assigned(self):
+        """Covers: B2 FR-014."""
         asset = self._asset("STATUS-ASSET-011", status="Assigned", custodian=self.holder)
 
         response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Sold"})
@@ -818,6 +875,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertIsNone(asset.custodian)
 
     def test_lost_is_still_allowed_directly_from_under_repair(self):
+        """Covers: B2 FR-014."""
         asset = self._asset("STATUS-ASSET-012", status="Under Repair")
 
         response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Lost"})
@@ -827,6 +885,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertEqual(asset.status, "Lost")
 
     def test_entering_terminal_status_closes_the_open_checkout(self):
+        """Covers: B2 ALR-006, B3 FR-016."""
         asset = self._asset("STATUS-ASSET-013")
         checkout = check_out(asset, self.holder, self.holder)
 
@@ -840,6 +899,7 @@ class AssetStatusTransitionTests(TestCase):
         self.assertEqual(asset.status, "Sold")
 
     def test_entering_terminal_status_closes_the_open_service_record(self):
+        """Covers: B2 ALR-006, B5 FR-016."""
         vendor = Vendor.objects.create(name="Status Repair Co")
         asset = self._asset("STATUS-ASSET-014")
         record = open_service(asset, vendor, self.holder)
@@ -860,6 +920,7 @@ class ExpiryAlertTests(TestCase):
         _, self.it_staff = _create_profile("alert-it-staff", ("asset_custody_manage",))
 
     def test_warranty_at_a_threshold_notifies_recipients(self):
+        """Covers: B7 FR-016, B7 FR-017, B7 FR-018."""
         from core.models import Notification
         target = date.today() + timedelta(days=30)
         asset = _create_asset("ALERT-WARR-001", self.category, self.brand, self.model,
@@ -871,6 +932,7 @@ class ExpiryAlertTests(TestCase):
             user=self.it_staff, message__icontains=asset.asset_id).exists())
 
     def test_warranty_not_at_a_threshold_is_silent(self):
+        """Covers: B7 FR-016."""
         from core.models import Notification
         off_threshold = date.today() + timedelta(days=29)
         _create_asset("ALERT-WARR-002", self.category, self.brand, self.model,
@@ -881,6 +943,7 @@ class ExpiryAlertTests(TestCase):
         self.assertFalse(Notification.objects.filter(user=self.it_staff).exists())
 
     def test_active_amc_at_a_threshold_notifies_recipients(self):
+        """Covers: B7 FR-016, B7 FR-018."""
         from core.models import Notification
         target = date.today() + timedelta(days=7)
         asset = _create_asset("ALERT-AMC-001", self.category, self.brand, self.model, self.procurement)
@@ -893,6 +956,7 @@ class ExpiryAlertTests(TestCase):
             user=self.it_staff, message__icontains=asset.asset_id).exists())
 
     def test_ended_amc_at_a_threshold_is_silent(self):
+        """Covers: B7 FR-019."""
         from core.models import Notification
         target = date.today() + timedelta(days=15)
         asset = _create_asset("ALERT-AMC-002", self.category, self.brand, self.model, self.procurement)
@@ -918,6 +982,7 @@ class CheckoutTransferEndpointTests(TestCase):
         self.transfer_asset.save(update_fields=["custodian"])
 
     def test_checkout_create_requires_asset_custody_manage_permission(self):
+        """Covers: B3 ALR-001, B3 ALR-003, B1 FR-006."""
         account, _ = _create_profile("no-permissions")
         client = APIClient()
         client.force_authenticate(account)
@@ -928,6 +993,7 @@ class CheckoutTransferEndpointTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_checkout_create_and_checkin_round_trip(self):
+        """Covers: B3 FR-001, B3 FR-002."""
         account, _ = _create_profile("checkout-operator", ("asset_custody_manage",))
         client = APIClient()
         client.force_authenticate(account)
@@ -942,6 +1008,7 @@ class CheckoutTransferEndpointTests(TestCase):
         self.assertEqual(checkin_response.data["status"], "Returned")
 
     def test_transfer_request_requires_transfer_request_permission(self):
+        """Covers: B4 FR-002, B4 ALR-001, B1 FR-007."""
         account, _ = _create_profile("no-transfer-permission")
         client = APIClient()
         client.force_authenticate(account)
@@ -952,6 +1019,7 @@ class CheckoutTransferEndpointTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_transfer_request_and_approve_round_trip(self):
+        """Covers: B4 FR-005, B4 FR-008."""
         account, _ = _create_profile("transfer-requester", ("transfer_request", "asset_custody_manage"))
         client = APIClient()
         client.force_authenticate(account)
@@ -966,6 +1034,7 @@ class CheckoutTransferEndpointTests(TestCase):
                          f"TRF-{create_response.data['id']:05d}")
 
     def test_transfer_reject_round_trip(self):
+        """Covers: B4 FR-008."""
         account, _ = _create_profile("transfer-rejecter", ("transfer_request", "asset_custody_manage"))
         client = APIClient()
         client.force_authenticate(account)
@@ -1006,6 +1075,7 @@ class BaselineConformanceTests(TestCase):
     # --- C2: creation cannot short-circuit custody ---
 
     def test_create_rejects_a_lifecycle_managed_status(self):
+        """Covers: B2 FR-013, B2 ALR-007."""
         response = self.client_op.post("/asset/", {
             "asset_id": "C2-A", "tag_number": "C2-A-T", "serial_number": "C2-A-S",
             "category": self.category.pk, "brand": self.brand.pk, "model": self.model.pk,
@@ -1015,6 +1085,7 @@ class BaselineConformanceTests(TestCase):
         self.assertIn("status", response.data)
 
     def test_create_rejects_a_custodian(self):
+        """Covers: B2 FR-013, B2 ALR-007."""
         response = self.client_op.post("/asset/", {
             "asset_id": "C2-B", "tag_number": "C2-B-T", "serial_number": "C2-B-S",
             "category": self.category.pk, "brand": self.brand.pk, "model": self.model.pk,
@@ -1024,6 +1095,7 @@ class BaselineConformanceTests(TestCase):
         self.assertIn("custodian", response.data)
 
     def test_edit_cannot_assign_a_custodian_directly(self):
+        """Covers: B2 ALR-007."""
         asset = self._asset("C2-EDIT")
 
         response = self.client_op.patch(
@@ -1033,6 +1105,7 @@ class BaselineConformanceTests(TestCase):
         self.assertIn("custodian", response.data)
 
     def test_marking_an_asset_lost_still_retains_its_custodian(self):
+        """Covers: B2 FR-009."""
         asset = self._asset("C2-LOST", status="Assigned", custodian=self.employee)
 
         response = self.client_op.patch(
@@ -1043,6 +1116,7 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual(asset.custodian, self.employee)
 
     def test_create_still_accepts_available_and_in_storage(self):
+        """Covers: B2 FR-013."""
         for i, status_value in enumerate(("Available", "In Storage")):
             response = self.client_op.post("/asset/", {
                 "asset_id": f"C2-OK{i}", "tag_number": f"C2-OK{i}-T",
@@ -1054,6 +1128,7 @@ class BaselineConformanceTests(TestCase):
     # --- C6: Employee reads only its own custodial records ---
 
     def test_employee_sees_only_assets_it_holds(self):
+        """Covers: B1 FR-008, B1 FR-012, B2 ALR-009."""
         mine = self._asset("C6-MINE", status="Assigned", custodian=self.employee)
         self._asset("C6-THEIRS", status="Assigned", custodian=self.colleague)
         client = APIClient()
@@ -1064,6 +1139,7 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual([row["asset_id"] for row in rows], [mine.asset_id])
 
     def test_employee_cannot_reach_another_holders_asset_by_id(self):
+        """Covers: B1 ALR-005, B2 ALR-009."""
         theirs = self._asset("C6-BYID", status="Assigned", custodian=self.colleague)
         client = APIClient()
         client.force_authenticate(self.employee.account)
@@ -1071,12 +1147,14 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual(client.get(f"/asset/{theirs.pk}/").status_code, 404)
 
     def test_employee_is_denied_the_user_directory(self):
+        """Covers: B1 FR-012, B1 ALR-005."""
         client = APIClient()
         client.force_authenticate(self.employee.account)
 
         self.assertEqual(client.get("/user/directory/").status_code, 403)
 
     def test_a_non_employee_role_still_reads_globally(self):
+        """Covers: B1 FR-012, B2 ALR-009."""
         self._asset("C6-GLOBAL", status="Assigned", custodian=self.colleague)
         client = APIClient()
         client.force_authenticate(self.colleague.account)
@@ -1090,6 +1168,7 @@ class BaselineConformanceTests(TestCase):
         return client
 
     def test_employee_sees_only_its_own_checkouts(self):
+        """Covers: B1 FR-012."""
         mine = self._asset("C6-CO-MINE")
         theirs = self._asset("C6-CO-THEIRS")
         self.client_op.post("/checkout/", {"asset": mine.pk, "user": self.employee.pk},
@@ -1102,6 +1181,7 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual([row["asset_details"]["asset_id"] for row in rows], [mine.asset_id])
 
     def test_employee_sees_service_records_only_for_assets_it_holds(self):
+        """Covers: B1 FR-012, B5 ALR-002."""
         held = self._asset("C6-SVC-MINE", status="Assigned", custodian=self.employee)
         other = self._asset("C6-SVC-OTHER")
         vendor, _ = Vendor.objects.get_or_create(name="Vendor")
@@ -1113,6 +1193,7 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual([row["asset_details"]["asset_id"] for row in rows], [held.asset_id])
 
     def test_employee_sees_files_only_for_assets_it_holds(self):
+        """Covers: B1 FR-012."""
         held = self._asset("C6-DOC-MINE", status="Assigned", custodian=self.employee)
         other = self._asset("C6-DOC-OTHER", status="Assigned", custodian=self.colleague)
         AssetDocument.objects.create(asset=held, file="a.pdf", file_name="mine.pdf")
@@ -1125,6 +1206,7 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual(client.get("/asset_image/").data, [])
 
     def test_employee_is_denied_procurement_entirely(self):
+        """Covers: B6 FR-015, B1 FR-012."""
         client = self._employee_client()
 
         self.assertEqual(client.get("/procurement/").status_code, 403)
@@ -1132,6 +1214,7 @@ class BaselineConformanceTests(TestCase):
             client.get(f"/procurement/{self.procurement.pk}/").status_code, 403)
 
     def test_employee_dashboard_counts_only_its_own_assets(self):
+        """Covers: B9 FR-007, B1 FR-012."""
         self._asset("C6-DASH-MINE", status="Assigned", custodian=self.employee)
         self._asset("C6-DASH-A")
         self._asset("C6-DASH-B")
@@ -1144,6 +1227,7 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual(sum(chart["data"]), 1)
 
     def test_a_global_reader_still_sees_every_record(self):
+        """Covers: B1 FR-012."""
         held = self._asset("C6-ALL-MINE", status="Assigned", custodian=self.employee)
         other = self._asset("C6-ALL-OTHER")
         vendor, _ = Vendor.objects.get_or_create(name="Vendor")
@@ -1163,6 +1247,7 @@ class BaselineConformanceTests(TestCase):
     # --- B3: check-in records an inspection and preserves intake data ---
 
     def test_check_in_requires_a_return_condition(self):
+        """Covers: B3 FR-024, B3 ALR-004."""
         asset = self._asset("B3-COND", department=self.department)
         checkout = self.client_op.post(
             "/checkout/", {"asset": asset.pk, "user": self.employee.pk}, format="json")
@@ -1173,6 +1258,7 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_check_in_clears_department_and_logs_the_inspection(self):
+        """Covers: B3 FR-023, B3 FR-025, B2 FR-015."""
         asset = self._asset("B3-DEPT", department=self.department)
         checkout = self.client_op.post(
             "/checkout/", {"asset": asset.pk, "user": self.employee.pk,
@@ -1194,6 +1280,7 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual(record.return_remarks, "Screen cracked")
 
     def test_an_interrupting_closure_also_preserves_intake_remarks(self):
+        """Covers: B3 FR-014, B3 FR-028."""
         asset = self._asset("B3-INT")
         self.client_op.post("/checkout/", {"asset": asset.pk, "user": self.employee.pk,
                                            "remarks": "Issued with dock"}, format="json")
@@ -1210,6 +1297,7 @@ class BaselineConformanceTests(TestCase):
     # --- B4: a transfer needs two parties and one open request ---
 
     def test_transfer_rejects_the_current_custodian_as_target(self):
+        """Covers: B4 FR-001, B4 ALR-007."""
         asset = self._asset("B4-SAME", status="Assigned", custodian=self.employee)
 
         response = self.client_op.post(
@@ -1218,6 +1306,7 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_transfer_rejects_a_second_pending_request(self):
+        """Covers: B4 FR-005, B4 ALR-007."""
         asset = self._asset("B4-DUP", status="Assigned", custodian=self.employee)
         first = self.client_op.post(
             "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
@@ -1229,6 +1318,7 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual(second.status_code, 400)
 
     def test_a_new_request_is_allowed_once_the_previous_one_is_decided(self):
+        """Covers: B4 ALR-007."""
         asset = self._asset("B4-AFTER", status="Assigned", custodian=self.employee)
         first = self.client_op.post(
             "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
@@ -1242,6 +1332,7 @@ class BaselineConformanceTests(TestCase):
     # --- C8: Transfer document access, limited to records visible under B1 ---
 
     def test_asset_view_holder_may_download_the_transfer_document(self):
+        """Covers: B4 FR-015."""
         asset = self._asset("C8-PDF", status="Assigned", custodian=self.employee)
         transfer = self.client_op.post(
             "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
@@ -1254,6 +1345,7 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/pdf")
 
     def test_employee_may_download_the_document_for_a_transfer_it_is_party_to(self):
+        """Covers: B4 FR-015, B1 FR-012."""
         asset = self._asset("C8-MINE", status="Assigned", custodian=self.employee)
         transfer = self.client_op.post(
             "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
@@ -1265,6 +1357,7 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_employee_cannot_download_someone_elses_transfer_document(self):
+        """Covers: B4 FR-015, B1 ALR-005."""
         asset = self._asset("C8-THEIRS", status="Assigned", custodian=self.colleague)
         transfer = self.client_op.post(
             "/transfer/", {"asset": asset.pk, "new_owner": self.operator.pk}, format="json")
@@ -1275,6 +1368,7 @@ class BaselineConformanceTests(TestCase):
             client.get(f"/transfer/{transfer.data['id']}/document/").status_code, 404)
 
     def test_employee_lists_only_transfers_it_is_party_to(self):
+        """Covers: B4 FR-004, B1 FR-012."""
         mine = self._asset("C8-LIST-MINE", status="Assigned", custodian=self.employee)
         theirs = self._asset("C8-LIST-THEIRS", status="Assigned", custodian=self.colleague)
         self.client_op.post("/transfer/", {"asset": mine.pk, "new_owner": self.colleague.pk},
@@ -1290,6 +1384,7 @@ class BaselineConformanceTests(TestCase):
                          [mine.asset_id])
 
     def test_a_non_employee_role_still_sees_every_transfer(self):
+        """Covers: B4 FR-004."""
         mine = self._asset("C8-ALL-A", status="Assigned", custodian=self.employee)
         theirs = self._asset("C8-ALL-B", status="Assigned", custodian=self.colleague)
         self.client_op.post("/transfer/", {"asset": mine.pk, "new_owner": self.colleague.pk},
@@ -1304,6 +1399,7 @@ class BaselineConformanceTests(TestCase):
     # --- C4: the AMC flag describes the current contract only ---
 
     def test_has_amc_is_false_once_the_contract_is_ended(self):
+        """Covers: B7 FR-006."""
         asset = self._asset("C4-END")
         contract = AmcContract.objects.create(
             asset=asset, start_date=date(2026, 1, 1), end_date=date(2027, 1, 1))
@@ -1316,12 +1412,14 @@ class BaselineConformanceTests(TestCase):
         self.assertEqual(asset.amc_status, "Ended")
 
     def test_has_amc_is_true_while_a_contract_is_incomplete(self):
+        """Covers: B7 FR-006, B7 FR-007."""
         asset = self._asset("C4-INC")
         AmcContract.objects.create(asset=asset, status="Incomplete")
 
         self.assertTrue(asset.has_amc)
 
     def test_renewing_after_an_ended_contract_reports_has_amc_again(self):
+        """Covers: B7 FR-006, B7 FR-037."""
         asset = self._asset("C4-RENEW")
         AmcContract.objects.create(asset=asset, status="Ended", end_reason="Lapsed")
 

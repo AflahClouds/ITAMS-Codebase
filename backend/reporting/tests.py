@@ -13,6 +13,7 @@ from .views import _report_amc_expiry
 
 class AmcExpiryReportTests(TestCase):
     def test_report_does_not_crash_on_a_contract_ended_before_dates_were_entered(self):
+        """Covers: B9 FR-005."""
         category = Category.objects.create(category_name="Report Cat")
         brand = Brand.objects.create(brand_name="Report Brand")
         model = Model.objects.create(model_name="Report Model")
@@ -54,6 +55,7 @@ class DashboardAuthorizationTests(TestCase):
     and no profile status."""
 
     def test_asset_viewer_may_read_dashboard_and_charts(self):
+        """Covers: B9 FR-007, B9 ALR-001."""
         account, _ = _profile("viewer", ("asset_view",))
         client = _client_for(account)
 
@@ -61,6 +63,7 @@ class DashboardAuthorizationTests(TestCase):
         self.assertEqual(client.get("/charts/status-distribution/").status_code, 200)
 
     def test_user_without_asset_view_is_denied(self):
+        """Covers: B9 FR-007, B9 ALR-001."""
         account, _ = _profile("nobody")
         client = _client_for(account)
 
@@ -68,6 +71,7 @@ class DashboardAuthorizationTests(TestCase):
         self.assertEqual(client.get("/charts/status-distribution/").status_code, 403)
 
     def test_disabled_profile_is_denied_even_with_a_live_token(self):
+        """Covers: B9 ALR-001, B1 ALR-001."""
         account, _ = _profile("disabled", ("asset_view",), status="Disabled")
         client = _client_for(account)
 
@@ -75,9 +79,11 @@ class DashboardAuthorizationTests(TestCase):
         self.assertEqual(client.get("/charts/status-distribution/").status_code, 403)
 
     def test_anonymous_request_is_rejected(self):
+        """Covers: B9 ALR-001."""
         self.assertEqual(APIClient().get("/dashboard/").status_code, 401)
 
     def test_unknown_chart_still_returns_404_for_a_permitted_reader(self):
+        """Covers: B9 ALR-001."""
         account, _ = _profile("chart-reader", ("asset_view",))
         client = _client_for(account)
 
@@ -97,6 +103,7 @@ class AuditReportAccessTests(TestCase):
         return _client_for(account)
 
     def test_report_access_alone_cannot_read_the_audit_report(self):
+        """Covers: B8 FR-016, B9 FR-008."""
         account, _ = _profile("reporter", ("report_access",))
         client = _client_for(account)
 
@@ -104,6 +111,7 @@ class AuditReportAccessTests(TestCase):
         self.assertEqual(client.get("/audit/").status_code, 403)
 
     def test_report_access_alone_cannot_export_the_audit_report(self):
+        """Covers: B8 FR-016, B9 FR-008."""
         account, _ = _profile("exporter", ("report_access",))
         client = _client_for(account)
 
@@ -111,6 +119,7 @@ class AuditReportAccessTests(TestCase):
         self.assertEqual(client.get("/reports/audit/export/excel/").status_code, 403)
 
     def test_the_audit_report_is_hidden_from_the_catalog_it_cannot_open(self):
+        """Covers: B9 FR-008."""
         account, _ = _profile("catalog-reader", ("report_access",))
         client = _client_for(account)
 
@@ -120,6 +129,7 @@ class AuditReportAccessTests(TestCase):
         self.assertIn("register", keys)
 
     def test_admin_reads_lists_and_exports_the_audit_report(self):
+        """Covers: B8 FR-016."""
         client = self._admin_client()
 
         self.assertEqual(client.get("/reports/audit/").status_code, 200)
@@ -127,6 +137,7 @@ class AuditReportAccessTests(TestCase):
         self.assertIn("audit", [row["key"] for row in client.get("/reports/").data["reports"]])
 
     def test_reading_the_audit_report_is_itself_audited(self):
+        """Covers: B8 FR-014, B9 FR-009."""
         client = self._admin_client()
         before = AuditLog.objects.filter(action="Report View").count()
 
@@ -135,6 +146,7 @@ class AuditReportAccessTests(TestCase):
         self.assertEqual(AuditLog.objects.filter(action="Report View").count(), before + 1)
 
     def test_ordinary_reports_remain_open_to_report_access(self):
+        """Covers: B9 FR-008."""
         account, _ = _profile("ordinary-reporter", ("report_access",))
         client = _client_for(account)
 
