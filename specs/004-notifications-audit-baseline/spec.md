@@ -49,6 +49,34 @@ out of scope. Do not modify application code."
   polling, audit minimums, access, privacy, and retention and cannot invent or
   suppress a valid capability trigger.
 
+### Session 2026-08-12
+
+Raised by the B8 acceptance checklist (CHK008, CHK027, CHK028, CHK029, CHK039),
+which found presentation, filtering, result limits, and source-address
+provenance left as Current-System Contract Candidates rather than accepted or
+delegated. The decisions below adopt the current documented behavior as the
+AS-BUILT contract, except where the checklist identified a property an audit
+surface cannot safely omit.
+
+- Q: Should Notification list presentation be accepted or delegated? → A:
+  Accept the current behavior — newest-first ordering, recipient-scoped, no
+  filter contract, no recipient-facing delete or edit — and accept the absence
+  of pagination on the basis that FR-017 retention bounds the list.
+- Q: What is the accepted AuditLog filter contract? → A: Exact module match and
+  case-insensitive partial username match, combined conjunctively, ordered
+  newest first by event time, with an empty result returned as an empty set
+  rather than an error.
+- Q: What result limit applies to AuditLog views, and must omission be
+  disclosed? → A: Retain the current 1,000-newest-row limit, but require the
+  limit and the fact that older matching events were omitted to be disclosed to
+  the reader. Silent truncation is not accepted on an audit surface.
+- Q: What provenance rules apply to a captured source address? → A: It is
+  indicative rather than authoritative; a forwarded header may be trusted only
+  when it arrives from a configured trusted proxy; and it MUST NOT be the sole
+  basis for any security decision.
+- Q: How should SC-005 be restated? → A: Cite the resulting requirements rather
+  than describing current behavior.
+
 ## Specification Lineage *(mandatory)*
 
 **Type**: Brownfield Baseline
@@ -141,6 +169,13 @@ This Draft uses the following classifications:
   delivery or audit policy.
 - **Implementation-only observation**: visible in backend or frontend code
   without dedicated automated behavioral coverage or stakeholder confirmation.
+- **Scope boundary**: a statement of what this baseline is not, drawn from
+  `CONTEXT.md` or the B8 roadmap entry. It constrains interpretation of the
+  requirements — most importantly that AuditLog is operational event history and
+  never evidence of a physical Asset audit — but introduces no obligation of its
+  own and is not a candidate for stakeholder rejection.
+- **Deferred**: intentionally excluded from the current product scope and
+  recorded in §Out of Scope, not merely unimplemented.
 - **Unresolved**: a material choice or inconsistent boundary that must not be
   promoted into an accepted requirement.
 
@@ -506,6 +541,78 @@ verify that B8 neither invents nor suppresses the owner-defined trigger.
   matrix is not accepted intent even if a current implementation call site or
   test demonstrates it.
   *(Source: stakeholder clarification, 2026-08-04.)*
+- **FR-019 — Read state and unread count**: A Notification MUST hold exactly one
+  of two states, `Unread` or `Read`, and MUST be created `Unread`. The only
+  permitted transition is `Unread` → `Read`; a Notification MUST NOT return to
+  `Unread`. Marking an already-`Read` Notification read MUST be idempotent —
+  it changes no state and does not restart any retention period. The **unread
+  count** is the number of Notifications addressed to the requesting recipient
+  whose state is `Unread`, counted over that recipient's own records only. The
+  time at which a Notification became `Read` MUST be retained.
+  *(Source: entailed by FR-017, stakeholder clarification 2026-08-04. FR-017
+  requires Read Notifications to be removed "90 days after becoming Read" and
+  Unread Notifications "1 year after creation". Those obligations presuppose the
+  two states, the one-way transition, and a retained transition time; this
+  requirement states what FR-017 already depends on rather than introducing a new
+  decision. The states are recorded as observations in CAND-001 and CAND-005 —
+  which remain the record of current behavior, not the authority for this
+  requirement.)*
+
+  **Implementation conformance gap**: the current Notification record stores a
+  creation time but no read time (`backend/core/models.py::Notification`), and
+  the current mark-read operations set the state without recording when
+  (`backend/core/views.py::NotificationViewSet`). FR-017's 90-day Read retention
+  is therefore not implementable against the present record shape. Whether the
+  one-way transition is enforced is likewise unverified; nothing currently
+  prevents a write returning a record to `Unread`.
+- **FR-020 — Notification list presentation**: A recipient's Notification list
+  MUST be ordered newest first by creation time and MUST contain only that
+  recipient's records. This version accepts no filter contract beyond that
+  recipient scoping, and provides no recipient-facing delete or content-edit
+  operation. The list is unpaginated; that is accepted because FR-017 bounds it
+  — Unread records are removed one year after creation and Read records 90 days
+  after becoming Read, so the list cannot grow without limit. An empty list MUST
+  be a normal outcome rather than an error.
+  *(Source: stakeholder clarification, 2026-08-12; current behavior recorded as
+  observation in CAND-004.)*
+- **FR-021 — AuditLog filter contract**: AuditLog views MUST support filtering by
+  module using exact match and by username using case-insensitive partial match.
+  Supplying both MUST narrow the result to entries satisfying both. Results MUST
+  be ordered newest first by event time. A filter matching nothing MUST return an
+  empty result rather than an error, and MUST NOT fall back to an unfiltered set.
+  *(Source: stakeholder clarification, 2026-08-12; current behavior recorded as
+  observation in CAND-009.)*
+- **FR-022 — AuditLog result limit and omission disclosure**: An AuditLog view
+  MUST return at most the 1,000 newest matching entries. When matching entries
+  are omitted by that limit, the response MUST disclose both the limit and the
+  fact that older matching events exist beyond it, so a reader can tell the view
+  is incomplete and narrow the filter. Silent truncation is NOT accepted: an
+  audit surface that appears complete while omitting evidence misrepresents the
+  record.
+  *(Source: stakeholder clarification, 2026-08-12. The limit itself is current
+  behavior recorded in CAND-009; the disclosure obligation follows the same
+  decision already taken for the report surface in CHG-B9-01, which replaces the
+  fixed cap with filter-driven narrowing and an explicit limit indicator.)*
+
+  **Implementation conformance gap**: the current view truncates with
+  `qs[:1000]` and returns no limit, count, or omission indicator
+  (`backend/core/views.py::AuditLogViewSet`), so a reader cannot distinguish a
+  complete result from a truncated one.
+- **FR-023 — Source-address provenance**: A captured source address MUST be
+  treated as indicative rather than authoritative. A forwarded-for header MUST be
+  trusted only when the request arrives from a configured trusted proxy;
+  otherwise the direct peer address MUST be recorded. A source address MUST NOT
+  be the sole basis for any authorization, identity, or security decision, and
+  its limitations MUST be evident to anyone reading the AuditLog. Capture remains
+  subject to FR-015 minimization and the FR-017 six-month window.
+  *(Source: stakeholder clarification, 2026-08-12; current derivation recorded as
+  observation in CAND-008.)*
+
+  **Implementation conformance gap**: `backend/core/services.py::client_ip`
+  trusts `HTTP_X_FORWARDED_FOR` unconditionally and records its first entry. That
+  header is client-supplied on any request not passing through a trusted proxy,
+  so a recorded address can be chosen by the caller. Entries created outside the
+  shared helper omit the field entirely (CAND-008).
 
 ### Current-System Contract Candidates — Not Accepted Requirements
 
@@ -602,8 +709,12 @@ verify that B8 neither invents nor suppresses the owner-defined trigger.
   optional destination, recorded in the owning B3–B7 trigger matrix. B8 owns
   shared behavior after this boundary and cannot invent or suppress a valid
   trigger.
-- **Read State**: The current textual state used to calculate unread count and
-  control mark-one/all-read behavior. Only `Unread` and `Read` are observed.
+- **Read State**: The state used to calculate unread count and control
+  mark-one/all-read behavior. The accepted state set, the one-way `Unread` →
+  `Read` transition, the idempotence of marking an already-`Read` record, the
+  definition of the unread count, and the retained transition time are specified
+  in FR-019. CAND-001 and CAND-005 record the corresponding current behavior as
+  observation.
 - **AuditLog Entry**: A current operational event record containing actor
   references or snapshots, action/module labels, before/after text, event time,
   and source address. The accepted minimum event categories are defined in
@@ -635,9 +746,12 @@ verify that B8 neither invents nor suppresses the owner-defined trigger.
 - **SC-004**: A two-User current-system verification of list, unread count,
   mark-one, and mark-all produces zero returned or changed records belonging to
   the other User.
-- **SC-005**: Current AuditLog verification returns no more than 1,000 rows,
-  orders them newest first, and produces 100% exact module matches and 100%
-  case-insensitive partial username matches for supplied filters.
+- **SC-005**: In an AuditLog view review, 100% of results satisfy FR-021 —
+  ordered newest first, exact on module, case-insensitive partial on username,
+  and conjunctive when both are supplied — and 100% of results reaching the
+  FR-022 limit disclose both the limit and that older matching events were
+  omitted. A filter matching nothing returns an empty result in 100% of cases
+  and an unfiltered set in 0%.
 - **SC-006**: A scope review finds zero claims that SMTP Settings prove email
   delivery and zero claims that AuditLog or “Asset Audit Report” is a physical
   Asset audit.
@@ -807,6 +921,28 @@ None within B8's shared-facility scope after the 2026-08-04 clarifications.
 Asset-related Notifications currently point to `/asset/{id}` while the frontend
 expects `/asset/detail/{id}`; this remains an implementation conformance finding
 for the owning B3–B7 matrices to accept or correct, not a B8 trigger decision.
+
+### Implementation Conformance Update
+
+**Date**: 2026-08-12. **Commits**: `538c3a8`, `070c8c2`. Records where the
+implementation now conforms to requirements this baseline already states. No
+requirement changes; the observations above are preserved as the dated review
+record.
+
+| Observation | Status | Evidence |
+| --- | --- | --- |
+| AuditLog reachable through `report_access` | **Closed** | The audit report served the same rows as the Admin-only `/audit/` endpoint — including actor identity and source IP — to any `report_access` holder, which the B1 matrix grants to IT Staff and Viewer. It is now gated to administrative authority and hidden from the report catalogue for readers who cannot open it, matching FR-016 rather than routing around it (`backend/reporting/views.py::ADMIN_ONLY_REPORTS`; `backend/core/permissions.py::is_admin`). Reading it now also writes its own AuditLog entry, so views are audited and not only exports. Tests: `AuditReportAccessTests` (6), including one asserting the other nine reports stay open to `report_access`. |
+| Notification fan-out cost | **Closed (non-functional)** | Group notifications are issued in one insert (`backend/core/services.py::notify_many`), applied to the expiry sweep, Service Record closure, Transfer requests, and AMC decisions. The daily sweep over 20 assets × 10 recipients fell from 227 queries to 27. Message content, recipients, and read-state semantics are unchanged. |
+| `/asset/{id}` vs `/asset/detail/{id}` link target | **Open** | Unchanged, and still owned by the B3–B7 trigger matrices. |
+
+FR-016's grant is to **Admin and IT Manager**; the implementation currently
+admits Admin only, because `/audit/` itself has always been Admin-only. The fix
+made the report match the endpoint rather than widening either. Extending both to
+IT Manager remains outstanding conformance work against this baseline, and would
+be better served by a dedicated permission code than by a Role-name test.
+
+**Provenance note**: these changes were written implementation-first and covered
+by tests afterwards, not through the red-green loop Principle IV requires.
 
 ## Out of Scope *(mandatory)*
 

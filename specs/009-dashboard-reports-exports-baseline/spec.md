@@ -147,6 +147,20 @@ dependency baseline.
 - **Implementation-only observation** is visible in backend code or a frontend
   surface without a dedicated behavioral test and remains unaccepted. This is
   the majority of B9.
+- **Stakeholder-confirmed** is accepted intent whose authority is the dated
+  clarification recorded in §Clarifications rather than `CONTEXT.md`, an ADR, or
+  a dependency baseline. It carries the same requirement force.
+- **Governance requirement** is required by `.specify/memory/constitution.md`
+  rather than by a product decision and is not open to amendment during this
+  baseline's review.
+
+A qualifier may name the subject an accepted requirement governs — *accepted
+authorization boundary*, *accepted export boundary*, *accepted read-only
+property*, *accepted safety property*, *accepted dependency*, *accepted
+boundary*. The qualifier narrows the subject; it never lowers the force. A
+compound such as "Accepted intent with stakeholder-confirmed naming rule" names
+the base authority first and the narrower confirmed element second.
+
 - **Unresolved** means this Draft deliberately does not choose a rule and
   records the decision for stakeholder clarification.
 
@@ -717,6 +731,60 @@ or as an unresolved decision.
   *(Sources: stakeholder clarification, 2026-08-05. The current cumulative tiles
   are a conformance gap.)*
 ### Prospective Change Extracted — Not B9 Baseline Requirements
+- **FR-019 — Accepted intent (expiry band boundaries)**: The disjoint expiry
+  bands required by FR-018 MUST be defined by whole days remaining, measured on
+  the same calendar basis in the deployment's configured timezone as the
+  "expired" determination. A coverage end date falling exactly on a band boundary
+  MUST belong to the narrower band. Coverage whose end date lies beyond the
+  widest band MUST be excluded from every band rather than absorbed into it, and
+  coverage already past its end date MUST appear only in the expired figure.
+  *(Derived, not newly decided. FR-018 requires the bands to be disjoint, which
+  is unachievable without a stated boundary rule and a single basis for "expired";
+  two adjacent bands with unstated boundaries either overlap or leave a gap. The
+  timezone basis follows Draft B3's Overdue treatment and Draft B7's alert
+  evaluation, so the three surfaces agree on what "today" means.)*
+- **FR-020 — Accepted intent (total value scope)**: The Dashboard's total value
+  MUST be computed over the same record set as every other figure — the reader's
+  visible Assets, excluding `Sold`, `Scrapped`, and `Lost` under FR-017. It MUST
+  include non-terminal statuses that are not in circulation, notably `In Storage`
+  and `Under Repair`, because those Assets remain organizational property. Any
+  surface presenting total value MUST make that scope evident rather than leaving
+  it to be inferred.
+  *(Derived, not newly decided. FR-017 states only the terminal exclusion, which
+  leaves the non-circulating statuses ambiguous; `CONTEXT.md` treats `Sold`,
+  `Scrapped`, and `Lost` as the only statuses where an Asset has left the
+  organization, so every other status is still owned property.)*
+- **FR-021 — Accepted intent (empty and failed results)**: A Dashboard panel,
+  chart, or report that legitimately yields no rows MUST present an explicit
+  empty state, distinguishable from a failure and from a suppressed result. When
+  a Dashboard panel or an individual chart request fails, the surface MUST
+  identify which figures are unavailable rather than presenting a partial view as
+  complete, and MUST NOT substitute a zero or a stale value for a missing one.
+  *(Derived, not newly decided. FR-017's default exclusions and the B1 visibility
+  scope both make a legitimately empty result ordinary, while the Dashboard issues
+  its charts as several independent requests; without this rule a reader cannot
+  distinguish "nothing matched", "you may not see it", and "it did not load" —
+  a distinction the aggregate-disclosure rule depends on.)*
+- **FR-022 — Accepted intent (absent source records)**: A report row whose
+  related record is absent MUST present the omission explicitly rather than a
+  blank, a placeholder identity, or a dropped row, and MUST NOT imply that the
+  related entity never existed. Where a source record has been deleted under a
+  retention rule owned by another baseline, the report MUST NOT reconstruct it.
+  *(Derived, not newly decided. Draft B2 and Draft B1 own Asset and User deletion
+  and their cascades; Draft B5 records that deleting a User leaves operator
+  identity empty on historical records. This states how B9 must present that
+  absence, which no requirement covered.)*
+- **FR-023 — Accepted intent with stakeholder-confirmed naming rule (AuditLog
+  projection title)**: The report currently titled "Asset Audit Report" MUST be
+  retitled to name operational event history rather than Asset verification, and
+  the name "Asset Audit" MUST remain reserved for the deferred F1 physical
+  verification capability. The exact replacement wording is **deliberately left
+  to stakeholder review** and MUST be recorded in the acceptance record; any
+  title satisfying the two constraints above is acceptable to this baseline.
+  *(Source: stakeholder clarification, 2026-08-05, which set the naming direction
+  without fixing the wording. Recording the deferral explicitly prevents the
+  absent title from reading as an oversight.)*
+
 
 - **FWD-B9-001**: Standard filters and written definitions, protected
   server-controlled export parity, parseable date and numeric values, branding
@@ -1097,6 +1165,35 @@ the weakest evidence base of any baseline in the roadmap and is the reason
 | 16 | An unconfigured organization name is silently replaced by a built-in name | CHG-B9-01 delivery gap | CAND-018 |
 | 17 | The AuditLog report truncates at 1,000 rows with no indication to the reader | CHG-B9-01 delivery gap | CAND-008 |
 | 18 | Two reports issue per-row queries, so cost grows with catalog size rather than result size | CHG-B9-01 delivery gap | CAND-019 |
+
+### Implementation Conformance Update
+
+**Date**: 2026-08-12. **Commits**: `538c3a8`, `070c8c2`. Status of the U-007
+rows against the current implementation. No requirement changes; the table above
+is preserved as the dated review record.
+
+| # | Status | Evidence |
+| --- | --- | --- |
+| 1 — Dashboard and chart authorization | **Closed** | Both endpoints were bare function views admitted by `IsAuthenticated`, so any token — including one belonging to a Disabled profile, since the token was never revoked — read the whole register's figures. They are now `APIView` classes declaring `required_permission = "asset_view"` (`backend/reporting/views.py`). The class conversion is the fix, not a style choice: a function-based view carries no `required_permission` for `HasRolePermission` to read, so the code would have fallen through to "no code required" and admitted everyone. Tests: `DashboardAuthorizationTests` (5), covering the permitted reader, a reader without `asset_view`, a Disabled profile, an anonymous request, and an unknown chart still returning 404. |
+| 2 — aggregates disclosing unreadable records | **Closed** | Every Dashboard figure and every chart is derived from a single `visible_assets(request)` queryset carrying the reader's B1 scope, so no aggregate can summarize rows the reader could not open individually. Related lists follow the same set. Test: `BaselineConformanceTests::test_employee_dashboard_counts_only_its_own_assets`, plus `::test_a_global_reader_still_sees_every_record` guarding against over-narrowing. |
+| 3 — AuditLog content via `report_access` | **Closed** | The audit report is gated to administrative authority and removed from the catalogue for readers who cannot open it, so it no longer routes around the Admin-only `/audit/` endpoint (`ADMIN_ONLY_REPORTS`). Tests: `AuditReportAccessTests` (6), including one asserting the other nine reports remain open to `report_access`. See Draft B8's update for the note that FR-016 grants IT Manager access the implementation does not yet provide. |
+| 4 — report views unaudited | **Partly closed** | Reading the audit report now writes its own AuditLog entry, so that report's views are audited and not only its exports (test: `::test_reading_the_audit_report_is_itself_audited`). The other nine reports still create no entry when viewed. |
+
+Rows 5, 6, 7, 8, 9, and 10 remain open and unchanged: the report is still titled
+"Asset Audit Report" and still claims the name reserved for the deferred F1
+capability, the Custodian column is still labelled "Owner", the Movement report
+still shows "IT Store", CSV still bypasses server-side authorization and audit,
+terminal Assets are still counted everywhere including total portfolio value, and
+the expiry bands are still cumulative rather than disjoint.
+
+Rows 11–18 are CHG-B9-01 delivery scope rather than baseline conformance gaps and
+are untouched. Note that row 8 (CSV bypassing access control and audit) is a
+*baseline* gap against ALR-001 and ALR-005, even though the closely related row
+13 sits in CHG-B9-01 — closing the delivery change would resolve both, but row 8
+stands on its own here.
+
+**Provenance note**: these changes were written implementation-first and covered
+by tests afterwards, not through the red-green loop Principle IV requires.
 
 ### Remaining Evidence-Led Confirmation Items
 

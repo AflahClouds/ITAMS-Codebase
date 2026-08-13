@@ -109,7 +109,7 @@ after acceptance must be recorded in a new specification and linked here with
   permission matrix recorded in FR-010 and Admin-managed custom Roles recorded
   in FR-011. When otherwise authorized, Admin, IT Manager, IT Staff, HR,
   Viewer, and custom Roles see global data; Employee is limited to own identity,
-  Custodian-scoped Assets, and directly involving lifecycle records.
+  Custodian-scoped Assets, and the lifecycle records enumerated in FR-012.
 
 ### Evidence Classification
 
@@ -117,6 +117,10 @@ This Draft uses the following classifications:
 
 - **Stakeholder-confirmed**: stated in `CONTEXT.md`, an ADR, an accepted
   specification, or an explicit stakeholder instruction.
+- **Governance-backed**: required by `.specify/memory/constitution.md` rather
+  than by a product decision. It applies to every capability, carries the same
+  requirement force as stakeholder-confirmed content, and is not open to
+  amendment or rejection during this baseline's review.
 - **Test-backed current behavior**: demonstrated by an automated test and
   eligible for this requested AS-BUILT baseline without implying a broader
   policy.
@@ -311,9 +315,11 @@ permission-code administration using an administrator and a non-administrator.
    Manager, IT Staff, HR, Viewer, or a custom Role, **When** a granted
    permission code authorizes a data surface, **Then** its records are global.
    **Given** an Employee, **Then** visible records are limited to that
-   Employee's own identity, Custodian-scoped Assets, and lifecycle records that
-   directly identify the Employee; Department never expands or restricts
-   either scope.
+   Employee's own identity, Custodian-scoped Assets, and exactly the lifecycle
+   records enumerated in FR-012 — Checkouts where the Employee is the User,
+   Transfers where the Employee is the previous or new owner, and other
+   lifecycle records only while the related Asset remains visible under the
+   Custodian rule; Department never expands or restricts either scope.
 
 **Current-System Verification Scenarios — Not Accepted Requirements**:
 
@@ -439,8 +445,16 @@ administrative bypass, including referenced and duplicate records.
   employee's behalf; IT MUST perform Checkout on an employee's behalf.
   *(Sources: stakeholder clarification, 2026-07-29; `CONTEXT.md`, Checkout,
   Transfer, and Procurement.)*
-- **FR-010**: The named Roles MUST grant these permission codes:
-  - Admin: all current permission codes.
+- **FR-010**: The named Roles MUST grant these permission codes. "The accepted
+  permission-code set" means exactly the nine codes enumerated in §Permission
+  Code Inventory and Accepted Named Role Matrix as of the 2026-07-29 Evidence
+  Date: `asset_create`, `asset_edit`, `asset_delete`, `transfer_request`,
+  `asset_custody_manage`, `asset_view`, `user_management`, `report_access`, and
+  `settings_access`. A permission code introduced after that date MUST NOT enter
+  any named Role's accepted grant by operation of this requirement; extending a
+  grant to a new code requires a new stakeholder decision recorded in a new
+  specification.
+  - Admin: the full accepted permission-code set defined above.
   - IT Manager: `asset_create`, `asset_edit`, `asset_delete`,
     `transfer_request`, `asset_custody_manage`, `asset_view`, and
     `report_access`.
@@ -450,15 +464,22 @@ administrative bypass, including referenced and duplicate records.
   - Employee: `asset_view`.
   - Viewer: `asset_view` and `report_access`.
   *(Source: stakeholder clarification, 2026-07-29.)*
-- **FR-011**: Admin MUST be able to manage custom Roles using any combination
-  of existing permission codes. A custom Role MUST grant only its assigned
-  codes, MUST follow the accepted action and data-visibility rules for those
-  codes, and MUST NOT receive an implicit administrative bypass.
+- **FR-011**: Admin MUST be able to manage custom Roles using any combination of
+  the accepted permission-code set defined in FR-010. A custom Role MUST grant
+  only its assigned codes, MUST follow the accepted action and data-visibility
+  rules for those codes, and MUST NOT receive an implicit administrative bypass.
+  Whether a permission code introduced after the Evidence Date may be assigned
+  to a custom Role is not decided by this baseline and requires a new
+  stakeholder decision.
   *(Source: stakeholder clarification, 2026-07-29.)*
 - **FR-012**: When a granted permission code authorizes access, a User in
   Admin, IT Manager, IT Staff, HR, Viewer, or a custom Role MUST receive global
   records for that action. Employee MUST receive only:
-  - their own User identity;
+  - their own User identity. Which fields constitute that representation is NOT
+    accepted by this baseline and is recorded as Unresolved Conflict 14. Until
+    that decision is made, this clause MUST NOT be read as granting the full
+    `user_management` representation defined in FR-002, and MUST NOT be
+    implemented as a widening of Employee access;
   - Assets where they are Custodian, including `Lost` Assets retaining them as
     Custodian;
   - Checkouts where they are the User;
@@ -505,7 +526,7 @@ The accepted, test-backed visibility contract is intentionally narrow:
 | Cross-User directory for Employee | Employee Role grants `asset_view` | Denied; no directory records | Stakeholder clarification, 2026-07-29 |
 | Asset register and Asset detail for Employee | Employee Role grants `asset_view` | Only Assets where that Employee is Custodian, including retained Custodian on `Lost` | Stakeholder clarification, 2026-07-29; Draft B2 baseline |
 | Any granted data action for Admin, IT Manager, IT Staff, HR, Viewer, or custom Role | Required permission code or accepted administrative authority | Global records; no Department filter | Stakeholder clarification, 2026-07-29 |
-| Employee identity and lifecycle data | Employee access is otherwise granted | Own User identity and directly involving records listed in FR-012; no Department expansion | Stakeholder clarification, 2026-07-29 |
+| Employee identity and lifecycle data | Employee access is otherwise granted | Own User identity (field set unresolved — see Unresolved Conflict 14) and exactly the records enumerated in FR-012; no Department expansion | Stakeholder clarification, 2026-07-29 |
 | Full Users, Roles, permission codes, administrative Settings | No relevant permission | Denied with `403` | `PrivacyAuthorizationTests::test_ordinary_user_cannot_read_privileged_apis` |
 | Administrative Settings | `settings_access` without administrative bypass | Denied with `403` | `PrivacyAuthorizationTests::test_settings_access_does_not_expose_admin_configuration` |
 
@@ -534,9 +555,12 @@ the grants currently produced by migrations after the
 `asset_transfer` to `asset_custody_manage` rename and removal of
 `transfer_request` from IT Staff:
 
+The nine codes in the table above are the accepted permission-code set fixed by
+FR-010 at the 2026-07-29 Evidence Date. A later-added code is outside that set.
+
 | Named Role | Accepted permission codes |
 | --- | --- |
-| Admin | All current permission codes |
+| Admin | The full accepted permission-code set (all nine codes above) |
 | IT Manager | `asset_create`, `asset_edit`, `asset_delete`, `transfer_request`, `asset_custody_manage`, `asset_view`, `report_access` |
 | IT Staff | `asset_create`, `asset_edit`, `asset_custody_manage`, `asset_view`, `report_access` |
 | HR | `asset_view`, `transfer_request` |
@@ -912,6 +936,41 @@ The following details are observations awaiting confirmation:
     `frontend/src/components/ProtectedRoute.jsx`;
     `frontend/src/App.jsx`;
     `frontend/package.json`.
+14. **Employee self-identity field set**: FR-012 accepts that an Employee may
+    read their own User identity, but the clarification of 2026-07-29 did not
+    state which fields that representation contains. FR-002 establishes that the
+    full record carries the email address and linked login username, and ALR-003
+    establishes that minimal-directory access never implies full-record access —
+    but no rule bounds an Employee's view of their *own* record. The current
+    login payload returns identity, Department, Role, permission codes, and an
+    administrative indicator, which is implementation evidence rather than an
+    accepted contract. A decision is required before acceptance: either
+    enumerate the accepted self-identity fields, or state that Employee
+    self-identity is limited to an existing accepted field set.
+    Evidence: `backend/accounts/views.py`;
+    `backend/accounts/serializers.py`;
+    `frontend/src/AuthContext.jsx`.
+
+### Implementation Conformance Update
+
+**Date**: 2026-08-12. **Commits**: `538c3a8`, `070c8c2`. Records where the
+implementation now conforms to requirements this baseline already states. No
+requirement changes; the findings above are preserved as the dated review record.
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| 1 — C6 Employee scope | **Partly closed** | The implementation now enforces Custodian-only Asset visibility (`backend/assets/views.py`). Still open: the seeded Employee Role description in `backend/accounts/migrations/0002_seed_rbac_and_org.py` still reads "View own assets and raise requests," which FR contradicts. |
+| 4 — Employee record visibility | **Closed** | Scope is applied through one helper (`User.has_own_records_scope`) at every listed surface: Assets, Checkouts (`user=self`), Transfers (party to), Service Records and Asset files (via the held Asset), the User directory (403), Procurement (403, per B6 C9), and the Dashboard and charts (aggregates derived from the reader's visible Assets). Tests: `BaselineConformanceTests::test_employee_*` (7), `::test_a_global_reader_still_sees_every_record`. |
+| 6 — session contract | **Partly closed** | Disabled-User handling is now enforced at the credential rather than only per request: deactivating a profile deletes its tokens (`backend/accounts/signals.py`), so a revoked session fails authentication rather than authorization. Tests: `TokenRevocationOnDeactivationTests` (5). Token expiry, idle timeout, concurrent sessions, and stale permission refresh remain unresolved. |
+| 7 — password policy | **Partly closed** | Self-service change now defers to `AUTH_PASSWORD_VALIDATORS` instead of a local six-character minimum (`backend/accounts/views.py`). Tests: `PasswordPolicyTests` (2). The administrative reset path, rotation, history, expiry, and reuse remain unresolved. |
+| 10 — organization master reads | **Partly closed** | Master reads previously required no permission at all — `MASTER_WRITE` listed no `list`/`retrieve` key and no `*` fallback, so any authenticated request was admitted. Reads now require `asset_view` or `settings_access` (`backend/core/mixins.py`). Tests: `MasterDataAccessTests` (4). Edit support, referenced-record deletion, archival, and whether organization masters should be globally visible remain unresolved. |
+
+Findings 2, 3, 5, 8, 9, 11, 12, and 13 remain open and unchanged, including the
+hard-coded bootstrap credential in the seed migration and the absence of any
+frontend behavioral test.
+
+**Provenance note**: these changes were written implementation-first and covered
+by tests afterwards, not through the red-green loop Principle IV requires.
 
 ## Out of Scope *(mandatory)*
 
@@ -937,6 +996,12 @@ The following details are observations awaiting confirmation:
 - Employee self-service Checkout is deferred; IT currently performs Checkout
   on an employee's behalf.
 - Employee- or team-lead-initiated Procurement requests are deferred.
+- Employee-initiated Transfer is **not** in this deferred list. `CONTEXT.md`
+  records deferral notes for Checkout and Procurement but describes Transfer as
+  requested by HR or IT Manager on an employee's behalf by design, with no
+  deferred employee-initiated variant. It is therefore recorded under
+  §Unaccepted Adjacent Possibilities rather than here, so FR-009's three-way
+  prohibition is not read as three deferred features.
 - Scheduled or periodic physical Asset audits are deferred and do not alter
   B1's rule that Department is not a visibility boundary.
 
@@ -948,6 +1013,12 @@ The following details are observations awaiting confirmation:
   in this baseline.
 - Department-based delegated administration and Department-scoped data
   visibility are not accepted by this Draft.
+- Employee-initiated Transfer is neither evidenced nor accepted. `CONTEXT.md`
+  states that Transfer is requested by HR or IT Manager on an employee's behalf
+  and is explicitly not self-service, and records no deferral note for it —
+  unlike Employee self-service Checkout and Procurement requests, which are
+  deferred possibilities. Introducing it would require a new stakeholder
+  decision, not the lifting of a deferral.
 
 ### Delivery Boundary
 

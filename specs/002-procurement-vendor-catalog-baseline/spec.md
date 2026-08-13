@@ -76,6 +76,28 @@ catalog masters.
 after acceptance must be recorded in a new specification and linked here with
 `Extends`, `Supersedes`, or `Superseded by` metadata.
 
+### Acceptance Record
+
+*Pending — this baseline is `Draft`. Completing every field below is what moves
+it to accepted; until then the fields stay marked pending.*
+
+| Field | Value |
+| --- | --- |
+| Stakeholder decision | *Pending* |
+| Accepting stakeholder | *Pending* |
+| Acceptance date | *Pending* |
+| Reviewed evidence date | 2026-07-29 |
+| Acceptance checklist result | *Pending — see `checklists/baseline-acceptance.md`* |
+| Review basis used for the Success Criteria | *Pending — record the population or sample defined in §Success Criteria* |
+| Unresolved items deliberately carried forward | Concurrent Asset linking — **operator-facing behavior only**: conflict presentation, retry, and stale-edit handling. The atomicity half of that finding is *not* carried forward; it is an implementation conformance gap against ALR-007. See §Unresolved Conflicts, finding 1 disposition. |
+
+**Immutability boundary**: on the acceptance date recorded above, the
+requirement and acceptance content of this specification becomes an immutable
+flow-forward record. From that point a semantic change MUST use a new feature
+directory with reciprocal `Extends`, `Supersedes`, or `Superseded by` links;
+this specification may be edited only to add or correct that non-semantic
+lineage metadata. *(Constitution §III.)*
+
 ## Domain Alignment *(mandatory)*
 
 **Canonical Terms**:
@@ -100,7 +122,11 @@ after acceptance must be recorded in a new specification and linked here with
   business documents associated with the completed purchase. Purchase date and
   invoice date are required under the accepted ordering rules. Invoice number
   is required and unique within Vendor; PO number is optional and globally
-  unique when present. Document-file expectations remain unresolved.
+  unique when present. Document-file expectations are settled by the 2026-08-04
+  clarification and specified in FR-018: Procurement owns one current invoice
+  file, owns one current PO file whenever a PO number is present, stores each
+  file once, exposes it through every linked Asset, and retains superseded
+  versions on replacement.
 - Use **Procurement**, not "procurement request," for the completed-purchase
   record in this baseline. Use **Checkout**, not "Assignment," at adjacent
   Asset-custody boundaries.
@@ -154,6 +180,10 @@ This Draft uses the following classifications:
 
 - **Stakeholder-confirmed**: stated in `CONTEXT.md`, an ADR, the B6 roadmap
   boundary, or the explicit stakeholder instruction dated 2026-08-03.
+- **Governance-backed**: required by `.specify/memory/constitution.md` rather
+  than by a product decision. It applies to every capability, carries the same
+  requirement force as stakeholder-confirmed content, and is not open to
+  amendment or rejection during this baseline's review.
 - **Test-backed current behavior**: demonstrated by an automated test and
   eligible for this requested AS-BUILT baseline without implying a broader
   unstated policy.
@@ -571,7 +601,11 @@ control with the authoritative outcome.
   `In Storage` record. Until linked, it MUST NOT become `Available` or enter
   Checkout, Transfer, or Service Record activity. A legacy/import Asset MAY
   remain without Procurement only when an exception reason is recorded and the
-  record remains visibly flagged as missing Procurement.
+  record remains visibly flagged as missing Procurement. **Visibly flagged**
+  means the exception state is carried on the record itself and presented on
+  every surface that lists or displays it, without the reader opening a detail
+  view or running a separate report; it is not satisfied by the absence of a
+  Procurement reference alone.
   *(Source: stakeholder clarification, 2026-08-03.)*
 - **FR-015**: Standalone Procurement, Vendor, Category, Brand, Model, and
   Purchase Mode reads MUST require `asset_view` and a non-Employee User.
@@ -745,6 +779,14 @@ control with the authoritative outcome.
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
+
+The **review set** used by the criteria below is every Procurement record
+existing at the reviewed Evidence Date, or — where that population is too large
+to inspect individually — a sample that includes at least one record per Vendor,
+per Purchase Mode, and per exception state named in FR-014 and FR-022. The basis
+chosen MUST be recorded in the acceptance record so a later reader can tell what
+was actually inspected. "Visibly flagged" carries the meaning defined in FR-014
+wherever it appears below.
 
 - **SC-001**: In a review set of completed purchases, 100% of accepted examples
   identify a managed Vendor and support invoice and PO information, while 0%
@@ -998,6 +1040,54 @@ control with the authoritative outcome.
    test.
    Evidence: `backend/assets/serializers.py`;
    `backend/assets/tests.py`.
+
+   **Disposition — 2026-08-12.** Reviewing this finding against ALR-007 showed it
+   to be two different things filed as one, and they are dispositioned
+   differently.
+
+   *Carried forward as planning detail* — the operator-facing behavior: how a
+   lost link conflict is presented, whether the losing request retries or fails,
+   and whether a save from a form opened before another operator's change is
+   rejected as stale. None of this is decided by B6, and none of it needs to be
+   for the baseline to be accurate about current behavior.
+
+   *Reclassified as an implementation conformance gap, not an open decision* —
+   the atomicity itself. ALR-007 already requires that a reassignment
+   "atomically preserve FR-013 and FR-014" and "MUST NOT leave a Procurement
+   empty… at any observable point." That is an accepted requirement, so the
+   correctness question is not undecided; the implementation simply does not meet
+   it. `ProcurementSerializer.validate_asset_ids` reads `procurement_id` and
+   `create`/`update` then write with an unconditional
+   `Asset.objects.filter(...).update(procurement=...)`. Two operators linking the
+   same Asset both pass validation and both write, the later write silently wins,
+   and a Procurement whose only Asset was taken is left empty — the exact state
+   ALR-007 forbids. Neither `select_for_update` nor a uniqueness constraint nor a
+   concurrency test exists (`backend/assets/serializers.py`;
+   `backend/assets/tests.py`). FR-012's append-only history compounds it: the
+   losing Procurement's history records no entry for an association it believes
+   it still holds.
+
+   Splitting the finding this way keeps a specified-but-unmet correctness
+   requirement out of the same bucket as genuinely undecided interaction design.
+   Carrying the whole finding forward would have parked an ALR-007 violation as
+   though it were a UX question.
+
+### Implementation Conformance Update
+
+**Date**: 2026-08-12. **Commits**: `538c3a8`, `070c8c2`. Records where the
+implementation now conforms to requirements this baseline already states. No
+requirement changes; the findings above are preserved as the dated review record.
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| OBS-AS-013 — B6 read authorization | **Partly closed** | The Employee exclusion is now enforced: `ProcurementViewSet` and every catalog master viewset deny own-records scope outright (`backend/core/permissions.py::NotOwnRecordsScope`; `backend/assets/views.py`; `backend/catalog/views.py`), answering 403 rather than an empty list, since C9 puts no B6 surface in front of the Employee Role. Master reads additionally now require a permission at all — previously `MASTER_WRITE` declared no read codes, so any authenticated request was admitted. Tests: `MasterDataAccessTests` (4); `BaselineConformanceTests::test_employee_is_denied_procurement_entirely`, `::test_a_global_reader_still_sees_every_record`. Still open: Procurement delete remains a hard delete rather than the accepted archive-only behavior. |
+| OBS-AS-014 — hidden action controls | **Open** | Unchanged. The Procurement list still renders edit and delete controls without checking the matching action permission. The B6 menu section is now hidden from the Employee Role (`frontend/src/components/navbar/Menu.jsx`), but that is menu-level only and is not the per-row control check this finding describes. |
+
+The Concurrent Asset linking finding remains open and unchanged.
+
+**Provenance note**: these changes were written implementation-first and covered
+by tests afterwards, not through the red-green loop Principle IV requires.
+
 ## Out of Scope *(mandatory)*
 
 ### Adjacent Baseline Ownership

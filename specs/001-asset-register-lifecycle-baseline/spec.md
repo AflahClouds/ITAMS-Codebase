@@ -82,14 +82,28 @@ here with `Extends`, `Supersedes`, or `Superseded by` metadata.
 
 This Draft uses the following classifications:
 
-- **Accepted intent**: confirmed by `CONTEXT.md` or an ADR and eligible to be a
-  baseline requirement.
+- **Accepted intent**: confirmed by `CONTEXT.md` or an ADR, and eligible to be a
+  baseline requirement. The authority predates this specification.
+- **Stakeholder-confirmed**: decided in a dated clarification session recorded in
+  §Clarifications, and eligible to be a baseline requirement on the same footing
+  as accepted intent. It differs only in where the authority is recorded — in
+  this specification rather than in `CONTEXT.md` or an ADR.
+- **Governance requirement**: required by
+  `.specify/memory/constitution.md` rather than by a product decision. It applies
+  to every capability, is not open to per-baseline amendment, and is therefore
+  not a candidate for stakeholder rejection during this baseline's review.
 - **Test-verified current behavior**: demonstrated by passing automated tests,
   but still awaiting stakeholder acceptance as product intent.
 - **Implementation-only observation**: visible in backend or frontend code
   without dedicated automated behavioral coverage or authoritative intent.
 - **Unresolved**: contradictory or incomplete evidence that blocks baseline
   acceptance.
+
+Each statement in this Draft carries exactly one classification. Where more than
+one could apply, the earliest in the list above governs and any further evidence
+is cited beside it — a stakeholder-confirmed rule whose current behavior also
+passes an automated test is labelled stakeholder-confirmed, with the test cited
+as supporting evidence rather than as its authority.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -484,11 +498,16 @@ the evidence and unresolved-conflict sections.
   `asset_view` MUST be limited to Assets where that Employee is Custodian,
   including a `Lost` Asset that retains that Employee as Custodian.
   *(Source: stakeholder clarification, 2026-07-29.)*
-- **ALR-010**: IT Manager and IT Staff MUST be permitted to create and edit
-  Assets. Asset, image, and document deletion MUST be permitted only to Admin
-  and IT Manager. All other named-Role write attempts MUST be denied without
-  mutation.
-  *(Source: stakeholder clarification, 2026-07-29.)*
+- **ALR-010**: Admin, IT Manager, and IT Staff MUST be permitted to create and
+  edit Assets. Asset, image, and document deletion MUST be permitted only to
+  Admin and IT Manager. A write attempt by any named Role not listed for that
+  action MUST be denied without mutation.
+  *(Source: stakeholder clarification, 2026-07-29. Admin is named explicitly so
+  this requirement agrees with the accepted full-Asset-access rule in §Domain
+  Alignment and with §Accepted Asset Permission Contract and Current Codes;
+  the closing sentence is scoped per action rather than to the whole
+  requirement, so it no longer reads as denying a Role the same requirement
+  grants.)*
 
 - **ALR-011**: Every successful B2 mutation MUST create the AuditLog effect
   defined in AS-021. A terminal transition MUST create the expanded AuditLog
@@ -589,11 +608,21 @@ administration, custom-Role policy, and non-Asset permissions.
 - **SC-005**: 100% of implementation-led behavior included in this Draft is
   labeled as test-verified, implementation-only, or unresolved and cites at
   least one repository evidence path.
-- **SC-006**: Stakeholder review resolves C3, deletion retention, file
-  security/lifecycle, custom-Role policy, Asset-specific integration with B8,
-  and the C2, terminal, department, Employee-visibility, and detailed
-  terminal-audit implementation conformance gaps before the baseline status can
-  move from `Draft` to accepted.
+- **SC-006**: Stakeholder review resolves every finding recorded in §Baseline
+  Evidence and Unresolved Conflicts before the baseline status can move from
+  `Draft` to accepted. Each is listed here with its finding number so the gate
+  cannot silently omit one:
+  C2 creation and custody (finding 1); C3 rejected terminology (finding 2); the
+  terminal source-state and Pending Transfer rule (finding 3); department
+  meaning (finding 4); Employee Asset visibility (finding 5); the Asset identity
+  and register contract (finding 6); deletion and history retention (finding 7);
+  file security and lifecycle (finding 8); the detailed terminal-audit contents
+  (finding 9); and frontend failure and accessibility behavior (finding 10).
+  Resolution also covers custom-Role policy and Asset-specific integration with
+  B8, both of which depend on baselines that are not yet accepted. A finding is
+  resolved when the stakeholder either accepts the current behavior, directs a
+  correction, or records an explicit exception — not by the finding ceasing to
+  be mentioned.
 - **SC-007**: In a review set containing each successful B2 mutation type, 100%
   produce one operational AuditLog record and zero Notifications; every
   terminal case records 100% of its automatic lifecycle-record effects.
@@ -677,6 +706,11 @@ administration, custom-Role policy, and non-Asset permissions.
 
 ### Implementation-Only Observations
 
+*Recorded as observed during baseline review on 2026-07-29. Several have since
+been addressed; see §Implementation Conformance Update. The observations are kept
+as the dated record of what review found, not as a current description of the
+code.*
+
 - Asset fields, canonical constant lists, file relationships, condition-log
   structure, aggregate-history relationships, and cascading deletion:
   `backend/assets/models.py`.
@@ -720,6 +754,11 @@ administration, custom-Role policy, and non-Asset permissions.
   `frontend/package.json`.
 
 ### Unresolved Conflicts
+
+*Findings 1, 2, and 5 are closed and finding 4 is partly closed as of
+2026-08-12; see §Implementation Conformance Update for what changed and the
+tests that demonstrate it. The text below is preserved as the dated review
+record.*
 
 1. **C2 — Resolved decision; implementation conformance gap**: stakeholder
    clarification accepts creation only as `Available` or `In Storage` without a
@@ -801,6 +840,34 @@ administration, custom-Role policy, and non-Asset permissions.
     `frontend/src/pages/asset/Create.jsx`;
     `frontend/src/pages/asset/Edit.jsx`;
     `frontend/src/pages/asset/Detail.jsx`.
+
+### Implementation Conformance Update
+
+**Date**: 2026-08-12. **Commits**: `538c3a8`, `070c8c2`. This section records
+where the implementation now conforms to requirements this baseline already
+states. It changes no requirement, adds no new accepted behavior, and does not
+promote implementation evidence to product intent — it narrows which of the
+findings above are still true.
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| 1 — C2 creation and custody | **Closed** | `backend/assets/serializers.py` rejects creation outside `Available`/`In Storage`, rejects a Custodian at creation, and rejects a direct Custodian change on update except on a terminal transition. `frontend/src/pages/asset/Create.jsx` offers only the two permitted statuses and no Custodian field; the Custodian field is removed from `frontend/src/pages/asset/Edit.jsx`. Tests: `BaselineConformanceTests::test_create_rejects_a_lifecycle_managed_status`, `::test_create_rejects_a_custodian`, `::test_edit_cannot_assign_a_custodian_directly`, `::test_create_still_accepts_available_and_in_storage`, `::test_marking_an_asset_lost_still_retains_its_custodian`. |
+| 2 — C3 rejected terminology | **Closed for this surface** | `frontend/src/pages/asset/Detail.jsx` now labels the panel `Custody & Warranty`. No frontend behavioral test exists, so the evidence is source-level only, and other user-visible surfaces were not swept. |
+| 4 — department follows custody | **Partly closed** | Check-in now clears the department with the Custodian (`backend/assets/checkout.py`; test `BaselineConformanceTests::test_check_in_clears_department_and_logs_the_inspection`). Still open: Service Record opening and closure leave the department set, direct Asset editing still exposes it, and Transfer still accepts an explicit target department. |
+| 5 — Employee Asset visibility (C6) | **Closed** | `backend/assets/views.py` scopes the register to `custodian=self` for the named Employee Role, covering list, retrieve, and every detail action resolving through `get_object()`. Tests: `BaselineConformanceTests::test_employee_sees_only_assets_it_holds`, `::test_employee_cannot_reach_another_holders_asset_by_id`, `::test_a_non_employee_role_still_reads_globally`. Scope keys on the Role, consistent with B1's decision that custom Roles read globally. |
+
+Findings 3, 6, 7, 8, 9, and 10 remain open and unchanged. Specifically:
+`Sold`/`Scrapped` are still reachable from lifecycle-managed statuses and
+terminal processing still does not reject Pending Transfers (finding 3); the
+terminal AuditLog entry still records only a generic old/new summary without the
+automatic record effects (finding 9); and while Asset file *listings* now inherit
+their Asset's visibility, direct `MEDIA_URL` access remains unauthenticated
+(finding 8).
+
+**Provenance note**: these changes were written implementation-first and covered
+by tests afterwards, not through the red-green loop Principle IV requires. The
+tests pass and the behavior is verified, but the acceptance review should weigh
+that provenance rather than treat them as test-driven.
 
 ## Out of Scope *(mandatory)*
 

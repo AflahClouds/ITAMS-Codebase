@@ -152,6 +152,21 @@ requirement content here.
 - **Implementation-only observation** is visible in backend code, a migration,
   or a frontend surface without a dedicated behavioral test and remains
   unaccepted.
+- **Stakeholder-confirmed** is accepted intent whose authority is the dated
+  clarification recorded in §Clarifications rather than `CONTEXT.md`, an ADR, or
+  a dependency baseline. It carries the same requirement force.
+- **Governance requirement** is required by `.specify/memory/constitution.md`
+  rather than by a product decision and is not open to amendment during this
+  baseline's review.
+
+A qualifier may name the subject an accepted requirement governs — *accepted
+authorization*, *accepted atomicity*, *accepted alert integrity*, *accepted
+history integrity*, *accepted state ownership*, *accepted rejection safety*,
+*accepted boundary*, *accepted visibility dependency*. The qualifier narrows the
+subject; it never lowers the force. A compound such as "Accepted intent with
+stakeholder-confirmed recipient rule" names the base authority first and the
+narrower confirmed element second.
+
 - **Unresolved** means this Draft deliberately does not choose a rule and
   records the decision for stakeholder clarification.
 
@@ -684,7 +699,8 @@ authorized reader.
   condition and is a conformance gap.)*
 - **FR-021 — Accepted intent with stakeholder-confirmed recipient rule**: A
   successful renewal and a successful End Support MUST each notify every active
-  User holding the IT Manager grant with a description of what was done,
+  User holding the IT Manager grant (see FR-039 for what that resolves to) with a
+  description of what was done,
   identifying the Asset and, respectively, the new coverage period or the
   recorded reason. Recipients MUST be selected by permission rather than by a
   Role's display name, so renaming a Role MUST NOT silently stop delivery.
@@ -792,6 +808,52 @@ authorized reader.
   residual risk that a recipient does not open the application within the alert
   window is recorded under Assumptions.)*
 ### Prospective Change Extracted — Not B7 Baseline Requirements
+- **FR-036 — Accepted intent (Warranty recorded without an end date)**: A
+  Warranty MAY be recorded with a start date and no end date. When the end date
+  is absent, no Warranty expiry alert can be derived and none MUST be sent; the
+  Asset MUST NOT be reported as having expiring Warranty coverage, and the
+  absence MUST be distinguishable from an end date that has already passed.
+  *(Derived, not newly decided. The 2026-08-05 clarification permits either
+  Warranty date to be recorded alone; FR-018's alert derivation depends on an end
+  date, so the consequence of recording only a start follows from the two
+  together. Stating it prevents the silent no-alert outcome from being read as a
+  delivery failure.)*
+- **FR-037 — Accepted intent (renewal with no current contract)**: Renewal MUST
+  be permitted when an Asset has no current contract, including after a
+  deliberate End Support, and MUST create a new `Active` contract without
+  requiring a superseded one to close. Where a current `Active` or `Incomplete`
+  contract does exist, FR-009 governs and that contract MUST be superseded.
+  *(Derived, not newly decided. FR-009 describes renewal as superseding a current
+  contract and is silent where none exists, while FR-012 makes End Support a
+  deliberate act that leaves no current contract — so without this rule, restoring
+  coverage after End Support has no specified path. `CONTEXT.md` treats AMC as a
+  renewable contract, which the End Support state must not permanently foreclose.)*
+- **FR-039 — Accepted intent (the "IT Manager grant" is not yet a permission
+  code)**: AMC decision notifications MUST be addressed by permission rather than
+  by Role display name. B1's accepted matrix contains **no permission code unique
+  to IT Manager**, so "the IT Manager grant" does not currently resolve to a code.
+  Until B1 defines one, the recipient set MUST be every active holder of
+  `asset_delete` — the only code the B1 matrix grants to IT Manager and withholds
+  from IT Staff — and this MUST be recorded as an approximation rather than an
+  exact expression of the accepted rule. A custom Role holding `asset_delete`
+  therefore receives AMC decision notifications, which may be broader than
+  intended; introducing a dedicated code is a B1 decision this baseline does not
+  make.
+  *(Derived from the 2026-08-05 clarification, which made recipients
+  permission-based, together with Draft B1 FR-010, which enumerates the named
+  Role matrix. The clarification named a grant that does not exist as a code; this
+  requirement records that fact rather than leaving the rule unimplementable.)*
+
+- **FR-038 — Accepted intent (concurrent AMC decisions)**: Renewal and End
+  Support on the same Asset MUST be serialised so that exactly one decision takes
+  effect. A second decision arriving concurrently MUST either observe the first
+  or be rejected without changing contract history; it MUST NOT produce two
+  `Active` contracts, and it MUST NOT lose a superseded contract's `Ended` record.
+  *(Derived, not newly decided. §Assumptions already records that an Asset has at
+  most one current AMC contract and that overlapping contracts are not modelled;
+  ALR-002 already requires atomic contract effects. This states the invariant those
+  two presuppose under simultaneous attempts, which neither addressed.)*
+
 
 - **FWD-B7-001**: Production execution, exactly one logical run across workers,
   one organizational timezone, once-only issuance, downtime catch-up, and
@@ -1267,6 +1329,34 @@ Warranty alerts, or notification destinations.
 | 14 | No AMC Vendor is ever recorded, leaving the report column permanently empty | FR-032 | CAND-009 |
 | 14a | Renewal captures no Vendor, so a change of maintainer cannot be recorded | FR-033 | CAND-009 |
 | 15 | The current AMC contract is chosen by creation order rather than by dates | FR-005, ALR-004 | CAND-003 |
+
+### Implementation Conformance Update
+
+**Date**: 2026-08-12. **Commits**: `538c3a8`, `070c8c2`. Status of the U-006
+rows against the current implementation. No requirement changes; the table above
+is preserved as the dated review record.
+
+| # | Status | Evidence |
+| --- | --- | --- |
+| 1 — AMC flag semantics | **Closed** | `Asset.has_amc` is now true only while the current contract is `Active` or `Incomplete`, and false when it is `Ended` or absent (`backend/assets/models.py`). Tests: `BaselineConformanceTests::test_has_amc_is_false_once_the_contract_is_ended`, `::test_has_amc_is_true_while_a_contract_is_incomplete`, `::test_renewing_after_an_ended_contract_reports_has_amc_again`. **This is the C4 divergence**: the code now follows the clarification while `CONTEXT.md` still describes `has_amc` as a deliberate no-AMC marker. The glossary reconciliation named in U-001 remains outstanding and still blocks acceptance. |
+| 9 — recipient selection | **Closed, with a caveat** | AMC decision notices are addressed by permission rather than Role display name (`backend/assets/views.py::_notify_it_managers`). Test: `AmcContractPartyTests::test_decision_notices_follow_the_permission_not_the_role_name`, which asserts a permission holder under a differently-named Role is notified and a Role merely *named* "IT Manager" without grants is not. The caveat: `asset_delete` is used as the manager-distinguishing grant because it separates IT Manager from IT Staff in the seeded matrix. It is a proxy, not an exact expression of "the IT Manager grant" — a dedicated permission code would be precise, and that choice belongs to B1. |
+| 14a — Vendor at renewal | **Closed** | Renewal requires a managed B6 Vendor and records it on the new contract; an absent or unknown Vendor is rejected (`backend/assets/views.py`). The renewal form now carries a Vendor picker (`frontend/src/pages/asset/Detail.jsx`). Tests: `AmcContractPartyTests::test_renewal_without_a_vendor_is_rejected`, `::test_renewal_records_the_vendor_on_the_new_contract`, `::test_an_unknown_vendor_is_rejected`. |
+| 14 — Vendor ever recorded | **Partly closed** | Renewal now records a Vendor, so the report column is no longer permanently empty. Initial AMC entry through the Asset serializer still creates a contract without one, so an Asset whose AMC was never renewed still reports no Vendor. |
+
+Rows 2, 3, 4, 4a, 5, 6, 7, 8, 13, and 15 remain open and unchanged — including
+the shared `end_reason` field (row 6), warranty alerts still covering terminal
+Assets (row 3), and the current contract still being chosen by creation order
+rather than by dates (row 15). Rows 11, 11a, 11b, and 12 are CHG-B7-01 delivery
+scope rather than baseline conformance gaps; the scheduler is untouched.
+
+One non-functional change touches this baseline's alert path: expiry alerts are
+now issued in one insert per message rather than one per recipient
+(`core.services.notify_many`), taking a sweep over 20 Assets and 10 recipients
+from 227 queries to 27. Recipients, content, and timing are unchanged, so no row
+above is affected.
+
+**Provenance note**: these changes were written implementation-first and covered
+by tests afterwards, not through the red-green loop Principle IV requires.
 
 ### Remaining Evidence-Led Confirmation Items
 

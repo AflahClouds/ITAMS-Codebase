@@ -169,6 +169,15 @@ This Draft uses the following classifications:
 
 - **Accepted intent**: confirmed by `CONTEXT.md`, an ADR, or an accepted
   specification, and eligible to be a baseline requirement.
+- **Stakeholder-confirmed**: decided in a dated clarification session recorded in
+  §Clarifications, and eligible to be a baseline requirement on the same footing
+  as accepted intent. It differs only in where the authority is recorded — in
+  this specification rather than in `CONTEXT.md`, an ADR, or an accepted
+  specification. Most of the 2026-08-04 decisions carry this classification.
+- **Governance requirement**: required by `.specify/memory/constitution.md`
+  rather than by a product decision. It applies to every capability, carries the
+  same requirement force as accepted intent, and is not open to amendment or
+  rejection during this baseline's review.
 - **Test-verified current behavior**: demonstrated by a passing automated test,
   but still awaiting stakeholder acceptance as product intent.
 - **Implementation-only observation**: visible in backend or frontend code
@@ -726,12 +735,17 @@ Notifications to the Custodian and to custody operators.
   backed by a test or an explicit stakeholder decision, and MUST NOT be promoted
   into an accepted requirement by this specification run.
   *(Source: `.specify/memory/constitution.md`, Principle III.)*
-- **FR-022 — Decision gate**: This Draft MUST NOT be accepted while U-005
-  remains open. U-001 through U-004 were resolved by the stakeholder
-  clarification dated 2026-08-04 and MUST NOT be reopened by observing current
-  implementation behavior.
-  *(Sources: `ROADMAP.md`, decision C1; `.specify/memory/constitution.md`,
-  Principle III.)*
+- **FR-022 — Decision gate**: U-001 through U-005 are resolved and MUST NOT be
+  reopened by observing current implementation behavior. U-001 through U-004 were
+  resolved by the stakeholder clarification dated 2026-08-04; U-005 was resolved
+  by the B4 clarification of the same date, which decided C1 in favor of
+  Checkout, and was absorbed into this Draft on 2026-08-12. No decision gate now
+  blocks B3 acceptance. The conformance gaps in U-006 are delivery obligations
+  against accepted requirements and MUST NOT be treated as reopened decisions or
+  as grounds to weaken a requirement.
+  *(Sources: `ROADMAP.md`, decision register C1;
+  `specs/006-transfer-baseline/spec.md`, clarification 2026-08-04;
+  `.specify/memory/constitution.md`, Principle III.)*
 - **FR-023 — Stakeholder-confirmed**: Check-in MUST clear the Asset department
   together with the Custodian.
   *(Sources: Draft B2 FR-015 and AS-005; stakeholder clarification,
@@ -772,6 +786,36 @@ Notifications to the Custodian and to custody operators.
   of FR-014 or FR-024.
   *(Sources: `CONTEXT.md`, **Service Record**; ADR-0001; Draft B2 ALR-006;
   stakeholder clarification, 2026-08-04.)*
+- **FR-029 — Accepted intent (Checkout User eligibility)**: A Checkout User MUST be an active
+  User. A Checkout naming a Disabled User MUST be rejected without changing the
+  Asset or creating a record. Holding no Role MUST NOT disqualify a User from
+  being a Checkout User.
+  *(Derived, not newly decided. The active-User limit follows Draft B1 FR-004,
+  which excludes a Disabled User from the minimal active-User directory that
+  CAND-013 records as the selection source, and from custody accountability:
+  a deactivated User cannot be answerable for an Asset. The no-Role clause
+  follows ALR-006 — the Checkout User is a subject of the record and holds no
+  permission by virtue of that role, so requiring a Role would contradict it.)*
+
+  **Implementation conformance gap**: the Checkout serializer accepts any User
+  reference without a status check (`backend/assets/serializers.py`), so a
+  Disabled User can be made Custodian through the API even though the frontend
+  selector offers only active Users.
+- **FR-030 — Accepted intent (Checkout condition treatment)**: The checkout condition records the
+  Asset's condition at handover. It MUST be one of the canonical conditions in
+  FR-010, MUST default to the Asset's current condition when not supplied, and
+  MUST NOT change the Asset's own condition — only the return condition does
+  that, under FR-025.
+  *(Derived, not newly decided. FR-010 already restricts the *return* condition
+  to the canonical set, and Draft B2 FR-003 requires every Asset to carry exactly
+  one canonical condition; a Checkout record holding a non-canonical value would
+  contradict both. The default and the no-effect-on-Asset-condition rule state
+  current behavior recorded in CAND-003.)*
+
+  **Implementation conformance gap**: the checkout condition is stored without
+  validation (`backend/assets/checkout.py`), so a Checkout record can carry a
+  value outside the canonical set while a check-in rejects that same value —
+  the asymmetry recorded in §Edge Cases.
 
 ### Current-System Contract Candidates — Not Accepted Requirements
 
@@ -1217,15 +1261,30 @@ frontend Checkout surface. No frontend behavioral test harness exists
   audit entries for successful Checkouts and check-ins, rejected and denied
   attempts, and interrupting closures, with defined content. Recorded in FR-027
   and ALR-008; the currently missing entries are conformance gaps in U-006.
-- **U-005 — C1, Store-to-User issuance** *(shared with B4; owner: product
-  stakeholder)*: `CONTEXT.md` says Transfer always moves custody between two
-  Users, which implies that handing an unheld `Available` Asset to a User is a
-  Checkout. The current Transfer implementation accepts an `Available` Asset
-  with no Custodian and labels the empty previous owner "IT Store"
-  (`backend/assets/transfer.py`; `frontend/src/pages/transfer/Create.jsx`).
-  Until C1 is decided, B3's eligibility boundary cannot be stated completely:
-  it is unclear whether an `Available` Asset may leave `Available` through
-  anything other than a Checkout.
+- **U-005 — C1, Store-to-User issuance — RESOLVED 2026-08-04, ABSORBED
+  2026-08-12** *(shared with B4)*: `CONTEXT.md` says Transfer always moves
+  custody between two Users, which implies that handing an unheld `Available`
+  Asset to a User is a Checkout. The current Transfer implementation accepts an
+  `Available` Asset with no Custodian and labels the empty previous owner
+  "IT Store" (`backend/assets/transfer.py`;
+  `frontend/src/pages/transfer/Create.jsx`).
+
+  **Resolution.** The B4 clarification dated 2026-08-04 decided C1: Store-to-User
+  issuance is a **Checkout**, because issuance has no approval gate.
+  `ROADMAP.md`'s decision register records C1 as resolved. This entry previously
+  read "Until C1 is decided…", which was stale from the day it was written — the
+  decision existed and had simply not been absorbed here.
+
+  **Effect on B3: none.** C1 confirms the boundary this Draft already states
+  rather than changing it. FR-001 and FR-008 already require Checkout to move an
+  Asset from `Available` and to be rejected otherwise; C1 establishes that the
+  only way an `Available` Asset leaves `Available` into a User's custody is a
+  Checkout, which is exactly that boundary. No requirement text changes, and the
+  eligibility contract that this finding called incomplete is complete.
+
+  **Effect on B4: unchanged and still open.** The no-Custodian `IT Store`
+  Transfer path remains reachable, which C1 rejects. That is recorded as an open
+  conformance gap in Draft B4 and is not B3's to close.
 - **U-006 — Conformance gaps recorded, not accepted**: The current behaviors
   below contradict accepted requirements in this Draft. Each is recorded as a
   gap rather than reconciled by weakening a requirement. Whether a gap is
@@ -1247,6 +1306,54 @@ frontend Checkout surface. No frontend behavioral test harness exists
 | 11 | The operator field is presented as `approved_by` | FR-018 | CAND-001 |
 | 12 | The Asset detail panel is labelled "Assignment & Warranty" | FR-018, C3 | OBS-AS-026 |
 | 13 | An Admin or superuser may edit or delete a Checkout record directly | ALR-005 | CAND-011 |
+| 14 | Two simultaneous Checkouts of one `Available` Asset are not provably prevented, because the row lock relied upon is a no-op on the current database engine | FR-011 | CAND-019 |
+| 15 | Nothing in the data model prevents more than one open Checkout per Asset | FR-001, FR-007 | Edge Cases |
+
+Rows 14 and 15 were previously recorded only in §Edge Cases with no owner, which
+left them reading as open questions. They are not: FR-011 already requires a
+Checkout to apply its record, status, Custodian, and department effects as one
+operation with no user-visible partial state, and FR-001 with FR-007 already
+confine `Assigned` to a single owning Checkout. The outcomes are specified; the
+implementation does not guarantee them. They are therefore conformance gaps owned
+by B3 delivery, not decisions awaiting a stakeholder — the same distinction drawn
+for concurrent Asset linking in Draft B6's finding 1.
+
+### Implementation Conformance Update
+
+**Date**: 2026-08-12. **Commits**: `538c3a8`, `070c8c2`. Status of each U-006
+row against the current implementation. This changes no requirement; the table
+above is preserved as the dated review record.
+
+| # | Status | Evidence |
+| --- | --- | --- |
+| 1 | **Closed** | Check-in clears the department with the Custodian (`backend/assets/checkout.py`). Test: `BaselineConformanceTests::test_check_in_clears_department_and_logs_the_inspection`. |
+| 2 | Open | Checkout still retains the previous department when the Checkout User has none. |
+| 3 | **Closed** | The `Good` default is removed; a check-in without a return condition is rejected (`backend/assets/checkout.py`, `backend/assets/views.py`). Test: `::test_check_in_requires_a_return_condition`. |
+| 4 | **Closed** | Every check-in writes an `AssetConditionLog` row naming the operator as inspector. Test: `::test_check_in_clears_department_and_logs_the_inspection`. Note the implementation records a row on **every** check-in, not only when the condition changes — read as an inspection record, which is a superset of FR-025 and should be confirmed rather than assumed. |
+| 5 | **Partly closed** | Intake and return notes are now distinct retained fields; a check-in no longer overwrites intake remarks (`return_remarks`, migration `0009`). The same fix applies to interrupting closures. Tests: `::test_check_in_clears_department_and_logs_the_inspection`, `::test_an_interrupting_closure_also_preserves_intake_remarks`, `CheckoutLifecycleTests::test_check_in_returns_asset_to_available_with_new_condition`. Still open: no rule requires return remarks when the condition has worsened. |
+| 6 | Open | The expected return date is still unvalidated and no Overdue state or notification exists. |
+| 7 | Open | Rejected, denied, and interrupting-closure paths still write no AuditLog entry. |
+| 8 | Open | `asset_custody_manage` holders are still not notified on Checkout or check-in. |
+| 9 | Open | Notification destinations still do not resolve to the Asset detail route. |
+| 10 | **Partly closed** | An interrupting closure now preserves intake remarks and annotates `return_remarks`, but there is still no explicit closed-as-interrupted marker distinguishing it structurally from a check-in. |
+| 11 | Open | The operator field is still presented as `approved_by`. |
+| 12 | **Closed** | The Asset detail panel now reads `Custody & Warranty` (`frontend/src/pages/asset/Detail.jsx`). No frontend behavioral test exists, so the evidence is source-level only. |
+| 13 | Open | Direct edit or delete of a Checkout record by an Admin or superuser is still possible. |
+
+**U-005 was absorbed on 2026-08-12** during this Draft's acceptance review. The
+note previously recorded here — that U-005 read "Until C1 is decided…" while C1
+had in fact been decided on 2026-08-04 — is resolved. Absorbing the decision
+proved to require no requirement change: C1 confirms the `Available`-only
+boundary FR-001 and FR-008 already state. FR-022 no longer gates acceptance on
+U-005, and this Draft has no open decision blocker. See §Unresolved Conflicts,
+U-005.
+
+Also newly enforced and relevant to this baseline's neighbours: a Checkout list
+is now scoped to the Employee it was issued to (`backend/assets/views.py`), per
+B1's C6 decision.
+
+**Provenance note**: these changes were written implementation-first and covered
+by tests afterwards, not through the red-green loop Principle IV requires.
 
 ## Out of Scope *(mandatory)*
 

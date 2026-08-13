@@ -110,12 +110,34 @@ Notifications and AuditLog baseline.
 **Evidence Classification**:
 
 - **Accepted intent** comes only from `CONTEXT.md`, an accepted dependency, an
-  ADR, or an explicit stakeholder decision.
+  ADR, or an explicit stakeholder decision. A qualifier may name the subject it
+  governs — *accepted authorization*, *accepted dependency*, *accepted lifecycle
+  boundary*, *accepted visibility dependency*, *accepted atomic approval*,
+  *accepted rejection safety*, *accepted terminality*. The qualifier narrows what
+  the requirement is about; it never lowers the force.
+- **Stakeholder-confirmed** is accepted intent whose authority is a dated
+  clarification recorded in §Clarifications rather than `CONTEXT.md`, an ADR, or
+  an accepted dependency. It carries the same requirement force.
+- **Governance requirement** is required by `.specify/memory/constitution.md`
+  rather than by a product decision. It applies to every capability and is not
+  open to amendment during this baseline's review; FR-013 and FR-019 carry this
+  authority through their cited sources.
 - **Test-backed current behavior** is reproducible current-system evidence but
   is not product intent by itself.
 - **Implementation-only observation** is visible in code or a frontend surface
-  without a dedicated behavioral test and remains unaccepted.
+  without a dedicated behavioral test and remains unaccepted. The compound
+  *implementation-only conformance gap* marks current behavior that contradicts
+  an accepted requirement in this Draft.
 - **Unresolved** means this Draft deliberately does not choose a rule.
+
+A label may combine a classification with supporting evidence — "Stakeholder-
+confirmed and test-backed", "Accepted intent and test-backed core", "Accepted
+lifecycle boundary with selected test coverage". The **first** term is the
+authority; the second records that a test also demonstrates part of it. A test
+never raises or lowers the classification, and "with selected test coverage"
+signals partial coverage, not a weaker requirement. A **dependency** label names
+the baseline that owns the rule B4 consumes; where that baseline is still
+`Draft`, the dependency is not settled and citing it does not make it accepted.
 
 **Lifecycle and Actors**:
 
@@ -497,6 +519,41 @@ and filename, and reject download of an out-of-scope record.
   labelled until supported by authoritative intent or an explicit stakeholder
   decision.
   *(Source: `.specify/memory/constitution.md`, Principles I and III.)*
+- **FR-020 - Accepted intent (decision accountability)**: A Transfer MUST retain
+  its **request time** and, once decided, its **decision time** and the identity
+  of the **deciding actor**, as three separately readable values. Request time
+  and decision time MUST NOT be represented by a single field, and every surface
+  presenting either — including the Transfer PDF — MUST identify which event the
+  date denotes. A Pending Transfer has a request time and no decision time.
+  *(Derived, not newly decided. The §B4 Trigger and Audit Matrix already requires
+  "actor, time" on three distinct events — request, approval, and rejection — so
+  three distinct values are already presupposed. FR-003 makes approving and
+  rejecting authorized acts, and ALR-004 makes both outcomes terminal; an
+  approval-gated workflow whose purpose is accountability must record who decided
+  and when. `CONTEXT.md`, Transfer, defines the approval gate this serves.)*
+
+  **Implementation conformance gap**: one `transfer_date` field is reused for
+  both events (`backend/assets/models.py`), and the Transfer PDF prints it
+  without stating which event it denotes (§Transfer PDF Baseline). The approver
+  reference `AssetTransfer.approved_by` is retained by the implementation but was
+  required by no requirement before this one, so nothing prevented its removal.
+- **FR-021 - Accepted intent (target-User eligibility)**: A Transfer target MUST
+  be an active User. A request naming a Disabled target User MUST be rejected
+  without creating a Transfer or changing the Asset. Holding no Role MUST NOT
+  disqualify a User from being a Transfer target, because the target is a subject
+  of the record and gains no permission from it.
+  *(Derived, not newly decided. Draft B1 FR-004 excludes a Disabled User from the
+  minimal active-User directory that §Assumptions records as the selection
+  source, and custody accountability requires a live holder — the same reasoning
+  accepted in Draft B3 FR-029 for the Checkout User. This requirement replaces
+  the §Assumptions statement, which rested on the selection surface rather than
+  on an enforceable rule and therefore did not bind a request submitted
+  directly.)*
+
+  **Implementation conformance gap**: the Transfer serializer accepts any User
+  reference as `new_owner` without a status check
+  (`backend/assets/serializers.py`), so a Disabled User can be made Custodian
+  through the API even though the frontend selector offers only active Users.
 
 ### Authorization and Lifecycle Requirements
 
@@ -772,6 +829,29 @@ implementation-led confirmation items are the meaning of request versus
 decision timestamps and the exact PDF content; these are presentation/data
 semantics outside the five highest-impact decisions and do not reopen U-001
 through U-006.
+
+### Implementation Conformance Update
+
+**Date**: 2026-08-12. **Commits**: `538c3a8`, `070c8c2`. Records where the
+implementation now conforms to decisions this baseline already states. No
+requirement changes; the text above is preserved as the dated review record.
+
+| Decision | Status | Evidence |
+| --- | --- | --- |
+| C8 — Transfer PDF access | **Closed** | The endpoint is no longer Admin-only: `document` requires `asset_view` and resolves through the scoped queryset, so a reader reaches the PDF only for Transfers visible to them under B1 (`backend/assets/views.py`). Both halves matter — the permission alone would have opened every Transfer document to every reader. Tests: `BaselineConformanceTests::test_asset_view_holder_may_download_the_transfer_document`, `::test_employee_may_download_the_document_for_a_transfer_it_is_party_to`, `::test_employee_cannot_download_someone_elses_transfer_document`, `::test_employee_lists_only_transfers_it_is_party_to`, `::test_a_non_employee_role_still_sees_every_transfer`. |
+| U-003 — target differs from Custodian | **Closed** | `request_transfer` rejects a target equal to the current Custodian (`backend/assets/transfer.py`). Test: `::test_transfer_rejects_the_current_custodian_as_target`. |
+| U-004 — one Pending Transfer per Asset | **Closed** | A second Pending request on the same Asset is rejected; a new request is permitted once the previous one is decided. Tests: `::test_transfer_rejects_a_second_pending_request`, `::test_a_new_request_is_allowed_once_the_previous_one_is_decided`. |
+| U-005 — custody drift before approval | **Open** | `approve` still does not compare the live Custodian and department against the request snapshot. |
+| U-006 — condition at approval | **Open** | The condition is still captured at request time and merely applied at approval; there is no approval-time selection from the five canonical values. |
+| C1 — no-Custodian `IT Store` path | **Open** | An `Available` Asset with no Custodian can still be transferred, so the path C1 rejects remains reachable. Note this is the mirror of B3's U-005: the same decision is unabsorbed on both sides. |
+
+Both integrity rules surfaced a second defect while being fixed:
+`TransferViewSet.create` had no `LifecycleError` handler, so these rejections
+would have surfaced as 500s rather than 400s. It now returns 400 like its
+sibling actions.
+
+**Provenance note**: these changes were written implementation-first and covered
+by tests afterwards, not through the red-green loop Principle IV requires.
 
 ## Out of Scope *(mandatory)*
 

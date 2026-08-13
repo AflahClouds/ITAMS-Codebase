@@ -151,6 +151,21 @@ requirement content here.
   demonstrates behavior but is not product intent by itself.
 - **Implementation-only observation** is visible in backend code or a frontend
   surface without a dedicated behavioral test and remains unaccepted.
+- **Stakeholder-confirmed** is accepted intent whose authority is the dated
+  clarification recorded in §Clarifications rather than `CONTEXT.md`, an ADR, or
+  a dependency baseline. It carries the same requirement force.
+- **Governance requirement** is required by `.specify/memory/constitution.md`
+  rather than by a product decision. It applies to every capability and is not
+  open to amendment during this baseline's review.
+
+A qualifier may name the subject an accepted requirement governs — *accepted
+authorization*, *accepted atomicity*, *accepted lifecycle ownership*, *accepted
+rejection safety*, *accepted integration boundary*, *accepted visibility
+dependency*. The qualifier narrows the subject; it never lowers the force. A
+compound such as "Stakeholder-confirmed and test-backed" names the authority
+first and the supporting evidence second; a test never raises or lowers a
+classification.
+
 - **Unresolved** means this Draft deliberately does not choose a rule and
   records the decision for stakeholder clarification.
 
@@ -873,6 +888,59 @@ the reader's B1 visibility scope.
   *(Sources: `CONTEXT.md`, **Service Record**; stakeholder clarification,
   2026-08-05. The current single remarks value that a closure replaces is a
   conformance gap.)*
+- **FR-031 — Accepted intent (correction of a closed record)**: A mistaken cost,
+  outcome, bill reference, or date on a closed Service Record MUST be
+  correctable only through a named correction operation requiring
+  `asset_custody_manage`, never through a direct record edit. A correction MUST
+  retain the superseded value, the correcting actor, and the correction time, and
+  MUST NOT reopen the record or alter the Asset.
+  *(Derived, not newly decided. FR-026 already requires the sent and return dates
+  to be "correctable" while FR-019 forbids direct record editing — a tension this
+  requirement resolves in the direction FR-019 already sets, by making correction
+  a named lifecycle operation rather than an exception to it. The permission
+  follows ALR-001, which makes `asset_custody_manage` authoritative for both
+  owning operations.)*
+
+  **Implementation conformance gap**: no correction operation exists; the dates
+  cannot be entered or corrected at all (U-005 row 11), and the only current path
+  that could change a closed record is the Admin-only direct edit FR-019
+  prohibits.
+- **FR-032 — Accepted intent (bill document authorization)**: Attaching or
+  replacing the bill or service document MUST require `asset_custody_manage`, the
+  same permission that closes the record it evidences. Reading it MUST follow the
+  Service Record read visibility in ALR-002, not the Asset document permissions,
+  because the document evidences the repair rather than the Asset. A replaced
+  document MUST retain its superseded version.
+  *(Derived, not newly decided. FR-028 already requires the document whenever cost
+  exceeds zero, and ALR-001 already makes `asset_custody_manage` authoritative for
+  closing; this states the authorization that requirement presupposes rather than
+  inheriting it implicitly from B2's Asset-document rules.)*
+- **FR-033 — Accepted intent (single open record)**: An Asset MUST have at most
+  one `Open` Service Record. A second opening attempt MUST be rejected without
+  creating a record or changing the Asset, and the invariant MUST hold under
+  simultaneous attempts.
+  *(Derived, not newly decided. §Assumptions already records this property, but
+  only as an emergent consequence of the `Under Repair` status precondition — so
+  any future change to that precondition would silently remove it. FR-007 and
+  ALR-004 already require the rejection and the atomicity; this states the
+  invariant directly so it survives on its own.)*
+
+  **Implementation conformance gap**: the guarantee rests on a row lock the
+  current database engine does not enforce, so simultaneous openings are not
+  provably prevented (CAND/OBS evidence recorded in §Edge Cases).
+- **FR-034 — Accepted intent (Vendor on a Service Record)**: The Vendor is fixed
+  when the Service Record opens. Changing it on an `Open` record MUST NOT be an
+  accepted operation; forwarding an Asset to a different repairer MUST be
+  recorded by closing the current Service Record and opening a new one, so each
+  Vendor's involvement remains a distinct event. Protection of a Vendor
+  referenced by a Service Record from deletion is owned by B6 as Vendor
+  administration; B5 requires only that the reference remain valid for the life
+  of the record.
+  *(Derived, not newly decided. `CONTEXT.md` defines a Service Record as one
+  repair event, FR-001 carries that, and FR-019 forbids direct record editing —
+  together these already exclude an in-place Vendor swap. The deletion-protection
+  assignment follows the B6 ownership boundary already stated in §Out of Scope;
+  §Edge Cases records that only the Procurement reference path is test-backed.)*
 
 ### Current-System Contract Candidates — Not Accepted Requirements
 
@@ -1299,6 +1367,34 @@ current-system evidence for B5's lifecycle boundary.
 | 15 | No outcome value exists; outcome is inferable only from free text | FR-029 | CAND-008 |
 | 16 | Closing produces no Notification for custody operators | FR-021 | CAND-010 |
 | 17 | Successful opening and closing audit entries carry only a summary line | FR-023 | CAND-011 |
+
+### Implementation Conformance Update
+
+**Date**: 2026-08-12. **Commits**: `538c3a8`, `070c8c2`. Status of the U-005
+rows against the current implementation. No requirement changes; the table above
+is preserved as the dated review record.
+
+| # | Status | Evidence |
+| --- | --- | --- |
+| 13 — cost at closure | **Closed** | Closing without a cost is rejected, `0` is accepted as an explicit no-charge answer, and non-numeric or negative values are rejected (`backend/assets/service.py`). The close dialog marks the field required and states the zero convention (`frontend/src/pages/service/Services.jsx`). Tests: `ServiceClosureContractTests::test_closing_without_a_cost_is_rejected`, `::test_zero_cost_means_no_charge_and_is_accepted`, `::test_a_negative_cost_is_rejected`. |
+| 16 — closing Notification | **Closed** | Closing notifies every active `asset_custody_manage` holder that the Asset has returned and is `Available` (`backend/assets/service.py`, via `core.services.notify_many`). Test: `::test_closing_notifies_every_custody_operator`. |
+
+Rows 1–12, 14, 15, and 17 remain open and unchanged. Worth singling out because
+they are easy to assume were carried along with the cost fix: closure remarks
+still replace the text captured at opening (row 3), the backend still accepts an
+`In Storage` Asset for service (row 9), closing still does not re-check that the
+Asset is `Under Repair` (row 10), and no bill reference, attached document, or
+outcome value exists (rows 14–15). Row 12 is CHG-B5-01 delivery scope rather
+than a baseline conformance gap.
+
+Also newly enforced and relevant to this baseline's neighbours: Service Record
+lists are scoped to Assets the reader currently holds under B1's C6 decision
+(`backend/assets/views.py`). Because opening a Service Record clears custody, an
+Employee does not see a repair while it is in flight — a direct consequence of
+FR-005 rather than a separate access rule, and worth confirming at acceptance.
+
+**Provenance note**: these changes were written implementation-first and covered
+by tests afterwards, not through the red-green loop Principle IV requires.
 
 ### Remaining Evidence-Led Confirmation Items
 
