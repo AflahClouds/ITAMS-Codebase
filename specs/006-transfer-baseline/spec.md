@@ -79,7 +79,7 @@ lineage metadata. *(Constitution §III.)*
   The previous and target User roles MUST NOT reference the same User.
 - **Transfer requester** is the HR or IT Manager actor who requests the handoff
   on an employee's behalf. A User with an Admin bypass or a custom Role holding
-  `transfer_request` is also authorized under the accepted B1 permission
+  `transfer_request` is also authorized under the Draft B1 permission
   contract. The permission code, not Role name alone, is authoritative.
 - **Transfer approver** is the IT Manager or IT Staff actor who approves or
   rejects a Pending Transfer. A User with an Admin bypass or a custom Role
@@ -103,7 +103,7 @@ lineage metadata. *(Constitution §III.)*
 - `CONTEXT.md`, **Transfer**: Transfer always involves two Users, always has an
   approval gate, moves `Pending -> Approved` or `Pending -> Rejected`, and is
   requested by HR or IT Manager and approved by IT Manager or IT Staff.
-- Accepted B1 FR-007 and FR-010 through FR-012: Transfer creation uses
+- Draft B1 FR-007 and FR-010 through FR-012 *(not yet accepted)*: Transfer creation uses
   `transfer_request`; approval/rejection uses `asset_custody_manage`; named and
   custom Role grants and global-versus-Employee visibility follow B1.
 - Draft B2 FR-006, FR-008, FR-012, FR-015, ALR-003, ALR-004, ALR-006, and
@@ -434,20 +434,20 @@ and filename, and reject download of an out-of-scope record.
   `transfer_request`. The accepted named business requesters are HR and IT
   Manager; Admin holds every code, and an Admin-managed custom Role may hold the
   code under B1. Employee MUST NOT initiate a Transfer.
-  *(Source: accepted B1 FR-007 and FR-009 through FR-011.)*
+  *(Source: Draft B1 FR-007 and FR-009 through FR-011. B1 is not yet accepted; this dependency is not settled until it is.)*
 - **FR-003 - Accepted authorization**: Approving or rejecting a Transfer MUST
   require `asset_custody_manage`. Admin, IT Manager, and IT Staff hold that code
   in the accepted named-Role matrix; HR, Employee, and Viewer do not. An Admin
   or custom Role holding the code is authorized, and a requester who holds the
   code MAY approve or reject their own request; no different-actor requirement
   applies.
-  *(Sources: `CONTEXT.md`, Transfer; accepted B1 FR-010 and Draft B2
+  *(Sources: `CONTEXT.md`, Transfer; Draft B1 FR-010 and Draft B2
   permission contract.)*
 - **FR-004 - Accepted visibility dependency**: Reading Transfer records MUST
   require `asset_view` and follow B1 data visibility: authorized non-Employee
   Roles receive global records, while Employee receives only directly involving
   lifecycle records.
-  *(Source: accepted B1 FR-012.)*
+  *(Source: Draft B1 FR-012. B1 is not yet accepted; this dependency is not settled until it is.)*
 - **FR-005 - Stakeholder-confirmed request shape with test-backed core**: A
   successful request MUST create a Pending Transfer that records the Asset,
   captured previous Custodian,
@@ -613,8 +613,8 @@ and filename, and reject download of an out-of-scope record.
 | Transfer action | Permission code | Accepted named-Role behavior | Evidence status |
 | --- | --- | --- | --- |
 | List/retrieve | `asset_view` plus B1 visibility | Admin, IT Manager, IT Staff, HR, Viewer global; Employee directly involving only | Stakeholder-confirmed in B1; Employee scope is not implemented in the current global queryset |
-| Request | `transfer_request` | IT Manager and HR; Admin has all codes | Accepted B1 intent; denial is test-backed |
-| Approve/reject | `asset_custody_manage` | Admin, IT Manager, IT Staff | Accepted B1/B2 intent; positive endpoint round trips are test-backed |
+| Request | `transfer_request` | IT Manager and HR; Admin has all codes | Draft B1 intent; denial is test-backed |
+| Approve/reject | `asset_custody_manage` | Admin, IT Manager, IT Staff | Draft B1/B2 intent; positive endpoint round trips are test-backed |
 | Request/decision through custom Role | Assigned relevant code | Allowed with no implicit bypass and B1 global visibility | Accepted B1 intent |
 | Download PDF | `asset_view` plus B1 visibility | Same named/custom Role and Employee-own scope as the underlying Transfer read | Stakeholder-confirmed; current Admin-only endpoint is a conformance gap |
 | Directly update/delete a Transfer | Not accepted | None | Current Admin fallback is implementation-only and conflicts with lifecycle ownership |
@@ -757,7 +757,7 @@ access policy:
   **Transfer**.
 - Transfer creation uses `transfer_request`; decision uses
   `asset_custody_manage`; named/custom Role and visibility behavior come from
-  accepted B1 FR-007 and FR-009 through FR-012.
+  Draft B1 FR-007 and FR-009 through FR-012.
 - A requester who also holds `asset_custody_manage` may approve or reject their
   own request; accepted authorization is permission-code based and includes
   Admin and appropriately granted custom Roles: stakeholder clarification,
