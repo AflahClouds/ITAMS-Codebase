@@ -61,7 +61,7 @@ it to accepted; until then the fields stay marked pending.*
 | Acceptance date | *Pending* |
 | Reviewed evidence date | 2026-08-04 (specification Created date; this baseline declares no separate Evidence Date) |
 | Acceptance checklist result | 40 of 40 items closed; executed 2026-08-12 — see `checklists/baseline-acceptance.md` |
-| Unresolved items deliberately carried forward | *Pending* — list the conformance gaps the stakeholder elects to schedule rather than correct before acceptance, including the no-Custodian `IT Store` Transfer path that FR-001 rejects and the implementation still permits. |
+| Unresolved items deliberately carried forward | **Carried forward as conformance gaps**: the no-Custodian `IT Store` Transfer path, which FR-001 rejects and the implementation still permits — the mirror of the C1 decision B3 absorbed on 2026-08-12; the single overloaded `transfer_date`, against FR-020's requirement for distinct request and decision times; the absent enforcement of active target-User eligibility, against FR-021; the separately selectable target department, against FR-006; and the absence of audit entries for security-relevant rejected decisions, against FR-018. The `IT Store` path is the one to schedule first: it is the only carried gap that lets an operation complete which an accepted requirement forbids outright, rather than merely recording it imperfectly. Carrying a conformance gap forward accepts the baseline as an accurate statement of intent while delivery catches up. It does **not** weaken the requirement, and a gap is closed by changing the code, never by editing the rule. |
 
 **Immutability boundary**: on the acceptance date recorded above, the
 requirement and acceptance content of this specification becomes an immutable
