@@ -65,6 +65,29 @@ requirement content here.
   (`specs/004-notifications-audit-baseline/`) for shared delivery, audit
   minimums, privacy, and retention.
 
+
+### Acceptance Record
+
+*Pending — this baseline is `Draft`. Completing every field below is what moves
+it to accepted; until then the fields stay marked pending.*
+
+| Field | Value |
+| --- | --- |
+| Stakeholder decision | *Pending* |
+| Accepting stakeholder | *Pending* |
+| Acceptance date | *Pending* |
+| Reviewed evidence date | 2026-08-05 (specification Created date; this baseline declares no separate Evidence Date) |
+| Acceptance checklist result | 70 of 70 items closed; executed 2026-08-12 — see `checklists/baseline-acceptance.md` |
+| Unresolved items deliberately carried forward | *Pending* — the 17 rows in §U-005 are conformance gaps against accepted requirements. Separately, the three §Remaining Evidence-Led Confirmation Items are review items that this record must confirm rather than leave open. |
+| Evidence-led confirmation items | *Pending — confirm the condition-history question (CAND-009), the Employee visibility question owned by B1, and the CHG-B5-01 delivery dependency on C5* |
+
+**Immutability boundary**: on the acceptance date recorded above, the
+requirement and acceptance content of this specification becomes an immutable
+flow-forward record. From that point a semantic change MUST use a new feature
+directory with reciprocal `Extends`, `Supersedes`, or `Superseded by` links;
+this specification may be edited only to add or correct that non-semantic
+lineage metadata. *(Constitution §III.)*
+
 ## Domain Alignment *(mandatory)*
 
 **Canonical Terms**:

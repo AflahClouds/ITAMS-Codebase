@@ -69,6 +69,30 @@ requirement content here.
   not evidence of a Warranty or AMC claim, and B5 records no relationship to
   either.
 
+
+### Acceptance Record
+
+*Pending — this baseline is `Draft`. Completing every field below is what moves
+it to accepted; until then the fields stay marked pending.*
+
+| Field | Value |
+| --- | --- |
+| Stakeholder decision | *Pending* |
+| Accepting stakeholder | *Pending* |
+| Acceptance date | *Pending* |
+| Reviewed evidence date | 2026-08-05 (specification Created date; this baseline declares no separate Evidence Date) |
+| Acceptance checklist result | 74 of 74 items closed; executed 2026-08-12 — see `checklists/baseline-acceptance.md` |
+| Unresolved items deliberately carried forward | *Pending* — the §U-006 rows are conformance gaps against accepted requirements; rows 11, 11a, 11b, and 12 are CHG-B7-01 delivery scope rather than gaps and are not carried here. |
+| C4 glossary reconciliation | Discharged 2026-08-12 — `CONTEXT.md` **AMC** amended; FR-029 no longer blocks acceptance |
+| IT Manager permission code | *Pending — FR-039 records `asset_delete` as an approximation because B1 defines no code unique to IT Manager; confirm the approximation or raise a B1 decision* |
+
+**Immutability boundary**: on the acceptance date recorded above, the
+requirement and acceptance content of this specification becomes an immutable
+flow-forward record. From that point a semantic change MUST use a new feature
+directory with reciprocal `Extends`, `Supersedes`, or `Superseded by` links;
+this specification may be edited only to add or correct that non-semantic
+lineage metadata. *(Constitution §III.)*
+
 ## Domain Alignment *(mandatory)*
 
 **Canonical Terms**:
@@ -108,12 +132,18 @@ requirement content here.
 - `CONTEXT.md`, **Warranty**: manufacturer coverage with start/end dates,
   distinct from AMC, which is a different contract often with a different vendor
   and date range.
-- `CONTEXT.md`, **AMC**: a separate optional paid contract with its own dates; a
-  `has_amc` flag distinct from the dates, where `False` means the Asset
-  deliberately has no AMC (dates stay empty, excluded from alerts and
-  data-completeness reports) and `True` with empty dates means the AMC exists
-  but has not been entered yet (flagged as incomplete); AMC previously existed
-  only as an uploaded document type with no queryable dates.
+- `CONTEXT.md`, **AMC** *(as amended 2026-08-12 to discharge FR-029)*: a separate
+  optional paid contract with its own dates; an Asset accumulates a history of
+  contracts, each `Incomplete`, `Active`, or `Ended`; `has_amc` is **derived from
+  the current contract only** — true when the latest is `Active` or `Incomplete`,
+  false when it is `Ended` or absent — and is not a flag anyone sets; `True` with
+  empty dates still means the AMC exists but has not been entered yet (the
+  `Incomplete` state); an Asset that never had an AMC and one whose AMC was
+  ended both report false and are **not** distinguishable, which the glossary
+  records as accepted rather than overlooked; AMC data-completeness reporting can
+  therefore identify Assets with no current AMC but not Assets that "still need an
+  AMC decision"; AMC previously existed only as an uploaded document type with no
+  queryable dates.
 - `CONTEXT.md`, **AMC**: expiry alerts for both Warranty and AMC are proactively
   pushed, not merely visible on a dashboard, and fire at 30, 15, and 7 days
   before expiry to both IT Manager and IT Staff.
@@ -238,19 +268,26 @@ independently labelled.
 
 ---
 
-### User Story 2 — Represent Deliberate No-AMC and Not-Yet-Entered AMC Distinctly (Priority: P1)
+### User Story 2 — Represent Current AMC Coverage and Not-Yet-Entered AMC Distinctly (Priority: P1)
 
-An authorized User can record that an Asset deliberately has no AMC, and
-separately that an AMC exists whose dates are still to be entered, and the two
-never look the same.
+An authorized User can tell whether an Asset is under AMC coverage now, and
+separately whether an AMC exists whose dates are still to be entered, and those
+two never look the same.
 
-**Why this priority**: `CONTEXT.md` defines the AMC flag precisely so that "we
-decided against an AMC" is not mistaken for "someone has not filled this in
-yet". Only the second should appear in completeness reporting and chasing.
+**Why this priority**: an Asset awaiting date entry must not be mistaken for one
+that is genuinely covered, because only the first needs chasing. What the flag
+does **not** distinguish is an Asset that never had an AMC from one whose AMC was
+deliberately ended — FR-006 derives the flag from the current contract alone, so
+both read false. `CONTEXT.md` originally defined the flag as a deliberate
+no-AMC decision; decision C4 replaced that on 2026-08-05, and the glossary was
+amended on 2026-08-12 to match (see FR-029). Completeness reporting can therefore
+chase Assets with no current AMC, but cannot claim to identify which of them
+still need a decision.
 
-**Independent Test**: Record one Asset as deliberately having no AMC and another
-as having an AMC with no dates yet, then confirm each is distinguishable and
-that only the second is flagged incomplete.
+**Independent Test**: Record one Asset with an AMC whose dates are not yet
+entered and another whose latest contract is `Ended`, then confirm the first is
+flagged incomplete and the second reports no current AMC — and that no surface
+claims to distinguish the second from an Asset that never had an AMC.
 
 **Acceptance Scenarios**:
 
@@ -753,14 +790,24 @@ authorized reader.
   condition. The conformance gaps in U-006 remain visible review findings.
   *(Sources: `ROADMAP.md` decisions C4 and C5;
   `.specify/memory/constitution.md`, Principles I and III.)*
-- **FR-029 — Stakeholder-confirmed reconciliation obligation**: Because FR-006
-  does not represent deliberate no-AMC as a recorded decision, the
-  `CONTEXT.md` **AMC** wording — "`has_amc = False` means the asset deliberately
-  has no AMC" and the associated exclusion from data-completeness reports — MUST
-  be reconciled with FR-006 in `CONTEXT.md` before this baseline is accepted.
-  This specification MUST NOT be read as silently overriding that glossary
-  entry, and AMC data-completeness reporting MUST NOT claim to identify Assets
-  that still need an AMC decision while FR-006 stands.
+- **FR-029 — Stakeholder-confirmed reconciliation obligation — DISCHARGED
+  2026-08-12**: Because FR-006 does not represent deliberate no-AMC as a recorded
+  decision, the `CONTEXT.md` **AMC** wording — "`has_amc = False` means the asset
+  deliberately has no AMC" and the associated exclusion from data-completeness
+  reports — had to be reconciled with FR-006 in `CONTEXT.md` before this baseline
+  could be accepted. This specification MUST NOT be read as silently overriding
+  that glossary entry, and AMC data-completeness reporting MUST NOT claim to
+  identify Assets that still need an AMC decision while FR-006 stands.
+
+  **Discharged.** `CONTEXT.md` **AMC** was amended on 2026-08-12. It now defines
+  `has_amc` as derived from the current contract only, records under *Avoid* that
+  reading `has_amc = False` as a deliberate no-AMC decision is no longer correct,
+  states explicitly that an Asset which never had an AMC and one whose AMC was
+  ended are indistinguishable and that the loss is accepted rather than
+  overlooked, and carries the data-completeness consequence this requirement
+  imposes. The glossary and FR-006 no longer conflict, and the amendment cites
+  C4 and this baseline as its authority. **This requirement no longer blocks B7
+  acceptance.**
   *(Sources: stakeholder clarification, 2026-08-05;
   `.specify/memory/constitution.md`, Principle I.)*
 - **FR-030 — Stakeholder-confirmed**: Initial AMC entry MUST enforce the same

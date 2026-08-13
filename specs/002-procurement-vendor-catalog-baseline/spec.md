@@ -87,7 +87,7 @@ it to accepted; until then the fields stay marked pending.*
 | Accepting stakeholder | *Pending* |
 | Acceptance date | *Pending* |
 | Reviewed evidence date | 2026-07-29 |
-| Acceptance checklist result | *Pending — see `checklists/baseline-acceptance.md`* |
+| Acceptance checklist result | 40 of 40 items closed; executed 2026-08-12 — see `checklists/baseline-acceptance.md` |
 | Review basis used for the Success Criteria | *Pending — record the population or sample defined in §Success Criteria* |
 | Unresolved items deliberately carried forward | Concurrent Asset linking — **operator-facing behavior only**: conflict presentation, retry, and stale-edit handling. The atomicity half of that finding is *not* carried forward; it is an implementation conformance gap against ALR-007. See §Unresolved Conflicts, finding 1 disposition. |
 

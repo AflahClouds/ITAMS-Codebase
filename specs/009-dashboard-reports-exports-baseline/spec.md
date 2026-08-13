@@ -74,6 +74,29 @@ substantially larger than the evidence base that preceded it — every accepted
 requirement beyond that clarification still traces to `CONTEXT.md` or a
 dependency baseline.
 
+
+### Acceptance Record
+
+*Pending — this baseline is `Draft`. Completing every field below is what moves
+it to accepted; until then the fields stay marked pending.*
+
+| Field | Value |
+| --- | --- |
+| Stakeholder decision | *Pending* |
+| Accepting stakeholder | *Pending* |
+| Acceptance date | *Pending* |
+| Reviewed evidence date | 2026-08-05 (specification Created date; this baseline declares no separate Evidence Date) |
+| Acceptance checklist result | 71 of 71 items closed; executed 2026-08-12 — see `checklists/baseline-acceptance.md` |
+| Unresolved items deliberately carried forward | *Pending* — the §U-007 rows are conformance gaps against accepted requirements; rows 11–18 are CHG-B9-01 delivery scope rather than gaps and are not carried here. |
+| Replacement title for the AuditLog projection | *Pending — FR-023 deliberately left the wording to review; it must name operational event history and must not use the reserved "Asset Audit" name* |
+
+**Immutability boundary**: on the acceptance date recorded above, the
+requirement and acceptance content of this specification becomes an immutable
+flow-forward record. From that point a semantic change MUST use a new feature
+directory with reciprocal `Extends`, `Supersedes`, or `Superseded by` links;
+this specification may be edited only to add or correct that non-semantic
+lineage metadata. *(Constitution §III.)*
+
 ## Domain Alignment *(mandatory)*
 
 **Canonical Terms**:

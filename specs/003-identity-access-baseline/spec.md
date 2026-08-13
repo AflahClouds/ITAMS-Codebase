@@ -58,6 +58,29 @@ organization.
 after acceptance must be recorded in a new specification and linked here with
 `Extends`, `Supersedes`, or `Superseded by` metadata.
 
+
+### Acceptance Record
+
+*Pending — this baseline is `Draft`. Completing every field below is what moves
+it to accepted; until then the fields stay marked pending.*
+
+| Field | Value |
+| --- | --- |
+| Stakeholder decision | *Pending* |
+| Accepting stakeholder | *Pending* |
+| Acceptance date | *Pending* |
+| Reviewed evidence date | 2026-07-29 |
+| Acceptance checklist result | 40 of 40 items closed; executed 2026-08-12 — see `checklists/baseline-acceptance.md` |
+| Unresolved items deliberately carried forward | *Pending* — SC-007 requires stakeholder review to account for all findings in §Unresolved Conflicts (1–14). Finding 14, the Employee self-identity field set, is an accepted-requirement gap rather than an observation and must be decided rather than merely noted. |
+| Employee self-identity field set (Unresolved Conflict 14) | *Pending — enumerate the accepted fields, or confirm the limit to an existing accepted field set* |
+
+**Immutability boundary**: on the acceptance date recorded above, the
+requirement and acceptance content of this specification becomes an immutable
+flow-forward record. From that point a semantic change MUST use a new feature
+directory with reciprocal `Extends`, `Supersedes`, or `Superseded by` links;
+this specification may be edited only to add or correct that non-semantic
+lineage metadata. *(Constitution §III.)*
+
 ## Domain Alignment *(mandatory)*
 
 **Canonical Terms**:

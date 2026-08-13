@@ -77,6 +77,29 @@ metadata.
 (accepted Asset register, status, condition, Custodian, and department
 contract), B8 (shared Notification and AuditLog facility, Draft).
 
+
+### Acceptance Record
+
+*Pending — this baseline is `Draft`. Completing every field below is what moves
+it to accepted; until then the fields stay marked pending.*
+
+| Field | Value |
+| --- | --- |
+| Stakeholder decision | *Pending* |
+| Accepting stakeholder | *Pending* |
+| Acceptance date | *Pending* |
+| Reviewed evidence date | 2026-08-04 |
+| Acceptance checklist result | 80 of 80 items closed; executed 2026-08-12 — see `checklists/baseline-acceptance.md` |
+| Unresolved items deliberately carried forward | *Pending* — the 15 rows in §U-006 are conformance gaps against accepted requirements. FR-022 forbids treating them as reopened decisions or as grounds to weaken a requirement, so carrying one forward means scheduling delivery, not relaxing the rule. |
+| Decision gate | Cleared — U-005 (C1) resolved 2026-08-04 and absorbed 2026-08-12; FR-022 records that no decision gate remains |
+
+**Immutability boundary**: on the acceptance date recorded above, the
+requirement and acceptance content of this specification becomes an immutable
+flow-forward record. From that point a semantic change MUST use a new feature
+directory with reciprocal `Extends`, `Supersedes`, or `Superseded by` links;
+this specification may be edited only to add or correct that non-semantic
+lineage metadata. *(Constitution §III.)*
+
 ## Domain Alignment *(mandatory)*
 
 **Canonical Terms**:
