@@ -2,6 +2,7 @@
 
 **Generated**: 2026-08-14 · **Source**: `Covers:` tags in `backend/*/test*.py`, plus the nine AS-BUILT baselines under `specs/`
 **Regenerate**: `python docs/conformance/build-traceability-map.py`
+**Run the suites**: `python manage.py test` in `backend/`, `npm test` in `frontend/`
 
 This document is generated in full. Edit the generator, not this file.
 
@@ -9,7 +10,7 @@ This document is generated in full. Edit the generator, not this file.
 
 One question per requirement: **can we currently demonstrate that the system does what the baseline says?**
 
-Evidence is read from `Covers: B<n> FR-xxx` tags in the test docstrings, then from each baseline's §Verified Behavior Evidence. **The tags are the authoritative direction.** Once a baseline is accepted its requirement content is immutable under Constitution III, so a test written afterwards could never be recorded in that baseline's evidence section — tagging the test keeps this map regenerable for the life of the project.
+Evidence is read from `Covers: B<n> FR-xxx` tags — Python docstrings in `backend/`, `// Covers:` comments in `frontend/` Vitest cases — then from each baseline's §Verified Behavior Evidence. **The tags are the authoritative direction.** Once a baseline is accepted its requirement content is immutable under Constitution III, so a test written afterwards could never be recorded in that baseline's evidence section — tagging the test keeps this map regenerable for the life of the project.
 
 It does **not** read application code to judge conformance. `test-cited` means a tagged test exists and passes; it does not re-verify that the test proves the whole requirement.
 
@@ -29,7 +30,7 @@ A test marked `@unittest.expectedFailure` proves the opposite of conformance, so
 | Class | Count | Automatable today? |
 | --- | --- | --- |
 | `backend` | 181 | **Yes** — the actionable set. |
-| `ui` | 94 | **No** — no frontend runner is configured. |
+| `ui` | 94 | **Yes** — Vitest and Testing Library, `npm test` in `frontend/`. |
 | `governance` | 16 | **No, and never** — requirements about the specification itself. |
 
 Classification is heuristic from requirement wording; treat boundary cases as a first pass to review.
@@ -37,7 +38,7 @@ Classification is heuristic from requirement wording; treat boundary cases as a 
 ## Headline numbers
 
 - **291 requirements** across the nine baselines.
-- **147 test-cited · 47 partly-met · 11 known-gap · 86 unverified.**
+- **148 test-cited · 47 partly-met · 11 known-gap · 85 unverified.**
 - Of the **181 backend** requirements automatable today:
   **109 test-cited · 23 partly-met · 4 known-gap · 45 unverified**.
 
@@ -56,7 +57,7 @@ The 47 `partly-met` requirements are the most useful column to work: each alread
 | B3 `005-checkout-checkin-baseline` | 38 | 24 | 11 | 10 | 4 | 13 |
 | B4 `006-transfer-baseline` | 28 | 20 | 16 | 0 | 0 | 12 |
 | B5 `007-service-record-baseline` | 43 | 21 | 12 | 10 | 5 | 16 |
-| B6 `002-procurement-vendor-catalog-baseline` | 33 | 23 | 18 | 0 | 0 | 15 |
+| B6 `002-procurement-vendor-catalog-baseline` | 33 | 23 | 19 | 0 | 0 | 14 |
 | B7 `008-warranty-amc-baseline` | 47 | 31 | 25 | 15 | 2 | 5 |
 | B8 `004-notifications-audit-baseline` | 29 | 17 | 22 | 0 | 0 | 7 |
 | B9 `009-dashboard-reports-exports-baseline` | 29 | 9 | 15 | 12 | 0 | 2 |
@@ -74,8 +75,8 @@ The 47 `partly-met` requirements are the most useful column to work: each alread
 | ALR-003 | backend | test-cited | `PrivacyAuthorizationTests`, `test_asset_user_gets_only_minimal_active_user_directory` | — | — |
 | ALR-004 | backend | unverified | — | — | — |
 | ALR-005 | ui | test-cited | `test_employee_cannot_download_someone_elses_transfer_document`, `test_employee_cannot_reach_another_holders_asset_by_id`, `test_employee_is_denied_the_user_directory`, `test_user_manager_can_read_full_user_records` | — | — |
-| FR-001 | backend | test-cited | `PrivacyAuthorizationTests`, `test_a_common_password_is_rejected_even_though_it_is_long_enough`, `test_a_strong_password_is_accepted`, `test_ordinary_user_cannot_read_privileged_apis` | — | — |
-| FR-002 | backend | test-cited | `PrivacyAuthorizationTests`, `test_user_manager_can_read_full_user_records` | — | — |
+| FR-001 | backend | test-cited | `PrivacyAuthorizationTests`, `test_a_common_password_is_rejected_even_though_it_is_long_enough`, `test_a_strong_password_is_accepted`, `test_no_migration_carries_a_literal_seed_password`, `test_ordinary_user_cannot_read_privileged_apis`, `test_the_retired_default_credential_does_not_authenticate`, `test_the_seeded_admin_account_exists_with_its_role_and_profile`, `test_the_seeded_admin_has_no_usable_password` | — | — |
+| FR-002 | backend | test-cited | `PrivacyAuthorizationTests`, `test_the_seeded_admin_account_exists_with_its_role_and_profile`, `test_user_manager_can_read_full_user_records` | — | — |
 | FR-003 | backend | test-cited | `PrivacyAuthorizationTests`, `test_asset_user_gets_only_minimal_active_user_directory` | — | — |
 | FR-004 | backend | test-cited | `PrivacyAuthorizationTests`, `test_asset_user_gets_only_minimal_active_user_directory` | — | — |
 | FR-005 | backend | test-cited | `PrivacyAuthorizationTests`, `test_settings_access_does_not_expose_admin_configuration` | — | — |
@@ -254,24 +255,24 @@ The 47 `partly-met` requirements are the most useful column to work: each alread
 | ALR-005 | backend | unverified | — | — | — |
 | ALR-006 | backend | unverified | — | — | — |
 | ALR-007 | backend | unverified | — | — | — |
-| ALR-008 | ui | unverified | — | — | — |
+| ALR-008 | ui | test-cited | `offers archive but not edit when only the delete code is held`, `offers both controls to a reader holding both codes`, `offers edit but not archive when only the edit code is held`, `offers no action control to a reader who may only look`, `still shows the purchase itself to a reader who may only look` | — | — |
 | ALR-009 | ui | unverified | — | — | — |
 | FR-001 | backend | unverified | — | — | — |
 | FR-002 | backend | unverified | — | — | — |
 | FR-003 | backend | test-cited | `test_one_vendor_serves_both_procurement_and_service_record`, `test_procurement_references_a_managed_vendor_not_free_text` | — | — |
-| FR-004 | ui | test-cited | `test_dates_in_the_accepted_order_are_recorded`, `test_procurement_references_a_managed_vendor_not_free_text` | — | — |
+| FR-004 | ui | test-cited | `still identifies the purchase being archived`, `test_dates_in_the_accepted_order_are_recorded`, `test_procurement_references_a_managed_vendor_not_free_text` | — | — |
 | FR-005 | backend | unverified | — | — | — |
 | FR-006 | backend | test-cited | `ProtectedMasterDataTests`, `test_referenced_master_records_cannot_delete_operational_data` | — | — |
 | FR-007 | backend | test-cited | `ProtectedMasterDataTests`, `test_a_brand_cannot_be_deleted_while_a_model_names_it`, `test_delete_api_returns_conflict_for_referenced_master_records`, `test_referenced_master_records_cannot_delete_operational_data` | — | — |
 | FR-008 | backend | test-cited | `ProtectedMasterDataTests`, `test_unused_master_records_can_still_be_deleted` | — | — |
-| FR-009 | backend | test-cited | `test_an_arrival_without_the_attestation_is_still_refused`, `test_an_attested_arrival_records_its_date_location_and_attester`, `test_saving_a_procurement_requires_an_arrival_record_and_attestation` | — | — |
+| FR-009 | backend | test-cited | `asks for an arrival row for every selected asset and no others`, `explains what to do before any asset is selected`, `offers a date and a location for each asset`, `reports a location choice against the asset it belongs to`, `reports the attestation when the operator ticks it`, `starts with the attestation unticked`, `states plainly why a save was refused when the attestation is missing`, `test_an_arrival_without_the_attestation_is_still_refused`, `test_an_attested_arrival_records_its_date_location_and_attester`, `test_saving_a_procurement_requires_an_arrival_record_and_attestation` | — | — |
 | FR-010 | backend | test-cited | `test_a_future_purchase_date_is_rejected`, `test_a_purchase_date_after_the_invoice_date_is_rejected`, `test_dates_in_the_accepted_order_are_recorded` | — | — |
-| FR-011 | backend | test-cited | `test_an_archived_procurement_leaves_the_working_list_but_stays_readable`, `test_removing_a_procurement_archives_it_rather_than_deleting_it` | — | — |
+| FR-011 | backend | test-cited | `confirms the record was archived, not destroyed`, `describes the operation as archiving rather than deleting`, `explains why the record is kept and that the assets stay linked`, `names the archive control for what it does`, `still identifies the purchase being archived`, `test_an_archived_procurement_leaves_the_working_list_but_stays_readable`, `test_removing_a_procurement_archives_it_rather_than_deleting_it` | — | — |
 | FR-012 | backend | test-cited | `test_attaching_an_asset_records_who_did_it_and_why`, `test_detaching_an_asset_records_a_reason_and_a_history_entry` | — | — |
-| FR-013 | backend | test-cited | `test_a_procurement_cannot_be_left_without_any_asset`, `test_an_asset_holds_at_most_one_current_procurement`, `test_linking_an_unlinked_asset_succeeds` | — | — |
+| FR-013 | backend | test-cited | `explains what to do before any asset is selected`, `test_a_procurement_cannot_be_left_without_any_asset`, `test_an_asset_holds_at_most_one_current_procurement`, `test_linking_an_unlinked_asset_succeeds` | — | — |
 | FR-014 | ui | unverified | — | — | — |
-| FR-015 | ui | test-cited | `test_a_role_with_neither_code_is_denied`, `test_asset_view_may_read_master_data`, `test_employee_is_denied_procurement_entirely`, `test_settings_access_may_read_the_master_data_it_maintains`, `test_the_employee_role_gets_no_b6_surface` | — | — |
-| FR-016 | backend | test-cited | `test_a_reader_without_the_write_code_cannot_create_a_procurement`, `test_master_writes_require_settings_access`, `test_settings_access_may_read_the_master_data_it_maintains` | — | — |
+| FR-015 | ui | test-cited | `still shows the purchase itself to a reader who may only look`, `test_a_role_with_neither_code_is_denied`, `test_asset_view_may_read_master_data`, `test_employee_is_denied_procurement_entirely`, `test_settings_access_may_read_the_master_data_it_maintains`, `test_the_employee_role_gets_no_b6_surface` | — | — |
+| FR-016 | backend | test-cited | `offers both controls to a reader holding both codes`, `test_a_reader_without_the_write_code_cannot_create_a_procurement`, `test_master_writes_require_settings_access`, `test_settings_access_may_read_the_master_data_it_maintains` | — | — |
 | FR-017 | backend | test-cited | `test_a_purchase_order_number_is_globally_unique_when_present`, `test_an_invoice_number_is_not_reused_for_the_same_vendor`, `test_several_procurements_may_omit_the_purchase_order_number`, `test_the_same_invoice_number_is_allowed_for_a_different_vendor` | — | — |
 | FR-018 | backend | unverified | — | — | — |
 | FR-019 | ui | test-cited | `test_a_stored_name_keeps_its_display_text_but_loses_stray_whitespace`, `test_each_master_type_rejects_a_duplicate_name`, `test_master_names_are_compared_case_insensitively_after_trimming`, `test_vendor_contact_details_are_optional_and_outside_identity` | — | — |
@@ -358,13 +359,13 @@ The 47 `partly-met` requirements are the most useful column to work: each alread
 | FR-013 | ui | unverified | — | — | — |
 | FR-014 | backend | test-cited | `test_a_catalog_master_mutation_is_audited`, `test_a_failed_login_is_audited`, `test_a_failed_login_records_the_attempt_without_the_password`, `test_a_procurement_mutation_is_audited_and_raises_no_notification`, `test_a_rejected_audit_access_is_itself_audited`, `test_an_asset_mutation_is_audited_and_raises_no_notification`, `test_an_asset_update_and_delete_are_each_audited_without_notifying`, `test_exporting_a_report_creates_an_audit_entry`, `test_notification_reads_create_no_audit_entries`, `test_reading_the_audit_report_is_itself_audited` | — | — |
 | FR-015 | backend | test-cited | `test_a_failed_login_records_the_attempt_without_the_password`, `test_a_password_change_records_no_credential_material` | — | — |
-| FR-016 | ui | test-cited | `test_a_rejected_audit_access_is_itself_audited`, `test_admin_reads_lists_and_exports_the_audit_report`, `test_an_admin_reads_the_audit_trail_globally`, `test_an_it_manager_reads_the_audit_trail_globally`, `test_report_access_alone_cannot_export_the_audit_report`, `test_report_access_alone_cannot_read_the_audit_report` | — | — |
+| FR-016 | ui | test-cited | `reads its rows from the disclosure envelope`, `test_a_rejected_audit_access_is_itself_audited`, `test_admin_reads_lists_and_exports_the_audit_report`, `test_an_admin_reads_the_audit_trail_globally`, `test_an_it_manager_reads_the_audit_trail_globally`, `test_report_access_alone_cannot_export_the_audit_report`, `test_report_access_alone_cannot_read_the_audit_report` | — | — |
 | FR-017 | backend | test-cited | `test_an_audit_entry_outlives_its_actor`, `test_expired_records_are_purged_on_their_retention_schedule`, `test_notifications_are_removed_when_their_recipient_is_deleted`, `test_re_marking_a_read_notification_does_not_restart_its_retention_clock`, `test_the_retention_job_is_scheduled`, `test_the_time_a_notification_became_read_is_retained` | — | — |
 | FR-018 | backend | unverified | — | — | — |
 | FR-019 | ui | test-cited | `test_a_notification_is_created_unread`, `test_mark_all_read_clears_the_unread_count`, `test_marking_an_already_read_notification_is_idempotent`, `test_marking_read_moves_unread_to_read`, `test_no_operation_returns_a_read_notification_to_unread`, `test_re_marking_a_read_notification_does_not_restart_its_retention_clock`, `test_the_time_a_notification_became_read_is_retained`, `test_the_unread_count_counts_only_the_readers_own_unread_records` | — | — |
 | FR-020 | ui | test-cited | `test_a_recipient_reads_only_their_own_notifications`, `test_an_empty_notification_list_is_a_normal_outcome` | — | — |
-| FR-021 | backend | test-cited | `test_a_filter_matching_nothing_returns_empty_rather_than_everything`, `test_module_filtering_is_an_exact_match`, `test_results_are_ordered_newest_first`, `test_supplying_both_filters_narrows_to_entries_satisfying_both`, `test_username_filtering_is_case_insensitive_and_partial` | — | — |
-| FR-022 | ui | test-cited | `test_a_truncated_audit_view_discloses_the_limit_and_the_omission` | — | — |
+| FR-021 | backend | test-cited | `reads its rows from the disclosure envelope`, `renders an empty audit trail without failing`, `test_a_filter_matching_nothing_returns_empty_rather_than_everything`, `test_module_filtering_is_an_exact_match`, `test_results_are_ordered_newest_first`, `test_supplying_both_filters_narrows_to_entries_satisfying_both`, `test_username_filtering_is_case_insensitive_and_partial` | — | — |
+| FR-022 | ui | test-cited | `shows no omission warning when the result set is complete`, `test_a_truncated_audit_view_discloses_the_limit_and_the_omission`, `warns the reader when older matching events were omitted` | — | — |
 | FR-023 | ui | test-cited | `test_a_forwarded_header_is_honoured_from_a_configured_proxy`, `test_a_forwarded_header_is_not_trusted_from_an_untrusted_peer` | — | — |
 
 ### B9 — `009-dashboard-reports-exports-baseline`

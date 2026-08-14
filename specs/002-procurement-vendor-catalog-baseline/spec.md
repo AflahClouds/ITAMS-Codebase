@@ -1115,6 +1115,28 @@ U-015 is the structural one: FR-021 (rename and merge) and FR-022 (legacy Vendor
 backfill) remain `unverified` rather than registered here because neither can be
 specified as a test until the Model–Brand relation exists to rename or merge across.
 
+### OBS-AS-014 Closed — Per-Row Action Controls (2026-08-14)
+
+The Implementation Conformance Update above records OBS-AS-014 as **Open**: "The
+Procurement list still renders edit and delete controls without checking the matching
+action permission. The B6 menu section is now hidden from the Employee Role, but that is
+menu-level only and is not the per-row control check this finding describes."
+
+Closed. `frontend/src/pages/procurement/Procurement.jsx` gates each control on its own
+code — edit on `asset_edit`, archive on `asset_delete` — so the two are decided
+separately rather than by one "may write anything" test.
+
+This was never a security hole: the backend refused the action either way, and it still
+makes the decision. ALR-008's point is different — a control offering an action the
+reader cannot take is a broken promise, and an operator learns the refusal by clicking.
+The data stays visible to `asset_view`; only the controls are hidden.
+
+It stayed open this long because it could not be *demonstrated*. No frontend test runner
+existed, so ALR-008 sat in the traceability map as permanently `unverified`. Six tests
+now cover it (`frontend/src/pages/procurement/Procurement.test.jsx`), including the
+read-only reader who must still see the purchase, and the archive control being named
+for what it now does rather than "delete".
+
 ### Conformance Gap Closure (2026-08-13)
 
 All eight rows of the register above (U-008 to U-015) are closed. Each has a passing

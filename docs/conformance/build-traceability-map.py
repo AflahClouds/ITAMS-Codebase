@@ -5,11 +5,11 @@ Run from the repository root:
     python docs/conformance/build-traceability-map.py
 
 The map answers one question per requirement: can we currently demonstrate that the
-system does what the baseline says? It is derived entirely from what the specifications
-is derived from `Covers:` tags in backend/*/test*.py, then from the *(Source: ...)* line
-on each requirement and the bulk mappings in each §Verified Behavior Evidence section,
-cross-checked against test symbols that actually exist. Nothing here is inferred from
-reading application code; that is the conformance suite's job, not this map's.
+system does what the baseline says? It is derived from `Covers:` tags in the test
+suites — Python docstrings under `backend/`, `// Covers:` comments in Vitest cases
+under `frontend/` — then from the bulk mappings in each §Verified Behavior Evidence
+section, cross-checked against test names that actually exist. Nothing here is inferred
+from reading application code; that is the conformance suite's job, not this map's.
 """
 import datetime
 import io
@@ -36,18 +36,34 @@ GOVERNANCE = re.compile(
     r"MUST NOT be read|MUST remain label|MUST NOT be accepted|evidence integrity"
     r"|reconcil|decision gate|MUST NOT be treated as product intent|new feature directory",
     re.I)
-# A requirement about what a person sees needs a frontend harness, which does not exist.
+# A requirement about what a person sees needs a frontend harness. One exists now
+# (Vitest + Testing Library), so these are automatable rather than merely unautomated.
 USER_INTERFACE = re.compile(
     r"frontend|surface|label|control|page |form|visibly|displayed|presentation|menu|route",
     re.I)
 
 
+BACKEND_TESTS = os.path.join("backend", "*", "test*.py")
+# Frontend suites run under Vitest. They are read the same way and feed the same map:
+# a `ui` requirement is about what a person sees, so its evidence has to come from a
+# test that renders something.
+FRONTEND_TESTS = os.path.join("frontend", "src", "**", "*.test.jsx")
+
+
+def frontend_paths():
+    return glob.glob(FRONTEND_TESTS, recursive=True)
+
+
 def test_symbols():
     found = set()
-    for path in glob.glob(os.path.join("backend", "*", "test*.py")):
+    for path in glob.glob(BACKEND_TESTS):
         text = io.open(path, encoding="utf-8").read()
         found |= set(re.findall(r"^class (\w+)", text, re.M))
         found |= set(re.findall(r"^    def (test_\w+)", text, re.M))
+    for path in frontend_paths():
+        text = io.open(path, encoding="utf-8").read()
+        # Vitest cases are named by string, not by symbol, so the name is the label.
+        found |= set(re.findall(r"^\s*it\(['\"](.+?)['\"]", text, re.M))
     return found
 
 
@@ -76,7 +92,12 @@ def covers_tags():
     map regenerable for the life of the project.
     """
     out = {}
-    for path in glob.glob(os.path.join("backend", "*", "test*.py")):
+
+    def record(tag_text, current):
+        for code, ident in re.findall(r"\b(B[1-9])\s+((?:FR|ALR)-\d+)", tag_text):
+            out.setdefault(code, {}).setdefault(ident, set()).add(current)
+
+    for path in glob.glob(BACKEND_TESTS):
         current = None
         for line in io.open(path, encoding="utf-8").read().split("\n"):
             hit = re.match(r"^    def (test_\w+)\(", line)
@@ -84,8 +105,19 @@ def covers_tags():
                 current = hit.group(1)
             tag = re.search(r"Covers:\s*(.+?)\.?$", line)
             if tag and current:
-                for code, ident in re.findall(r"\b(B[1-9])\s+((?:FR|ALR)-\d+)", tag.group(1)):
-                    out.setdefault(code, {}).setdefault(ident, set()).add(current)
+                record(tag.group(1), current)
+
+    # In a Vitest file the tag is a `// Covers:` comment inside the case body, and the
+    # case is identified by its `it(...)` label rather than by a symbol.
+    for path in frontend_paths():
+        current = None
+        for line in io.open(path, encoding="utf-8").read().split("\n"):
+            hit = re.match(r"^\s*it(?:\.fails)?\(['\"](.+?)['\"]", line)
+            if hit:
+                current = hit.group(1)
+            tag = re.search(r"//\s*Covers:\s*(.+?)\.?$", line)
+            if tag and current:
+                record(tag.group(1), current)
     return out
 
 
@@ -173,12 +205,15 @@ def render(data, today):
         "# Conformance Traceability Map", "",
         f"**Generated**: {today} · **Source**: `Covers:` tags in `backend/*/test*.py`, "
         "plus the nine AS-BUILT baselines under `specs/`",
-        "**Regenerate**: `python docs/conformance/build-traceability-map.py`", "",
+        "**Regenerate**: `python docs/conformance/build-traceability-map.py`",
+        "**Run the suites**: `python manage.py test` in `backend/`, `npm test` in "
+        "`frontend/`", "",
         "This document is generated in full. Edit the generator, not this file.", "",
         "## What this answers, and what it does not", "",
         "One question per requirement: **can we currently demonstrate that the system does "
         "what the baseline says?**", "",
-        "Evidence is read from `Covers: B<n> FR-xxx` tags in the test docstrings, then from "
+        "Evidence is read from `Covers: B<n> FR-xxx` tags — Python docstrings in `backend/`, "
+        "`// Covers:` comments in `frontend/` Vitest cases — then from "
         "each baseline's §Verified Behavior Evidence. **The tags are the authoritative "
         "direction.** Once a baseline is accepted its requirement content is immutable under "
         "Constitution III, so a test written afterwards could never be recorded in that "
@@ -205,7 +240,8 @@ def render(data, today):
         "## Verifiability classes", "",
         "| Class | Count | Automatable today? |", "| --- | --- | --- |",
         f"| `backend` | {kinds['backend']} | **Yes** — the actionable set. |",
-        f"| `ui` | {kinds['ui']} | **No** — no frontend runner is configured. |",
+        f"| `ui` | {kinds['ui']} | **Yes** — Vitest and Testing Library, `npm test` in "
+        "`frontend/`. |",
         f"| `governance` | {kinds['governance']} | **No, and never** — requirements about "
         "the specification itself. |", "",
         "Classification is heuristic from requirement wording; treat boundary cases as a "

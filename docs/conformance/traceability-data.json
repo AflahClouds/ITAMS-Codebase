@@ -361,6 +361,7 @@
   "ui",
   "test-cited",
   [
+   "still identifies the purchase being archived",
    "test_dates_in_the_accepted_order_are_recorded",
    "test_procurement_references_a_managed_vendor_not_free_text"
   ],
@@ -425,6 +426,13 @@
   "backend",
   "test-cited",
   [
+   "asks for an arrival row for every selected asset and no others",
+   "explains what to do before any asset is selected",
+   "offers a date and a location for each asset",
+   "reports a location choice against the asset it belongs to",
+   "reports the attestation when the operator ticks it",
+   "starts with the attestation unticked",
+   "states plainly why a save was refused when the attestation is missing",
    "test_an_arrival_without_the_attestation_is_still_refused",
    "test_an_attested_arrival_records_its_date_location_and_attester",
    "test_saving_a_procurement_requires_an_arrival_record_and_attestation"
@@ -453,6 +461,11 @@
   "backend",
   "test-cited",
   [
+   "confirms the record was archived, not destroyed",
+   "describes the operation as archiving rather than deleting",
+   "explains why the record is kept and that the assets stay linked",
+   "names the archive control for what it does",
+   "still identifies the purchase being archived",
    "test_an_archived_procurement_leaves_the_working_list_but_stays_readable",
    "test_removing_a_procurement_archives_it_rather_than_deleting_it"
   ],
@@ -479,6 +492,7 @@
   "backend",
   "test-cited",
   [
+   "explains what to do before any asset is selected",
    "test_a_procurement_cannot_be_left_without_any_asset",
    "test_an_asset_holds_at_most_one_current_procurement",
    "test_linking_an_unlinked_asset_succeeds"
@@ -503,6 +517,7 @@
   "ui",
   "test-cited",
   [
+   "still shows the purchase itself to a reader who may only look",
    "test_a_role_with_neither_code_is_denied",
    "test_asset_view_may_read_master_data",
    "test_employee_is_denied_procurement_entirely",
@@ -519,6 +534,7 @@
   "backend",
   "test-cited",
   [
+   "offers both controls to a reader holding both codes",
    "test_a_reader_without_the_write_code_cannot_create_a_procurement",
    "test_master_writes_require_settings_access",
    "test_settings_access_may_read_the_master_data_it_maintains"
@@ -705,8 +721,14 @@
   "002-procurement-vendor-catalog-baseline",
   "ALR-008",
   "ui",
-  "unverified",
-  [],
+  "test-cited",
+  [
+   "offers archive but not edit when only the delete code is held",
+   "offers both controls to a reader holding both codes",
+   "offers edit but not archive when only the edit code is held",
+   "offers no action control to a reader who may only look",
+   "still shows the purchase itself to a reader who may only look"
+  ],
   [],
   false
  ],
@@ -730,7 +752,11 @@
    "PrivacyAuthorizationTests",
    "test_a_common_password_is_rejected_even_though_it_is_long_enough",
    "test_a_strong_password_is_accepted",
-   "test_ordinary_user_cannot_read_privileged_apis"
+   "test_no_migration_carries_a_literal_seed_password",
+   "test_ordinary_user_cannot_read_privileged_apis",
+   "test_the_retired_default_credential_does_not_authenticate",
+   "test_the_seeded_admin_account_exists_with_its_role_and_profile",
+   "test_the_seeded_admin_has_no_usable_password"
   ],
   [],
   false
@@ -743,6 +769,7 @@
   "test-cited",
   [
    "PrivacyAuthorizationTests",
+   "test_the_seeded_admin_account_exists_with_its_role_and_profile",
    "test_user_manager_can_read_full_user_records"
   ],
   [],
@@ -1149,6 +1176,7 @@
   "ui",
   "test-cited",
   [
+   "reads its rows from the disclosure envelope",
    "test_a_rejected_audit_access_is_itself_audited",
    "test_admin_reads_lists_and_exports_the_audit_report",
    "test_an_admin_reads_the_audit_trail_globally",
@@ -1225,6 +1253,8 @@
   "backend",
   "test-cited",
   [
+   "reads its rows from the disclosure envelope",
+   "renders an empty audit trail without failing",
    "test_a_filter_matching_nothing_returns_empty_rather_than_everything",
    "test_module_filtering_is_an_exact_match",
    "test_results_are_ordered_newest_first",
@@ -1241,7 +1271,9 @@
   "ui",
   "test-cited",
   [
-   "test_a_truncated_audit_view_discloses_the_limit_and_the_omission"
+   "shows no omission warning when the result set is complete",
+   "test_a_truncated_audit_view_discloses_the_limit_and_the_omission",
+   "warns the reader when older matching events were omitted"
   ],
   [],
   false
