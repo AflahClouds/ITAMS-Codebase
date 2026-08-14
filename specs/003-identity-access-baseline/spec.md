@@ -71,7 +71,7 @@ it to accepted; until then the fields stay marked pending.*
 | Acceptance date | *Pending* |
 | Reviewed evidence date | 2026-07-29 |
 | Acceptance checklist result | 40 of 40 items closed; executed 2026-08-12 — see `checklists/baseline-acceptance.md` |
-| Unresolved items deliberately carried forward | **Carried forward as conformance gaps**: the remainder of finding 1 — the seeded Employee Role description still reads "View own assets and raise requests", contradicting FR-009. **Accepted as current with the forward policy deferred**: findings 2, 3, 5, 6, 7, 8, 9, 12, and 13 — named-matrix and custom-Role test coverage, administrative bypass mechanics, the authentication and session contract, password policy beyond self-service change, User/account lifecycle atomicity, the custom-Role User-administration route gap, audit and Notification effects, and frontend authorization behavior. Each is recorded as current, not endorsed as target policy. **NOT carried — requires action before or alongside acceptance**: finding 11, the hard-coded initial administrative username and password in `accounts` migration 0002. Accepting a baseline that silently carries a committed default credential would make it look reviewed and approved. It needs a rotation and bootstrap decision, or an explicit written exception naming who accepted the risk. Finding 4 is closed. Finding 14 has its own row below and must be decided, not carried. Carrying a conformance gap forward accepts the baseline as an accurate statement of intent while delivery catches up. It does **not** weaken the requirement, and a gap is closed by changing the code, never by editing the rule. |
+| Unresolved items deliberately carried forward | **Carried forward as conformance gaps**: the remainder of finding 1 — the seeded Employee Role description still reads "View own assets and raise requests", contradicting FR-009. **Accepted as current with the forward policy deferred**: findings 2, 3, 5, 6, 7, 8, 9, 12, and 13 — named-matrix and custom-Role test coverage, administrative bypass mechanics, the authentication and session contract, password policy beyond self-service change, User/account lifecycle atomicity, the custom-Role User-administration route gap, audit and Notification effects, and frontend authorization behavior. Each is recorded as current, not endorsed as target policy. **NOT carried — requires action before or alongside acceptance**: finding 11, the hard-coded initial administrative username and password in `accounts` migration 0002. Accepting a baseline that silently carries a committed default credential would make it look reviewed and approved. It needs a rotation and bootstrap decision, or an explicit written exception naming who accepted the risk. **Resolved 2026-08-13 by rotation — no exception taken; see §Finding 11 — Bootstrap Credential.** Finding 4 is closed. Finding 14 has its own row below and must be decided, not carried. Carrying a conformance gap forward accepts the baseline as an accurate statement of intent while delivery catches up. It does **not** weaken the requirement, and a gap is closed by changing the code, never by editing the rule. |
 | Employee self-identity field set (Unresolved Conflict 14) | **Resolved 2026-08-12 by enumeration** — FR-013 accepts identity, employee ID, email, designation, Department, Role name, granted permission codes, and the linked login username, and excludes every form of authentication material. Neither existing field set fitted: the minimal directory is too thin for self-identification and the full `user_management` record is a cross-User construct. The current login payload already matches, so this fixes a boundary that was previously incidental. |
 
 **Immutability boundary**: on the acceptance date recorded above, the
@@ -1022,6 +1022,42 @@ frontend behavioral test.
 
 **Provenance note**: these changes were written implementation-first and covered
 by tests afterwards, not through the red-green loop Principle IV requires.
+
+### Finding 11 — Bootstrap Credential: Resolved by Rotation (2026-08-13)
+
+The Acceptance Record marks finding 11 **NOT carried forward**: the hard-coded
+`admin` / `admin123` in `accounts` migration 0002 required "a rotation and bootstrap
+decision, or an explicit written exception naming who accepted the risk." This records
+the first of those. **No exception was taken and none is needed.**
+
+**The decision**: the seed writes no password at all.
+
+| Change | Effect |
+| --- | --- |
+| `accounts/0002_seed_rbac_and_org.py` | The administrator account and its profile, Role, and Department wiring are still created, but the password comes from `ITAMS_ADMIN_PASSWORD` if the deployment supplies one and is otherwise **unusable**. No credential is written into the repository. |
+| `accounts/0006_retire_default_admin_credential.py` | On an install that already ran 0002, the account's password is made unusable **only if it is still the committed default**. A deployment that already rotated keeps whatever it set. |
+
+Editing 0002 alone would not have been enough — an install where it has already run
+already has the account, and a historical migration does not re-run. Equally, retiring
+unconditionally would have locked out any deployment that had already done the right
+thing. The two together close the hole on old installs and prevent it on new ones,
+without taking a password away from anyone who chose it.
+
+Recovery is one command, `python manage.py changepassword admin`, and it is deliberate
+rather than implicit. A fresh install therefore has an administrator account that cannot
+be logged into until an operator sets a password — which is the intended outcome, since
+the alternative is an account anyone reading this repository can already use.
+
+Four tests pin it (`accounts/tests.py::SeededAdministratorCredentialTests`): the account
+and its Role still seed correctly, it has no usable password, the retired value is
+rejected at the login endpoint by name, and no migration in the app contains a literal
+`make_password("...")` — the grep a reviewer would otherwise have to remember to run.
+
+**Verified on the existing development database**: the admin password there had already
+been changed, and migration 0006 left it untouched, as intended.
+
+This finding is closed. It no longer blocks acceptance, and no risk acceptance is
+recorded against it because the risk was removed rather than accepted.
 
 ## Out of Scope *(mandatory)*
 

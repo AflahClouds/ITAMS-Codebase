@@ -1,3 +1,4 @@
+from django.contrib.auth.hashers import check_password
 from django.contrib.auth.models import User as AuthUser
 from django.test import TestCase
 from rest_framework.authtoken.models import Token
@@ -239,3 +240,63 @@ class TokenRevocationOnDeactivationTests(TestCase):
         profile.save(update_fields=["status"])
 
         self.assertEqual(User.objects.get(pk=profile.pk).status, "Disabled")
+
+
+class SeededAdministratorCredentialTests(TestCase):
+    """B1 finding 11: the seeded administrator carries no known password.
+
+    A credential committed to the repository is public the moment the repository is
+    shared, and a seed one is worse than most because every install has it. The seed
+    now writes no password unless the deployment supplies `ITAMS_ADMIN_PASSWORD`, and
+    migration 0006 retires the value that was previously committed.
+    """
+
+    def test_the_seeded_admin_account_exists_with_its_role_and_profile(self):
+        """Covers: B1 FR-001, B1 FR-002."""
+        account = AuthUser.objects.get(username="admin")
+        profile = User.objects.get(account=account)
+
+        self.assertEqual(profile.role.name, "Admin")
+        self.assertEqual(profile.status, "Active")
+
+    def test_the_seeded_admin_has_no_usable_password(self):
+        """Covers: B1 FR-001.
+
+        The account is ready to use the moment an operator sets a password with
+        `manage.py changepassword admin`; until then nothing can authenticate as it.
+        """
+        account = AuthUser.objects.get(username="admin")
+
+        self.assertFalse(account.has_usable_password())
+
+    def test_the_retired_default_credential_does_not_authenticate(self):
+        """Covers: B1 FR-001.
+
+        Named explicitly so the value that used to be committed can never quietly work
+        again, whatever else changes about the seed.
+        """
+        account = AuthUser.objects.get(username="admin")
+
+        self.assertFalse(check_password("admin123", account.password))
+        self.assertEqual(
+            APIClient().post("/auth/login/",
+                             {"username": "admin", "password": "admin123"},
+                             format="json").status_code, 401)
+
+    def test_no_migration_carries_a_literal_seed_password(self):
+        """Covers: B1 FR-001.
+
+        The grep the reviewer would otherwise have to remember to run.
+        """
+        import glob
+        import io as _io
+        import os
+
+        offenders = []
+        for path in glob.glob(os.path.join(os.path.dirname(__file__),
+                                           "migrations", "*.py")):
+            text = _io.open(path, encoding="utf-8").read()
+            if 'make_password("' in text or "make_password('" in text:
+                offenders.append(os.path.basename(path))
+
+        self.assertEqual(offenders, [])

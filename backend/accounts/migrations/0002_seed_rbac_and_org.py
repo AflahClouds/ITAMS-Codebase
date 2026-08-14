@@ -63,13 +63,29 @@ def seed(apps, schema_editor):
     for name in LOCATIONS:
         Location.objects.get_or_create(name=name)
 
-    # Default admin login (admin / admin123) + linked employee profile
+    # Seed administrator account + linked employee profile.
+    #
+    # No password is written into this file. A credential committed to the repository is
+    # public the moment the repository is shared, and a seed one is worse than most
+    # because every install has it and nobody remembers to change it. The password comes
+    # from ITAMS_ADMIN_PASSWORD if the deployment supplies one; otherwise the account is
+    # created with an unusable password and cannot be logged into until an operator sets
+    # one deliberately:
+    #
+    #     python manage.py changepassword admin
+    #
+    # The profile and Role wiring are created either way, so the account is ready to use
+    # the moment it has a password.
     if not AuthUser.objects.filter(username="admin").exists():
+        import os
+
         from django.contrib.auth.hashers import make_password
+        seed_password = os.environ.get("ITAMS_ADMIN_PASSWORD") or None
         account = AuthUser.objects.create(
             username="admin",
             email="admin@cloudshoefactory.com",
-            password=make_password("admin123"),
+            # make_password(None) produces an unusable hash that no input can match.
+            password=make_password(seed_password),
             is_active=True,
         )
         it_dept = Department.objects.filter(name="IT").first()
