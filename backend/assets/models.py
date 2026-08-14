@@ -18,14 +18,87 @@ class Procurement(models.Model):
     vendor = models.ForeignKey('catalog.Vendor', on_delete=models.PROTECT)
     purchase_date = models.DateField()
     invoice_date = models.DateField()
-    invoice_number = models.CharField(unique=True, max_length=100)
+    # Invoice numbers are the supplier's, not ours: two suppliers can each issue an
+    # invoice numbered "1", so uniqueness is scoped to the Vendor (B6 FR-017). A PO
+    # number is ours, so it is unique across the system when present.
+    invoice_number = models.CharField(max_length=100)
     po_number = models.CharField(max_length=100, null=True, blank=True)
+    # B6 FR-011 forbids destroying a purchase record. Removal archives it instead, so
+    # the purchase details and their history stay readable.
+    archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archive_reason = models.TextField(blank=True, default="")
 
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['vendor', 'invoice_number'],
+                                    name='uniq_invoice_per_vendor'),
+            models.UniqueConstraint(fields=['po_number'], name='uniq_po_number',
+                                    condition=~models.Q(po_number=None)),
+        ]
+
     def __str__(self):
         return self.invoice_number
+
+
+class ProcurementAssetLink(models.Model):
+    """An append-only record of an Asset being attached to or detached from a purchase.
+
+    B6 FR-012 requires every attachment and detachment to carry a reason and leave an
+    immutable entry naming the actor, the time, and the association before and after.
+    Without it a link change is invisible: the Asset simply points somewhere else, and
+    nothing says who moved it or why.
+    """
+    ATTACHED = "Attached"
+    DETACHED = "Detached"
+
+    procurement = models.ForeignKey(Procurement, on_delete=models.CASCADE,
+                                    related_name="link_history")
+    asset = models.ForeignKey('assets.Asset', on_delete=models.CASCADE,
+                              related_name="procurement_link_history")
+    action = models.CharField(max_length=16)  # Attached / Detached
+    reason = models.TextField(blank=True, default="")
+    actor = models.ForeignKey('accounts.User', on_delete=models.SET_NULL,
+                              null=True, blank=True)
+    previous_procurement = models.ForeignKey(
+        Procurement, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="link_history_as_previous")
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created', '-id']
+
+    def __str__(self):
+        return f"{self.asset_id} {self.action} {self.procurement_id}"
+
+
+class ProcurementArrival(models.Model):
+    """Evidence that a purchased Asset physically arrived (B6 FR-009).
+
+    Decision C7 resolved in favour of the system enforcing this rather than trusting
+    that whoever typed the invoice had the goods in front of them: a Procurement cannot
+    be saved until every linked Asset has an arrival record with a date and a Location,
+    and the person saving it has attested to that.
+    """
+    procurement = models.ForeignKey(Procurement, on_delete=models.CASCADE,
+                                    related_name="arrivals")
+    asset = models.ForeignKey('assets.Asset', on_delete=models.CASCADE,
+                              related_name="arrivals")
+    arrived_on = models.DateField()
+    location = models.ForeignKey('accounts.Location', on_delete=models.PROTECT)
+    attested_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL,
+                                    null=True, blank=True)
+    attested_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['procurement', 'asset'],
+                                               name='uniq_arrival_per_asset')]
+
+    def __str__(self):
+        return f"{self.asset_id} arrived {self.arrived_on}"
 
 
 class Asset(models.Model):
@@ -63,11 +136,22 @@ class Asset(models.Model):
 
     @property
     def latest_amc(self):
-        """The most recently created AMC contract, active/ended/incomplete. None if AMC
-        was never set up. Ordered by id, not start_date — an Incomplete contract has no
-        start_date yet, and NULLs sort last in a descending SQLite ORDER BY, which would
-        otherwise hide it behind an older, fully-dated contract."""
-        return self.amc_contracts.order_by('-id').first()
+        """The Asset's *current* AMC contract, or the newest closed one if none is open.
+
+        B7 FR-005 and ALR-004 make this a question about coverage, not about data entry
+        order: a contract entered later but covering an earlier period is not the current
+        one. So a current contract (`Active` or `Incomplete`) always wins over an `Ended`
+        one, and within each group the latest end date decides.
+
+        Creation order still breaks ties, and it carries `Incomplete` contracts on its
+        own: those have no dates yet, and NULLs sort last in a descending SQLite
+        ORDER BY, which would otherwise hide a brand-new Incomplete contract behind an
+        older fully-dated one.
+        """
+        current = self.amc_contracts.filter(status__in=("Active", "Incomplete"))
+        return (current.order_by(models.F('end_date').desc(nulls_first=True), '-id').first()
+                or self.amc_contracts.order_by(
+                    models.F('end_date').desc(nulls_last=True), '-id').first())
 
     @property
     def has_amc(self):
@@ -95,6 +179,16 @@ class Asset(models.Model):
     def amc_status(self):
         contract = self.latest_amc
         return contract.status if contract else None
+
+    @property
+    def amc_vendor_current(self):
+        """The Vendor on the current contract, for a form that needs to prefill it.
+
+        `amc_vendor` on the serializer is write-only, so without this an edit form has
+        no way to show which Vendor the contract already names.
+        """
+        contract = self.latest_amc
+        return contract.vendor_id if contract else None
 
     @property
     def amc_end_reason(self):
@@ -157,6 +251,19 @@ class AssetCheckout(models.Model):
     remarks = models.TextField(blank=True, default="")
     return_remarks = models.TextField(blank=True, default="")
     status = models.CharField(max_length=16, default="Open")  # Open / Returned
+    # B3 FR-028: a Checkout ended because something else took the Asset away is not a
+    # return. Without the marker, "Returned" covers both and the two read alike.
+    closed_as_interrupted = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            # B3 FR-001 and FR-007: an Asset is held by at most one person at a time.
+            # This was only ever enforced by a status check the database did not know
+            # about, and `select_for_update` is a no-op on SQLite, so two concurrent
+            # checkouts could both pass it.
+            models.UniqueConstraint(fields=['asset'], condition=models.Q(status="Open"),
+                                    name='uniq_open_checkout_per_asset'),
+        ]
 
     def __str__(self):
         return f"{self.asset.asset_id} -> {self.user.user_name}"
@@ -196,9 +303,15 @@ class ServiceRecord(models.Model):
     reason = models.CharField(max_length=255, blank=True, default="")
     cost = models.DecimalField(decimal_places=2, max_digits=20, null=True, blank=True)
     remarks = models.TextField(blank=True, default="")
+    # Opening notes and closing notes record different events, so a closure adds its
+    # own rather than replacing what the sender wrote (B5 FR-030).
+    closing_remarks = models.TextField(blank=True, default="")
     opened_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name="opened_services")
     closed_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name="closed_services")
     status = models.CharField(max_length=16, default="Open")  # Open / Closed
+    # B5 FR-015: same distinction as B3 FR-028 — a repair cut short by something else
+    # taking the Asset is not a completed repair.
+    closed_as_interrupted = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.asset.asset_id} -> {self.vendor.name}"
@@ -212,8 +325,19 @@ class AmcContract(models.Model):
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=16, default="Active")  # Incomplete / Active / Ended
+    # The operator's own words when they End Support, and nothing else. B7 FR-034 keeps
+    # this apart from the automatic supersede marker below, so the two are
+    # distinguishable without reading their text.
     end_reason = models.TextField(blank=True, default="")
+    superseded_by_renewal = models.BooleanField(default=False)
     created = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def closure_reason(self):
+        """How this contract closed, for display. Renewal is not an operator reason."""
+        if self.status != "Ended":
+            return ""
+        return "Superseded by renewal" if self.superseded_by_renewal else self.end_reason
 
     def __str__(self):
         return f"{self.asset.asset_id} AMC {self.start_date}–{self.end_date}"

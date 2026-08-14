@@ -10,6 +10,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.audit_mixins import AuditedMutationMixin
 from core.mixins import MASTER_WRITE
 from core.models import AuditLog
 from core.permissions import HasRolePermission
@@ -116,14 +117,16 @@ class ChangePasswordView(APIView):
 
 # ---------- Org structure masters ----------
 
-class DepartmentViewSet(viewsets.ModelViewSet):
+class DepartmentViewSet(AuditedMutationMixin, viewsets.ModelViewSet):
+    audit_module = "Department"
     permission_classes = [HasRolePermission]
     permission_map = MASTER_WRITE
     queryset = Department.objects.all().order_by('name')
     serializer_class = DepartmentSerializer
 
 
-class LocationViewSet(viewsets.ModelViewSet):
+class LocationViewSet(AuditedMutationMixin, viewsets.ModelViewSet):
+    audit_module = "Location"
     permission_classes = [HasRolePermission]
     permission_map = MASTER_WRITE
     queryset = Location.objects.all().order_by('name')

@@ -1451,6 +1451,24 @@ are review items to confirm at baseline acceptance:
   production, which depends on the scheduling question `ROADMAP.md` C5 leaves
   open for the existing expiry alerts.
 
+### Conformance Gap Closure (2026-08-13)
+
+Rows 1, 2, 3, 4, 9, and 10 are closed, with passing tests in
+`backend/assets/tests_b3_b5_conformance.py`.
+
+| Row | Closed by |
+| --- | --- |
+| 1, 2 - department retained through service (FR-005) | Opening clears the department: the Asset is with a vendor, not with the department that was using it. |
+| 3 - closure remarks replace opening remarks (FR-030) | `closing_remarks` is its own field, so a closure no longer destroys what the sender wrote about why the Asset went out. |
+| 4 - no interrupted-closure marker (FR-015) | `closed_as_interrupted`, the same distinction B3 FR-028 draws on the custody side. |
+| 9 - `In Storage` accepted for service (FR-008) | Refused: an Asset in storage is not in use and has no fault to report. |
+| 10 - closing does not re-check the Asset (FR-010, ALR-005) | The status is re-read from the database at closing time, since a `record.asset` loaded earlier in the request reports what was true when it was fetched - exactly the staleness the check exists to catch. |
+
+**Not closed**: rows 13 and 16 were closed on 2026-08-12. Rows 5 (Notification
+destination), 6 (Admin direct edit), 8 and 17 (audit entry coverage and content), 11
+(date entry and correction), 14 (bill reference and attachment), and 15 (a structured
+outcome value) remain open. Row 7 is B2-owned and row 12 is CHG-B5-01 delivery scope.
+
 ## Out of Scope *(mandatory)*
 
 ### Adjacent Baseline Ownership

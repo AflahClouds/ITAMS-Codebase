@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from accounts.models import users_with_permission
 from core.services import notify_many
 
-from .models import AmcContract, Asset
+from .models import TERMINAL_STATUSES, AmcContract, Asset
 
 THRESHOLD_DAYS = (30, 15, 7)
 
@@ -22,12 +22,18 @@ def check_expiring_dates():
     for days in THRESHOLD_DAYS:
         target = date.today() + timedelta(days=days)
 
-        for asset in Asset.objects.filter(warranty_end=target):
+        # A Sold, Scrapped, or Lost Asset has left circulation and offers no action
+        # to take, so it raises no alert (B7 FR-020). The AMC sweep below is already
+        # bounded by the contract's Active status, but Warranty has no such state.
+        for asset in Asset.objects.filter(warranty_end=target).exclude(
+                status__in=TERMINAL_STATUSES):
             notify_many(recipients,
                         f"Warranty for {asset.asset_id} expires in {days} days.",
                         link=f"/asset/{asset.id}")
 
-        for contract in AmcContract.objects.filter(status="Active", end_date=target).select_related('asset'):
+        for contract in AmcContract.objects.filter(
+                status="Active", end_date=target).exclude(
+                asset__status__in=TERMINAL_STATUSES).select_related('asset'):
             asset = contract.asset
             notify_many(recipients,
                         f"AMC for {asset.asset_id} expires in {days} days.",

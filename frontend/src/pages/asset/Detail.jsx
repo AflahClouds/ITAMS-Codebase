@@ -424,7 +424,7 @@ const AssetDetail = () => {
             {history.transfers.map((t) => (
               <Box key={t.id} sx={{ padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
                 <Typography variant="body2">
-                  {(t.previous_owner_details?.user_name || 'IT Store')} → {t.new_owner_details?.user_name}
+                  {(t.previous_owner_details?.user_name || '— none recorded')} → {t.new_owner_details?.user_name}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   {t.transfer_code} — {t.status}

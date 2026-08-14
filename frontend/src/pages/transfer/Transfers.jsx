@@ -50,7 +50,7 @@ const Transfers = () => {
     { accessorKey: 'transfer_code', header: 'Transfer ID' },
     { accessorFn: (r) => r.asset_details?.asset_id, id: 'asset', header: 'Asset' },
     {
-      accessorFn: (r) => r.previous_owner_details?.user_name || 'IT Store',
+      accessorFn: (r) => r.previous_owner_details?.user_name || '— none recorded',
       id: 'from', header: 'From',
     },
     { accessorFn: (r) => r.new_owner_details?.user_name, id: 'to', header: 'To' },

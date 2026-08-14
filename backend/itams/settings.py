@@ -82,6 +82,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Last, so it sees the finished response and runs after ATOMIC_REQUESTS has closed
+    # the view's transaction — a refusal audited inside it would be rolled back.
+    'core.middleware.AuditDenialMiddleware',
 ]
 
 CORS_ALLOWED_ORIGINS = [
@@ -118,8 +121,26 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        # B8 FR-011 and ALR-005: a required AuditLog entry and its business change are
+        # one operation. Call sites write the entry either side of the change depending
+        # on the caller, so the guarantee cannot live in `log_action`; the request
+        # transaction is the only boundary that covers every path. An exception now
+        # rolls the whole action back, entry included, instead of leaving an
+        # unattributable change committed.
+        #
+        # Notification delivery must stay *outside* this boundary (a delivery failure
+        # must not undo business work), which is why `core.services.notify_many` catches
+        # its own failures and records them rather than raising.
+        'ATOMIC_REQUESTS': True,
     }
 }
+
+# Hosts whose `X-Forwarded-For` header may be believed (B8 FR-023). Empty by default:
+# the header is client-supplied on any request not passing through a proxy we control,
+# so an unconfigured deployment records the direct peer address instead.
+ITAMS_TRUSTED_PROXIES = tuple(
+    h.strip() for h in os.environ.get('ITAMS_TRUSTED_PROXIES', '').split(',') if h.strip()
+)
 
 
 # Password validation

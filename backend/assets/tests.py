@@ -653,7 +653,10 @@ class AmcActionTests(TestCase):
         contracts = list(AmcContract.objects.filter(asset=self.asset).order_by('start_date'))
         self.assertEqual(len(contracts), 2)
         self.assertEqual(contracts[0].status, "Ended")
-        self.assertEqual(contracts[0].end_reason, "Renewed")
+        # The supersede marker is its own flag, and the operator's reason field stays
+        # empty because no operator gave one (B7 FR-034).
+        self.assertTrue(contracts[0].superseded_by_renewal)
+        self.assertEqual(contracts[0].end_reason, "")
         self.assertEqual(contracts[1].status, "Active")
 
 
@@ -685,9 +688,12 @@ class AmcIncompleteStateTests(TestCase):
         """Covers: B7 FR-008."""
         self.client.patch(f"/asset/{self.asset.pk}/", {"has_amc": True}, format="json")
 
+        # Supplying dates completes the contract, and a dated contract needs its
+        # Vendor (B7 FR-032) — the same rule renewal has always applied.
         response = self.client.patch(
             f"/asset/{self.asset.pk}/",
-            {"has_amc": True, "amc_start": "2026-01-01", "amc_end": "2027-01-01"},
+            {"has_amc": True, "amc_start": "2026-01-01", "amc_end": "2027-01-01",
+             "amc_vendor": _amc_vendor().pk},
             format="json")
 
         self.assertEqual(response.status_code, 200)
@@ -695,6 +701,7 @@ class AmcIncompleteStateTests(TestCase):
         contract = AmcContract.objects.get(asset=self.asset)
         self.assertEqual(contract.status, "Active")
         self.assertEqual(str(contract.start_date), "2026-01-01")
+        self.assertIsNotNone(contract.vendor_id)
 
     def test_renew_amc_supersedes_an_incomplete_contract(self):
         """Covers: B7 FR-009, B7 FR-015."""

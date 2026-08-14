@@ -20,6 +20,9 @@ def close_all_open_checkouts(asset, note=""):
         checkout.return_remarks = (
             f"{checkout.return_remarks} " if checkout.return_remarks else "") + note
         checkout.status = "Returned"
+        # B3 FR-028: this closure was not a return. Marking it keeps an interrupted
+        # Checkout distinguishable from one an operator actually checked back in.
+        checkout.closed_as_interrupted = True
         checkout.save()
         closed.append(checkout)
     return closed
@@ -46,13 +49,35 @@ def check_out(asset, user, approved_by, *, checkout_condition=None,
         )
         asset.status = "Assigned"
         asset.custodian = user
-        if user.department:
-            asset.department = user.department
+        # B3 FR-006: department follows the holder. If the new holder has none, the
+        # previous holder's department must not be left in place — it would file the
+        # Asset under a department that no longer has anything to do with it.
+        asset.department = user.department
         asset.save()
 
     notify(user, f"Asset {asset.asset_id} has been checked out to you.",
            link=f"/asset/{asset.id}")
     return checkout
+
+
+# Best to worst. A return that moves an Asset down this list needs an explanation.
+CONDITION_RANK = {name: rank for rank, name in enumerate(ASSET_CONDITIONS)}
+
+
+def condition_worsened(before, after):
+    """Whether a return needs explaining.
+
+    `New` -> `Good` is excluded. "New" describes an Asset that has not been used yet
+    rather than a level of care, so the first return of a new Asset in good order is the
+    expected outcome, not a deterioration. Demanding a note there would put a
+    justification prompt on the most ordinary check-in in the system and teach operators
+    to type nothing into it.
+    """
+    if before not in CONDITION_RANK or after not in CONDITION_RANK:
+        return False
+    if before == "New" and after == "Good":
+        return False
+    return CONDITION_RANK[after] > CONDITION_RANK[before]
 
 
 def check_in(checkout, condition, remarks="", performed_by=None):
@@ -62,6 +87,13 @@ def check_in(checkout, condition, remarks="", performed_by=None):
         raise LifecycleError("A return condition is required to check in this asset.")
     if condition not in ASSET_CONDITIONS:
         raise LifecycleError(f"Condition must be one of {ASSET_CONDITIONS}")
+    # B3 FR-014: an Asset coming back worse than it went out is the one case where the
+    # operator has something to say, and the one case where silence loses it.
+    if (condition_worsened(checkout.checkout_condition, condition)
+            and not (remarks or "").strip()):
+        raise LifecycleError(
+            "This asset is being returned in a worse condition than it went out. "
+            "Record what happened in the return remarks.")
 
     with transaction.atomic():
         checkout.return_date = timezone.now()

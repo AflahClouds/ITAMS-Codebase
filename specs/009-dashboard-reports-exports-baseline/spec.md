@@ -1218,6 +1218,42 @@ stands on its own here.
 **Provenance note**: these changes were written implementation-first and covered
 by tests afterwards, not through the red-green loop Principle IV requires.
 
+### Register Corrections from the Second Conformance Pass (added 2026-08-13)
+
+B9's second pass (`backend/reporting/tests_b9_conformance.py`) made rows 5 and 7
+executable and confirmed rows 1–4 closed. It also corrected two register entries. No
+requirement changes; the table above is preserved as the dated review record.
+
+**Row 4 names the wrong residual.** The update above calls row 4 "partly closed"
+because "the other nine reports still create no entry when viewed". That is not an
+FR-009 obligation: FR-009 covers "every allowed AuditLog view or export through a B9
+surface", and the other nine present no AuditLog content, so no entry was ever
+required for them. ALR-002 in fact requires the opposite — the FR-009 entry is the
+*only* permitted write, and those nine correctly write nothing
+(`test_reading_the_audit_report_is_audited_while_ordinary_reports_write_nothing`).
+
+The real residual is the other half of FR-009's sentence: **"and every rejected
+attempt"**. A `report_access` holder denied the audit report leaves no entry, so an
+attempt to reach audit content through the report catalogue is invisible in the audit
+trail. This is B8 finding G-b reached by a second route, and it is what keeps FR-009
+open (`test_a_rejected_audit_report_read_is_itself_audited`).
+
+**Row 7 is filed against a requirement that FR-022 states more directly.** Row 7
+records the Movement report's "IT Store" placeholder under FR-005 and Draft B4 FR-001,
+which are terminology rules. FR-022 — added later as derived intent — is the
+requirement it actually violates: an absent related record "MUST present the omission
+explicitly rather than a blank, a **placeholder identity**, or a dropped row". The
+current output invents a party that may not exist, and is indistinguishable from a
+Transfer that genuinely came from a store
+(`test_a_transfer_with_no_previous_holder_gets_no_placeholder_identity`).
+
+**One gap not previously recorded on a B9 surface**: FR-010 requires B9 output
+carrying AuditLog values to respect B8's six-month source-IP window. Because no purge
+job exists, the audit report still prints an address captured well beyond it
+(`test_a_source_address_past_its_retention_window_is_not_presented`). B8 records the
+missing purge; this records that the consequence is not merely retention but
+disclosure — the value is served, not just kept.
+
 ### Remaining Evidence-Led Confirmation Items
 
 These are not among the six mandated blockers. They are review items to confirm
@@ -1237,6 +1273,24 @@ alongside them:
 - Whether report titles and column labels should be reviewed as a set against
   every source baseline's canonical terminology once B1 and B3 through B8 are
   accepted.
+
+### Conformance Gap Closure (2026-08-13)
+
+Rows 5, 6, 7, 8, 9, and 10 are closed, with passing tests in
+`backend/reporting/tests_conformance.py` and `tests_b9_conformance.py`.
+
+| Row | Closed by |
+| --- | --- |
+| 5 - reserved "Asset Audit" name (FR-003, FR-023) | The report is titled **Operational Event History**. FR-023 leaves the wording to stakeholder review, so this is provisional and the acceptance record should confirm it; it satisfies the two constraints the baseline fixes. |
+| 6 - "Owner" column (FR-005) | The Asset Register report heads the column **Custodian**. |
+| 7 - "IT Store" placeholder (FR-022) | An absent previous holder renders as an explicit absence rather than a party that may never have existed. |
+| 8 - CSV bypasses authorization and audit (ALR-001, ALR-005) | `/reports/<key>/export/csv/` is served by `core.exports.build_csv` through the same permission check and audit entry as PDF and Excel. |
+| 9 - terminal Assets counted (FR-017, FR-020) | `visible_assets` excludes terminal Assets by default; the status distribution passes `include_terminal=True` and carries a scope note saying so, as FR-017 requires of a surface whose purpose is terminal. |
+| 10 - cumulative expiry bands (FR-018, FR-019) | The 7/15/30 figures are disjoint, boundary dates fall to the narrower band, and coverage beyond the widest band is excluded rather than absorbed. |
+
+**Not closed**: rows 11 to 18 are CHG-B9-01 delivery scope - report filters, written
+figure definitions, export parity beyond CSV, parseable dates, and the AuditLog report's
+own row limit - and are not baseline conformance work.
 
 ## Out of Scope *(mandatory)*
 

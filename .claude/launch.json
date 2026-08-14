@@ -3,14 +3,14 @@
   "configurations": [
     {
       "name": "backend",
-      "runtimeExecutable": "D:/AFLAH V K/Claude Code/backend/Env/Scripts/python.exe",
-      "runtimeArgs": ["D:/AFLAH V K/Claude Code/backend/manage.py", "runserver"],
+      "runtimeExecutable": "D:/AFLAH V K/ITAMS - Codebase/backend/Env/Scripts/python.exe",
+      "runtimeArgs": ["D:/AFLAH V K/ITAMS - Codebase/backend/manage.py", "runserver"],
       "port": 8000
     },
     {
       "name": "frontend",
       "runtimeExecutable": "C:/PROGRA~1/nodejs/npm.cmd",
-      "runtimeArgs": ["--prefix", "D:/AFLAH V K/Claude Code/frontend", "run", "dev"],
+      "runtimeArgs": ["--prefix", "D:/AFLAH V K/ITAMS - Codebase/frontend", "run", "dev"],
       "port": 5173
     }
   ]

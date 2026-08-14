@@ -6,11 +6,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import Department, User
-from assets.models import AmcContract, Asset, AssetCheckout, AssetTransfer, ServiceRecord
+from assets.models import (TERMINAL_STATUSES, AmcContract, Asset, AssetCheckout,
+                           AssetTransfer, ServiceRecord)
 from assets.serializers import AssetSerializer, CheckoutSerializer, TransferSerializer
 from catalog.models import Category, Vendor
 from core.models import Setting
-from core.permissions import HasRolePermission, is_admin
+from core.permissions import HasRolePermission, can_read_audit, is_admin
+from core.retention import ip_is_expired
 from core.services import get_profile, log_action
 
 
@@ -36,17 +38,24 @@ class DashboardView(APIView):
         return Response(build_dashboard(visible_assets(request)))
 
 
-def visible_assets(request):
+def visible_assets(request, include_terminal=False):
     """The Asset rows this reader may also read one at a time.
 
     Every dashboard figure is derived from this queryset, so no aggregate can
     summarize records the reader could not open individually (decision C6 applied
     to B9). A global reader gets the whole register.
+
+    B9 FR-017 excludes `Sold`, `Scrapped`, and `Lost` by default, because a terminal
+    Asset has left circulation and counting it overstates what the organization holds —
+    total value most visibly. A surface whose stated purpose *is* terminal passes
+    `include_terminal=True` and says so on the surface itself.
     """
     qs = Asset.objects.all()
     profile = get_profile(request)
     if profile is not None and profile.has_own_records_scope():
         qs = qs.filter(custodian=profile)
+    if not include_terminal:
+        qs = qs.exclude(status__in=TERMINAL_STATUSES)
     return qs
 
 
@@ -68,11 +77,21 @@ def build_dashboard(qs):
         "amc_expired": AmcContract.objects.filter(
             status="Active", end_date__lt=today, asset__in=qs).count(),
     }
+    # Disjoint bands, not cumulative counts (FR-018): an Asset 5 days from expiry
+    # belongs to the 7-day band and to no other, so the tiles read as a workload
+    # breakdown that sums to the total rather than three overlapping views of it. A
+    # boundary date belongs to the narrower band, and coverage beyond the widest band
+    # is excluded rather than absorbed (FR-019).
+    lower = today
     for days in EXPIRY_THRESHOLD_DAYS:
         until = today + timedelta(days=days)
-        kpis[f"warranty_expiring_{days}"] = qs.filter(warranty_end__range=(today, until)).count()
+        kpis[f"warranty_expiring_{days}"] = qs.filter(
+            warranty_end__gte=lower, warranty_end__lte=until).count()
         kpis[f"amc_expiring_{days}"] = AmcContract.objects.filter(
-            status="Active", end_date__range=(today, until), asset__in=qs).count()
+            status="Active", end_date__gte=lower, end_date__lte=until,
+            asset__in=qs).count()
+        lower = until + timedelta(days=1)
+    kpis["expiry_bands_are_disjoint"] = True
 
     recent_transfers = TransferSerializer(
         AssetTransfer.objects.filter(asset__in=qs)
@@ -108,7 +127,17 @@ class ChartView(APIView):
     required_permission = "asset_view"
 
     def get(self, request, name):
-        return build_chart(name, visible_assets(request))
+        # The status distribution exists to show the whole register, which FR-017 names
+        # as the case where terminal Assets are included — and requires the surface to
+        # say so rather than leave the reader to infer it.
+        whole_register = name == "status-distribution"
+        response = build_chart(name, visible_assets(request, include_terminal=whole_register))
+        if whole_register and hasattr(response, "data") and isinstance(response.data, dict):
+            response.data["includes_terminal"] = True
+            response.data["scope_note"] = (
+                "Includes Sold, Scrapped, and Lost assets: this chart shows the whole "
+                "register.")
+        return response
 
 
 def build_chart(name, assets):
@@ -201,7 +230,7 @@ def _report_register():
                      a.department.name if a.department else "-",
                      a.location.name if a.location else "-",
                      a.status, float(a.purchase_cost or 0)])
-    return (["Asset ID", "Tag No", "Name", "Category", "Serial No", "Owner",
+    return (["Asset ID", "Tag No", "Name", "Category", "Serial No", "Custodian",
              "Department", "Location", "Status", "Value"], rows)
 
 
@@ -209,7 +238,10 @@ def _report_movement():
     rows = []
     for t in AssetTransfer.objects.select_related('asset', 'previous_owner', 'new_owner', 'approved_by').order_by('-transfer_date'):
         rows.append([f"TRF-{t.id:05d}", t.asset.asset_id, t.asset.name or "-",
-                     t.previous_owner.user_name if t.previous_owner else "IT Store",
+                     # An absent previous holder is an absence, not a party. Naming a
+                     # store here invented a custodian that may never have existed and
+                     # read identically to a Transfer that genuinely came from one.
+                     t.previous_owner.user_name if t.previous_owner else "— none recorded",
                      t.new_owner.user_name if t.new_owner else "-",
                      t.transfer_date.strftime("%d-%b-%Y") if t.transfer_date else "-",
                      t.approved_by.user_name if t.approved_by else "-", t.status])
@@ -255,9 +287,12 @@ def _report_audit():
     from core.models import AuditLog
     rows = []
     for log in AuditLog.objects.order_by('-date')[:1000]:
+        # B9 FR-010: a source address past B8's six-month window is not served, whether
+        # or not the retention job has run since the process started.
+        address = "" if ip_is_expired(log.date) else log.ip_address
         rows.append([log.date.strftime("%d-%b-%Y %H:%M"), log.username, log.action,
                      log.module, log.old_value or "-", log.new_value or "-",
-                     log.ip_address or "-"])
+                     address or "-"])
     return (["Date", "User", "Action", "Module", "Old Value", "New Value", "IP Address"], rows)
 
 
@@ -319,11 +354,12 @@ def _report_lost():
     return (["Asset ID", "Name", "Last Known Custodian", "Department", "Condition"], rows)
 
 
-# The audit report serves the same AuditLog rows as the /audit/ endpoint, including
-# actor identity and source IP. That endpoint is Admin-only, so reaching the same data
-# through report_access — which IT Staff and Viewer also hold — was a way around it.
-# Both surfaces must move together if audit access is ever widened.
-ADMIN_ONLY_REPORTS = {"audit"}
+# This report serves the same AuditLog rows as the /audit/ endpoint, including actor
+# identity and source IP, so reaching it through report_access — which IT Staff and
+# Viewer also hold — was a way around that endpoint's gate. Both surfaces now apply the
+# same `audit_access` code (B8 ALR-003: Admin and IT Manager), so widening access is one
+# grant rather than two edits that can drift apart.
+AUDIT_REPORTS = {"audit"}
 
 REPORTS = {
     "register": ("Asset Register Report", _report_register),
@@ -331,7 +367,7 @@ REPORTS = {
     "warranty": ("Warranty Expiry Report", _report_warranty),
     "purchase": ("Purchase Report", _report_purchase),
     "employee": ("Employee Asset Report", _report_employee),
-    "audit": ("Asset Audit Report", _report_audit),
+    "audit": ("Operational Event History", _report_audit),
     "in_service": ("Assets Currently In Service Report", _report_in_service),
     "vendor_service": ("Vendor Service Report", _report_vendor_service),
     "amc_expiry": ("AMC Expiry Report", _report_amc_expiry),
@@ -347,15 +383,18 @@ class ReportView(APIView):
         if key is None:
             return Response({"reports": [
                 {"key": k, "title": title} for k, (title, _) in REPORTS.items()
-                if k not in ADMIN_ONLY_REPORTS or is_admin(request)]})
+                if k not in AUDIT_REPORTS or can_read_audit(request)]})
         if key not in REPORTS:
             return Response({"detail": "Unknown report."}, status=http_status.HTTP_404_NOT_FOUND)
-        if key in ADMIN_ONLY_REPORTS and not is_admin(request):
+        if key in AUDIT_REPORTS and not can_read_audit(request):
+            # The refusal is audited by core.middleware.AuditDenialMiddleware, which
+            # runs outside this request's transaction — DRF rolls back anything written
+            # while refusing.
             return Response({"detail": "You do not have permission to read this report."},
                             status=http_status.HTTP_403_FORBIDDEN)
         title, fn = REPORTS[key]
         headers, rows = fn()
-        if key in ADMIN_ONLY_REPORTS:
+        if key in AUDIT_REPORTS:
             log_action(request, "Report View", "Reports", new_value=key)
         return Response({"key": key, "title": title, "headers": headers, "rows": rows})
 
@@ -367,11 +406,11 @@ class ReportExportView(APIView):
     def get(self, request, key, fmt):
         from django.http import FileResponse
 
-        from core.exports import build_excel, build_table_pdf
-        if key not in REPORTS or fmt not in ("pdf", "excel"):
+        from core.exports import build_csv, build_excel, build_table_pdf
+        if key not in REPORTS or fmt not in ("pdf", "excel", "csv"):
             return Response({"detail": "Unknown report or format."},
                             status=http_status.HTTP_404_NOT_FOUND)
-        if key in ADMIN_ONLY_REPORTS and not is_admin(request):
+        if key in AUDIT_REPORTS and not can_read_audit(request):
             return Response({"detail": "You do not have permission to export this report."},
                             status=http_status.HTTP_403_FORBIDDEN)
         title, fn = REPORTS[key]
@@ -382,6 +421,10 @@ class ReportExportView(APIView):
             buf = build_table_pdf(title, headers, rows, company_name=company)
             return FileResponse(buf, as_attachment=True, content_type='application/pdf',
                                 filename=f"{key}_report.pdf")
+        if fmt == "csv":
+            buf = build_csv(title, headers, rows, company_name=company)
+            return FileResponse(buf, as_attachment=True, content_type='text/csv',
+                                filename=f"{key}_report.csv")
         buf = build_excel(title, headers, rows, company_name=company)
         return FileResponse(
             buf, as_attachment=True,

@@ -27,6 +27,7 @@ const AssetCreate = () => {
   const [models, setModel] = useState([])
   const [locations, setLocations] = useState([])
   const [departments, setDepartments] = useState([])
+  const [vendors, setVendors] = useState([])
   const [message, setMessage] = useState([])
   const navigate = useNavigate()
 
@@ -36,6 +37,7 @@ const AssetCreate = () => {
     AxiosInstance.get('/model/').then((res) => setModel(res.data))
     AxiosInstance.get('/location/').then((res) => setLocations(res.data))
     AxiosInstance.get('/department/').then((res) => setDepartments(res.data))
+    AxiosInstance.get('/vendor/').then((res) => setVendors(res.data))
   }
 
   useEffect(() => {
@@ -94,6 +96,7 @@ const AssetCreate = () => {
       has_amc: false,
       amc_start: null,
       amc_end: null,
+      amc_vendor: '',
       purchase_cost: '',
       depreciation_rate: '',
       asset_life: '',
@@ -112,6 +115,11 @@ const AssetCreate = () => {
         warranty_end: toDateOrNull(values.warranty_end),
         amc_start: values.has_amc ? toDateOrNull(values.amc_start) : null,
         amc_end: values.has_amc ? toDateOrNull(values.amc_end) : null,
+        // B7 FR-032: a dated AMC contract references a managed Vendor. Only an
+        // Incomplete contract (the flag set, dates not yet known) may omit one.
+        amc_vendor: values.has_amc && values.amc_start && values.amc_end
+          ? values.amc_vendor || null
+          : null,
       };
       try {
         await AxiosInstance.post('/asset/', payload);
@@ -353,6 +361,23 @@ const AssetCreate = () => {
                   onBlur={() => formik.setFieldTouched("amc_end", true)}
                   error={formik.touched.amc_end && Boolean(formik.errors.amc_end)}
                   helperText={formik.touched.amc_end && formik.errors.amc_end}
+                />
+              </Box>
+
+              <Box className={"FormArea"}>
+                <SelectForm
+                  label={"AMC Vendor"}
+                  options={vendors}
+                  labelKey="name"
+                  name="amc_vendor"
+                  value={formik.values.amc_vendor || ''}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  error={formik.touched.amc_vendor && Boolean(formik.errors.amc_vendor)}
+                  helperText={
+                    (formik.touched.amc_vendor && formik.errors.amc_vendor)
+                    || "Required once the contract has dates — an AMC is held with someone, and vendor-grouped reporting depends on it."
+                  }
                 />
               </Box>
             </>

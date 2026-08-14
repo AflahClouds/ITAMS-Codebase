@@ -181,3 +181,27 @@ def build_excel(title, headers, rows, company_name="Cloud Shoe Factory"):
     wb.save(buf)
     buf.seek(0)
     return buf
+
+
+def build_csv(title, headers, rows, company_name="Cloud Shoe Factory"):
+    """CSV of the same rows the PDF and Excel exports carry.
+
+    B9 ALR-001 and ALR-005 require every export to enforce its access decision
+    server-side and to contain exactly what the requester is authorized to read.
+    Generating CSV in the browser from data already on screen satisfied neither: it
+    never passed through an authorization check and produced no audit entry, so the one
+    format most likely to be mailed onward was the one with no record of who took it.
+    """
+    import csv
+    import io as _io
+
+    text = _io.StringIO()
+    writer = csv.writer(text, lineterminator="\n")
+    writer.writerow([company_name])
+    writer.writerow([title])
+    writer.writerow([])
+    writer.writerow(list(headers))
+    for row in rows:
+        writer.writerow(["" if cell is None else cell for cell in row])
+    # BOM so Excel opens the file as UTF-8 rather than guessing a codepage.
+    return _io.BytesIO(text.getvalue().encode("utf-8-sig"))

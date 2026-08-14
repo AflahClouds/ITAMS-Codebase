@@ -33,8 +33,8 @@ const ProcurementDelete = () => {
     event.preventDefault()
     AxiosInstance.delete(`/procurement/${MyId}/`).then(() => {
       setMessage(<MyMessage
-        messageText={"You successfully deleted the data!"}
-        messageColor={"red"}
+        messageText={"Procurement archived. It is no longer in the working list but remains readable."}
+        messageColor={"green"}
       />)
       setTimeout(() => {
         navigate('/procurement')
@@ -50,16 +50,21 @@ const ProcurementDelete = () => {
         <Box className={"TopBar"}>
           <AddBoxIcon />
           <Typography sx={{marginLeft: "10px", fontWeight: "bold"}} variant="subtitle2">
-            Are you sure you want to delete this procurement record?
+            Archive this procurement record?
           </Typography>
         </Box>
 
         <Box className={"TextBox"}>
           <Typography>
-            You will be deleting the procurement (Invoice: <strong>{myData.invoice_number}</strong>) from{" "}
+            You will be archiving the procurement (Invoice: <strong>{myData.invoice_number}</strong>) from{" "}
             <strong>{myData.vendor_details?.name}</strong>, purchased via{" "}
             {myData.mode_of_purchase_details?.purchase_mode}, covering the assets:{" "}
             <strong>{myData.assets?.map((asset) => asset.asset_id).join(", ")}</strong>
+          </Typography>
+          <Typography sx={{ marginTop: "15px" }}>
+            Purchase records are archived rather than deleted: the invoice, dates,
+            vendor, and link history are the evidence that these assets were bought, so
+            they stay readable. The assets remain linked to it.
           </Typography>
         </Box>
 
@@ -67,7 +72,7 @@ const ProcurementDelete = () => {
           <Button
             type="submit"
             variant="contained" fullWidth>
-            Delete
+            Archive
           </Button>
         </Box>
 

@@ -10,6 +10,7 @@ import TextForm from "../../components/forms/TextForm";
 import SelectForm from "../../components/forms/SelectForm";
 import MultiSelectForm from "../../components/forms/MultiSelectForm";
 import DateForm from "../../components/forms/DateForm";
+import ArrivalsForm from "../../components/forms/ArrivalsForm";
 import MyMessage from "../../components/forms/Message";
 import Button from '@mui/material/Button';
 
@@ -18,7 +19,13 @@ const ProcurementCreate = () => {
   const [assets, setAssets] = useState([])
   const [purchase_modes, setPurchaseMode] = useState([])
   const [vendors, setVendors] = useState([])
+  const [locations, setLocations] = useState([])
   const [message, setMessage] = useState([])
+  // Keyed by asset id: { arrived_on, location }. B6 FR-009 requires one per linked
+  // asset before the purchase can be saved.
+  const [arrivals, setArrivals] = useState({})
+  const [attested, setAttested] = useState(false)
+  const [attestError, setAttestError] = useState(false)
   const navigate = useNavigate()
 
   const GetData = () => {
@@ -32,6 +39,10 @@ const ProcurementCreate = () => {
 
     AxiosInstance.get('/vendor/').then((res) => {
       setVendors(res.data)
+    })
+
+    AxiosInstance.get('/location/').then((res) => {
+      setLocations(res.data)
     })
 
   }
@@ -62,6 +73,24 @@ const ProcurementCreate = () => {
     return Number.isNaN(numberValue) ? null : numberValue;
   };
 
+  const handleArrivalChange = (assetId, field, value) => {
+    setArrivals((current) => ({
+      ...current,
+      [assetId]: { ...(current[assetId] || {}), [field]: value },
+    }))
+  }
+
+  const buildArrivals = (selectedIds) => selectedIds
+    .map((assetId) => {
+      const arrival = arrivals[assetId] || {}
+      return {
+        asset: assetId,
+        arrived_on: toDateString(arrival.arrived_on),
+        location: toNumberOrNull(arrival.location),
+      }
+    })
+    .filter((row) => row.arrived_on && row.location)
+
   const formik = useFormik({
     initialValues: {
       asset_ids: [],
@@ -82,7 +111,16 @@ const ProcurementCreate = () => {
         invoice_date: toDateString(values.invoice_date),
         invoice_number: values.invoice_number || "",
         po_number: values.po_number || "",
+        attested: attested,
+        arrivals: buildArrivals(values.asset_ids),
       };
+
+      if (!attested) {
+        setAttestError(true);
+        setSubmitting(false);
+        return;
+      }
+      setAttestError(false);
 
       try {
         await AxiosInstance.post("/procurement/", payload);
@@ -220,6 +258,17 @@ const ProcurementCreate = () => {
               helperText={formik.touched.invoice_date && formik.errors.invoice_date}
             />
           </Box>
+
+          <ArrivalsForm
+            assets={assets}
+            selectedIds={formik.values.asset_ids}
+            locations={locations}
+            arrivals={arrivals}
+            attested={attested}
+            onArrivalChange={handleArrivalChange}
+            onAttestChange={(checked) => { setAttested(checked); setAttestError(false); }}
+            showAttestError={attestError}
+          />
 
           <Button
             type="submit"

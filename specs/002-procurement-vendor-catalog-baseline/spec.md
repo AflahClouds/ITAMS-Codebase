@@ -1088,6 +1088,57 @@ The Concurrent Asset linking finding remains open and unchanged.
 **Provenance note**: these changes were written implementation-first and covered
 by tests afterwards, not through the red-green loop Principle IV requires.
 
+### Conformance Gap Register (added 2026-08-13)
+
+Writing B6's conformance suite (`backend/assets/tests_b6_conformance.py`) established
+that this baseline had **no gap register at all**, while ten accepted requirements are
+unimplemented. They were not previously recorded as either conformance gaps or open
+decisions; the earlier reviews found them because they read the code for *defects*, and
+an absent feature is not a defect. Each row below is an executable `expectedFailure`
+test, so the runner reports an unexpected success the moment one is closed.
+
+No requirement changes. These are delivery obligations against requirements this
+baseline already states, not new intent, and not questions for a stakeholder.
+
+| # | Requirement | Gap | Test |
+| --- | --- | --- | --- |
+| U-008 | FR-009 | No arrival record and no attestation exist in the data model. Decision C7 was resolved in favour of system enforcement; it is unimplemented, not partly implemented. | `test_saving_a_procurement_requires_an_arrival_record_and_attestation` |
+| U-009 | FR-010 | No date ordering is enforced. A purchase date after the invoice date, or in the future, is accepted. | `test_a_purchase_date_after_the_invoice_date_is_rejected`, `test_a_future_purchase_date_is_rejected` |
+| U-010 | FR-011 | Procurement removal is a hard delete. The archive that retains purchase details and history does not exist. Previously noted in passing under OBS-AS-013 ("still open"); now registered in its own right. | `test_removing_a_procurement_archives_it_rather_than_deleting_it` |
+| U-011 | FR-012 | Attach and detach carry no reason and append no history entry, so link changes leave no trail of actor, time, or prior association. | `test_detaching_an_asset_records_a_reason_and_a_history_entry` |
+| U-012 | FR-013 | The upper bound (at most one Procurement per Asset) holds; the lower bound does not. A Procurement can be emptied of every Asset. | `test_a_procurement_cannot_be_left_without_any_asset` |
+| U-013 | FR-017 | `invoice_number` is globally unique rather than unique within Vendor, so two suppliers cannot both issue an invoice numbered "1". `po_number` carries no uniqueness constraint at all. | `test_the_same_invoice_number_is_allowed_for_a_different_vendor`, `test_a_purchase_order_number_is_globally_unique_when_present` |
+| U-014 | FR-019 | Master names are plain unique CharFields. No trimming, no whitespace collapsing, and no case-insensitive comparison, so "Acme", "acme", and " Acme " are three distinct masters. | `test_master_names_are_compared_case_insensitively_after_trimming` |
+| U-015 | FR-020 | `catalog.Model` has no Brand relation. Model identity is a bare global name rather than the Brand-plus-name pair this requirement defines, and no deletion protection can exist without the link. | `test_a_model_belongs_to_exactly_one_brand` |
+
+U-015 is the structural one: FR-021 (rename and merge) and FR-022 (legacy Vendor
+backfill) remain `unverified` rather than registered here because neither can be
+specified as a test until the Model–Brand relation exists to rename or merge across.
+
+### Conformance Gap Closure (2026-08-13)
+
+All eight rows of the register above (U-008 to U-015) are closed. Each has a passing
+test in `backend/assets/tests_b6_conformance.py`; none remains an `expectedFailure`.
+
+| Gap | Closed by |
+| --- | --- |
+| U-008 FR-009 | `ProcurementArrival` records date, Location, attester, and time; a purchase cannot be saved until every linked Asset has one and the operator has attested. Decision C7 is implemented rather than assumed. |
+| U-009 FR-010 | Purchase date must not follow the invoice date, and neither may be in the future. |
+| U-010 FR-011 | Removal archives (`archived`, `archived_at`, `archive_reason`). Archived purchases leave the working list but stay readable. |
+| U-011 FR-012 | `ProcurementAssetLink` appends an entry per attach and detach carrying reason, actor, time, and the prior association. |
+| U-012 FR-013 | The lower bound is enforced: a Procurement cannot be emptied of every Asset. |
+| U-013 FR-017 | Invoice uniqueness is scoped to the Vendor; PO number is globally unique when present and unconstrained when absent. |
+| U-014 FR-019 | Names are trimmed and internally collapsed on save, and compared case-insensitively. Display casing is preserved. |
+| U-015 FR-020 | `Model.brand` exists, PROTECTed, with identity as the Brand-plus-name pair. Migration `catalog.0005` backfills each Model's Brand from the Assets that use it. |
+
+**Not closed, and deliberately so**: the backfill leaves `Model.brand` empty where the
+Assets using a Model disagree about its Brand, or where no Asset uses it. Inventing a
+Brand on no evidence would be worse than leaving the gap visible - it would put a
+manufacturer's name against a product because a migration needed a value. Those rows are
+a data-cleanup task for review. FR-021 (rename and merge) and FR-022 (legacy Vendor
+backfill) remain unimplemented, and are expressible for the first time now that the
+relation they operate on exists.
+
 ## Out of Scope *(mandatory)*
 
 ### Adjacent Baseline Ownership

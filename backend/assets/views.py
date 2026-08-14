@@ -1,5 +1,6 @@
 from datetime import date as date_cls
 
+from django.utils import timezone
 from django.db import transaction
 from django.db.models import Max, Q
 from rest_framework import status as http_status
@@ -152,8 +153,11 @@ class AssetViewSet(viewsets.ModelViewSet):
             return Response({"detail": "That vendor does not exist."},
                             status=http_status.HTTP_400_BAD_REQUEST)
         with transaction.atomic():
+            # The supersede marker is a flag, not text in the operator's reason field
+            # (FR-034): "this was replaced" and "an operator decided to stop" are
+            # different events and must stay distinguishable.
             AmcContract.objects.filter(asset=asset, status__in=("Active", "Incomplete")).update(
-                status="Ended", end_reason="Renewed")
+                status="Ended", superseded_by_renewal=True)
             AmcContract.objects.create(
                 asset=asset, vendor=vendor, start_date=amc_start, end_date=amc_end,
                 status="Active")
@@ -165,6 +169,13 @@ class AssetViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def end_amc_support(self, request, pk=None):
         asset = self.get_object()
+        # Renewal already refuses a terminal Asset; End Support must too (FR-011,
+        # ALR-003). A Sold, Scrapped, or Lost Asset has left circulation, and there is
+        # no support decision left to take on it.
+        if asset.status in TERMINAL_STATUSES:
+            return Response(
+                {"detail": f"Cannot end AMC support on a {asset.status} asset."},
+                status=http_status.HTTP_400_BAD_REQUEST)
         reason = (request.data.get('reason') or "").strip()
         if not reason:
             return Response({"detail": "A reason is required to end AMC support."},
@@ -207,6 +218,14 @@ class ProcurementViewSet(viewsets.ModelViewSet):
     queryset = Procurement.objects.all().select_related('mode_of_purchase', 'vendor').order_by('-id')
     serializer_class = ProcurementSerializer
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # Archived purchases stay readable by asking for them, but they are not part of
+        # the working list (FR-011).
+        if self.action == "list" and self.request.query_params.get('archived') != '1':
+            qs = qs.filter(archived=False)
+        return qs
+
     def perform_create(self, serializer):
         proc = serializer.save()
         log_action(self.request, "Create", "Procurement", new_value=proc.invoice_number)
@@ -216,8 +235,20 @@ class ProcurementViewSet(viewsets.ModelViewSet):
         log_action(self.request, "Update", "Procurement", new_value=proc.invoice_number)
 
     def perform_destroy(self, instance):
-        log_action(self.request, "Delete", "Procurement", old_value=instance.invoice_number)
-        instance.delete()
+        """Archive rather than delete.
+
+        B6 FR-011 forbids destroying a purchase record: the invoice, the dates, the
+        Vendor, and the link history are the evidence that the organization bought the
+        thing, and a mistaken click should not be able to erase it. The Assets stay
+        linked, so the purchase they came from remains answerable.
+        """
+        instance.archived = True
+        instance.archived_at = timezone.now()
+        instance.archive_reason = (self.request.data.get('reason') or "").strip()
+        instance.save(update_fields=['archived', 'archived_at', 'archive_reason'])
+        log_action(self.request, "Archive", "Procurement",
+                   old_value=instance.invoice_number,
+                   new_value=instance.archive_reason or "no reason given")
 
 
 # ---------- Service Records ----------

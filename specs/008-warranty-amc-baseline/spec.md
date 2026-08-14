@@ -1405,6 +1405,30 @@ above is affected.
 **Provenance note**: these changes were written implementation-first and covered
 by tests afterwards, not through the red-green loop Principle IV requires.
 
+### U-007 — AMC decision atomicity (added 2026-08-13)
+
+Writing B7's conformance suite (`backend/assets/tests_b7_conformance.py`) found one
+gap that U-006 does not record. U-006 row 13 says AMC audit entries are **thin**; it
+does not say they are written **outside the transaction** that carries the contract
+change. The two are independent defects, and closing row 13 would not close this one.
+
+No requirement changes. This is a delivery obligation against ALR-002 and ALR-007,
+which this baseline already states.
+
+| # | Current behavior | Accepted requirement | Test |
+| --- | --- | --- | --- |
+| 16 | `renew_amc` closes the superseded contract and creates the new one inside `transaction.atomic()`, then calls `log_action` **after** the block. A failing AuditLog write leaves both contract changes committed with no record of who made them. | FR-014, ALR-002, ALR-007 | `test_a_failed_audit_write_rolls_back_the_renewal` |
+| 16a | `end_amc_support` uses no transaction at all: it saves the contract, then logs, then notifies. A failing audit write leaves the contract `Ended` with the operator's reason recorded and no audit entry. | FR-014, ALR-002, ALR-007 | `test_a_failed_audit_write_rolls_back_the_end_support` |
+
+Both were verified by patching `assets.views.log_action` to raise and observing that
+the contract state survived the exception. ALR-007 states the rule directly — a failed
+required AuditLog write MUST reject and roll back the owning AMC action — and neither
+path can honour it while the write sits outside the transaction.
+
+This is a narrow fix (extend the `atomic()` block over the `log_action` call in
+renewal; add one to End Support), but it is not cosmetic: it is the difference between
+an AMC decision that is always attributable and one that can silently lose its actor.
+
 ### Remaining Evidence-Led Confirmation Items
 
 These are not among the five mandated blockers and do not reopen U-001 through
@@ -1423,6 +1447,30 @@ U-005. They are review items to confirm alongside them:
   owned by Draft B2 (Edge Cases).
 - Whether a Service Record performed under Warranty or AMC should reference the
   covering contract, which would require a change in both B5 and B7 (FR-026).
+
+### Conformance Gap Closure (2026-08-13)
+
+U-007 and seven U-006 rows are closed, each with a passing test in
+`backend/assets/tests_b7_conformance.py`.
+
+| Row | Closed by |
+| --- | --- |
+| 3 - terminal Assets in Warranty alerts (FR-020) | The sweep excludes terminal Assets on both the Warranty and AMC paths. |
+| 4 - unvalidated initial AMC entry (FR-030) | The Asset write path applies renewal's date rules: both dates or neither, end after start. |
+| 4a - backwards Warranty (FR-031) | Warranty end must follow its start when both are present; either may still stand alone. |
+| 5 - no terminal guard on End Support (FR-011) | End Support refuses a terminal Asset, as renewal already did. |
+| 6 - shared end-reason field (FR-034) | `superseded_by_renewal` is a separate flag, so an automatic supersede and an operator's decision are distinguishable without reading text. |
+| 14 - no Vendor at initial entry (FR-032) | A dated contract requires a managed B6 Vendor by whichever route it is entered. |
+| 15 - current contract by creation order (FR-005, ALR-004) | `latest_amc` prefers a current contract over a closed one and orders by end date, so entry order no longer decides which contract is current. |
+| U-007 16/16a - audit atomicity (FR-014, ALR-002, ALR-007) | `ATOMIC_REQUESTS` makes the request the transaction boundary, so a failed audit write rolls back the AMC decision it belongs to. |
+
+The atomicity fix is deliberately not per-call-site. Call sites write the entry either
+side of the change depending on the caller - `perform_create` logs after saving,
+`perform_destroy` logs before deleting - so a guarantee inside `log_action` could not
+hold. Making the request the boundary covers every path, including ones not yet written.
+
+**Not closed**: rows 2, 7, 8, 11, 11a, 11b, 12, and 13 - UI destinations, audit content
+detail, and the CHG-B7-01 scheduler reliability work, which is not baseline scope.
 
 ## Out of Scope *(mandatory)*
 

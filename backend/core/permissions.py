@@ -28,6 +28,22 @@ def is_admin(request):
     return profile.role is not None and profile.role.name == "Admin"
 
 
+def can_read_audit(request):
+    """True for a reader B8 ALR-003 grants global AuditLog access.
+
+    The policy names Admin **and IT Manager**. It is expressed as the `audit_access`
+    permission code rather than a Role-name test, so a renamed Role does not silently
+    lose access and a custom Role can be granted it deliberately — the same reason
+    every other recipient and access rule in this system is permission-based.
+    """
+    if is_admin(request):
+        return True
+    profile = getattr(getattr(request, "user", None), "profile", None)
+    if profile is None or profile.status != "Active":
+        return False
+    return profile.can("audit_access")
+
+
 class NotOwnRecordsScope(BasePermission):
     """Denies a reader whose visibility is bounded to its own records.
 

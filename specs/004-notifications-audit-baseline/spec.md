@@ -967,6 +967,63 @@ be better served by a dedicated permission code than by a Role-name test.
 **Provenance note**: these changes were written implementation-first and covered
 by tests afterwards, not through the red-green loop Principle IV requires.
 
+### Audit Event Coverage — Reclassified (added 2026-08-13)
+
+B8's second conformance pass (`backend/core/tests_b8_conformance.py`) confirmed the
+recorded gaps and found nothing new in the failure boundaries, access policy, or
+result limit. It did find two audited-event omissions that this baseline currently
+records **only as CAND-012**, an implementation-only observation. CAND entries are
+labelled "Not Accepted Requirements" and are evidence for review, so neither omission
+was carrying the weight of a delivery obligation — yet both contradict a requirement
+this baseline accepts.
+
+No requirement changes. The reclassification is from *observation* to *conformance
+gap*: FR-014 and FR-016 already state the rule.
+
+| # | Current behavior | Accepted requirement | Test |
+| --- | --- | --- | --- |
+| G-a | Catalog-master mutations write no AuditLog entry. Creating a Vendor — business data that B6 protects from deletion while referenced, and that B7 records on every dated AMC contract — leaves no audit record at all. | FR-014 | `test_a_catalog_master_mutation_is_audited` |
+| G-b | A rejected AuditLog access writes no entry. Denial happens in the permission class, which never logs, so an attempt to read the audit trail leaves no trace **in the audit trail**. | FR-014, FR-016 | `test_a_rejected_audit_access_is_itself_audited` |
+
+G-b is the sharper of the two. FR-016 requires "every allowed view/export **and every
+rejected access attempt**" to create an entry; the allowed half is covered by
+`AuditReportAccessTests`, and the rejected half — the half that matters for detecting
+someone probing the audit trail — produces nothing.
+
+CAND-012 also names Department and Location mutations as unaudited. They are the same
+FR-014 gap as G-a and are not separately tested here.
+
+### Conformance Gap Closure (2026-08-13)
+
+Every recorded B8 gap is closed, with passing tests in `backend/core/tests.py` and
+`backend/core/tests_b8_conformance.py`.
+
+| Gap | Closed by |
+| --- | --- |
+| G-a - unaudited catalog-master mutations (FR-014) | `core.audit_mixins.AuditedMutationMixin` on every catalog master, Department, and Location viewset. |
+| G-b - unaudited rejected access (FR-014, FR-016) | `core.middleware.AuditDenialMiddleware`. |
+| ALR-003 / FR-016 - IT Manager denied | A dedicated `audit_access` code, granted to Admin and IT Manager by migration `accounts.0005`, applied to both the endpoint and the report projection. |
+| FR-022 - silent truncation | The list response states `limit`, `total`, and `omitted` alongside `results`. |
+| FR-019 / FR-017 - no read timestamp | `Notification.read_at`, set once on the one-way transition; a repeat mark does not restart the retention clock. |
+| FR-023 - forwarded-header trust | `client_ip` believes `X-Forwarded-For` only from a configured trusted proxy; the default trusts none. |
+| FR-017 - no retention job | `core.retention.purge_expired`, scheduled daily, applying all four periods. Presentation applies the IP window independently, so a restarted process never serves an expired value. |
+| FR-011 / ALR-005 - audit not atomic | `ATOMIC_REQUESTS`. |
+| FR-012 - no retry or operator visibility | `notify_many` retries within a savepoint and records a `NotificationFailure` rather than raising. |
+
+Two of these are design decisions rather than repairs, and are worth recording as such.
+
+**The denial audit had to leave the view.** DRF's exception handler calls `set_rollback()`
+for every handled API exception, so an entry written while refusing a request is created
+and then discarded with the transaction. Middleware running after the response is the
+only place the write survives - which is also why `ATOMIC_REQUESTS` and the denial audit
+had to be designed together rather than separately.
+
+**A delivery failure no longer reaches its caller.** FR-012 and ALR-005 want business
+work to survive a failed Notification; FR-011 wants a failed audit write to undo it.
+Those pull in opposite directions under one request transaction, so the resolution is
+that `notify_many` never raises: it retries, records the failure, and returns. The
+`NotificationFailure` row is the operator visibility the requirement asks for.
+
 ## Out of Scope *(mandatory)*
 
 ### Adjacent Baseline Ownership

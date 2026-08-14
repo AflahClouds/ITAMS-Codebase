@@ -151,13 +151,13 @@ class ExportBoundaryTests(TestCase):
         self.assertEqual(outsider.get("/reports/register/").status_code, 403)
         self.assertEqual(outsider.get("/reports/register/export/excel/").status_code, 403)
 
-    @unittest.expectedFailure
     def test_csv_export_is_produced_server_side_like_the_other_formats(self):
         """Covers: B9 ALR-005, B9 ALR-001.
 
-        Known gap (§U-007 row 8). CSV is generated in the browser from data already on
-        screen, so it never passes through the server's authorization check and creates
-        no audit entry, unlike the PDF and Excel paths.
+        CSV was generated in the browser from data already on screen, so it never
+        passed through the server's authorization check and created no audit entry —
+        the one format most likely to be mailed onward was the one with no record of
+        who took it.
         """
         response = self.client_r.get("/reports/register/export/csv/")
 
@@ -174,13 +174,12 @@ class TerminalExclusionTests(TestCase):
         _asset("SOLD-1", self.cat, self.brand, self.model, status="Sold", purchase_cost=500)
         self.client_r = _profile("metrics", ("asset_view", "report_access"))
 
-    @unittest.expectedFailure
     def test_total_value_counts_only_assets_the_organization_still_holds(self):
         """Covers: B9 FR-017, B9 FR-020.
 
-        Known gap (§U-007 row 9). Terminal Assets are still counted everywhere,
-        including total portfolio value, which overstates it — here by the 500 of a
-        `Sold` Asset.
+        Terminal Assets were counted everywhere including total portfolio value, which
+        overstates it — here by the 500 of a `Sold` Asset the organization no longer
+        owns.
         """
         kpis = self.client_r.get("/dashboard/").data["kpis"]
 
@@ -197,13 +196,12 @@ class ExpiryBandTests(TestCase):
                warranty_end=date.today() + timedelta(days=5))
         self.client_r = _profile("bands", ("asset_view", "report_access"))
 
-    @unittest.expectedFailure
     def test_one_asset_appears_in_exactly_one_expiry_band(self):
         """Covers: B9 FR-018, B9 FR-019.
 
-        Known gap (§U-007 row 10). The 7/15/30-day figures are cumulative, so an Asset
-        five days from expiry is counted in all three at once. FR-018 requires disjoint
-        bands and FR-019 fixes their boundaries.
+        The 7/15/30-day figures were cumulative, so an Asset five days from expiry was
+        counted in all three at once and the tiles could not be read as a workload
+        breakdown.
         """
         kpis = self.client_r.get("/dashboard/").data["kpis"]
 
@@ -217,12 +215,12 @@ class CanonicalTerminologyTests(TestCase):
     def setUp(self):
         self.client_r = _profile("terminology", ("asset_view", "report_access"))
 
-    @unittest.expectedFailure
     def test_the_register_report_names_the_custodian_column_canonically(self):
         """Covers: B9 FR-005.
 
-        Known gap (§U-007 row 6). The Asset Register report heads the custody column
-        "Owner"; `CONTEXT.md` makes **Custodian** the canonical term.
+        The Asset Register report headed the custody column "Owner"; `CONTEXT.md` makes
+        **Custodian** the canonical term, and the distinction matters — a custodian
+        holds the organization's property, an owner would own it.
         """
         headers = self.client_r.get("/reports/register/").data["headers"]
 

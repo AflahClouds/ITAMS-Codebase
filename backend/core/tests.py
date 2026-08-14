@@ -130,20 +130,33 @@ class NotificationReadStateTests(TestCase):
 
         self.assertEqual(self.client_a.get("/notification/unread_count/").data["count"], 0)
 
-    @unittest.expectedFailure
     def test_the_time_a_notification_became_read_is_retained(self):
+        """Covers: B8 FR-019, B8 FR-017."""
+        row = Notification.objects.create(user=self.profile, message="m")
+        self.assertIsNone(row.read_at)
+
+        self.client_a.post(f"/notification/{row.pk}/mark_read/")
+        row.refresh_from_db()
+
+        self.assertIsNotNone(row.read_at)
+
+    def test_re_marking_a_read_notification_does_not_restart_its_retention_clock(self):
         """Covers: B8 FR-019, B8 FR-017.
 
-        Known gap. `Notification` stores a creation time but no read time, so FR-017's
-        "Read Notifications MUST be removed 90 days after becoming Read" cannot be
-        evaluated. Recorded under FR-019 in the specification.
+        FR-019 makes a repeat mark idempotent and explicitly says it "does not restart
+        any retention period" — which matters because FR-017 removes a Read Notification
+        90 days after it became Read.
         """
         row = Notification.objects.create(user=self.profile, message="m")
         self.client_a.post(f"/notification/{row.pk}/mark_read/")
         row.refresh_from_db()
+        first = row.read_at
 
-        self.assertTrue(any("read" in f.name and "date" in f.get_internal_type().lower()
-                            for f in Notification._meta.get_fields()))
+        self.client_a.post(f"/notification/{row.pk}/mark_read/")
+        self.client_a.post("/notification/mark_all_read/")
+        row.refresh_from_db()
+
+        self.assertEqual(row.read_at, first)
 
 
 class NotificationChannelTests(TestCase):
@@ -205,33 +218,33 @@ class AuditLogFilterContractTests(TestCase):
 
     def test_module_filtering_is_an_exact_match(self):
         """Covers: B8 FR-021."""
-        rows = self.client_admin.get("/audit/", {"module": "Assets"}).data
+        rows = self.client_admin.get("/audit/", {"module": "Assets"}).data["results"]
 
         self.assertEqual(len(rows), 2)
         self.assertTrue(all(r["module"] == "Assets" for r in rows))
 
     def test_username_filtering_is_case_insensitive_and_partial(self):
         """Covers: B8 FR-021."""
-        rows = self.client_admin.get("/audit/", {"username": "bo"}).data
+        rows = self.client_admin.get("/audit/", {"username": "bo"}).data["results"]
 
         self.assertEqual([r["username"] for r in rows], ["BOB"])
 
     def test_supplying_both_filters_narrows_to_entries_satisfying_both(self):
         """Covers: B8 FR-021."""
-        rows = self.client_admin.get("/audit/", {"module": "Auth", "username": "alice"}).data
+        rows = self.client_admin.get("/audit/", {"module": "Auth", "username": "alice"}).data["results"]
 
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["module"], "Auth")
 
     def test_results_are_ordered_newest_first(self):
         """Covers: B8 FR-021."""
-        dates = [r["date"] for r in self.client_admin.get("/audit/").data]
+        dates = [r["date"] for r in self.client_admin.get("/audit/").data["results"]]
 
         self.assertEqual(dates, sorted(dates, reverse=True))
 
     def test_a_filter_matching_nothing_returns_empty_rather_than_everything(self):
         """Covers: B8 FR-021."""
-        rows = self.client_admin.get("/audit/", {"module": "NoSuchModule"}).data
+        rows = self.client_admin.get("/audit/", {"module": "NoSuchModule"}).data["results"]
 
         self.assertEqual(list(rows), [])
 
@@ -270,18 +283,25 @@ class AuditLogPrivacyTests(TestCase):
 class AuditLogSourceAddressTests(TestCase):
     """B8 FR-023: a source address is indicative, never authoritative."""
 
-    @unittest.expectedFailure
     def test_a_forwarded_header_is_not_trusted_from_an_untrusted_peer(self):
-        """Covers: B8 FR-023.
-
-        Known gap. `client_ip` reads `HTTP_X_FORWARDED_FOR` unconditionally, so a caller
-        not behind a trusted proxy can choose the address recorded against their own
-        actions. Recorded as a conformance gap under FR-023.
-        """
+        """Covers: B8 FR-023."""
         class _Request:
             META = {"HTTP_X_FORWARDED_FOR": "203.0.113.9", "REMOTE_ADDR": "10.0.0.5"}
 
         self.assertEqual(client_ip(_Request()), "10.0.0.5")
+
+    def test_a_forwarded_header_is_honoured_from_a_configured_proxy(self):
+        """Covers: B8 FR-023.
+
+        The header is not useless — it is the only way to see the real caller behind a
+        load balancer. It is believed exactly when the direct peer is one we configured.
+        """
+        class _Request:
+            META = {"HTTP_X_FORWARDED_FOR": "203.0.113.9, 10.0.0.5",
+                    "REMOTE_ADDR": "10.0.0.5"}
+
+        with self.settings(ITAMS_TRUSTED_PROXIES=("10.0.0.5",)):
+            self.assertEqual(client_ip(_Request()), "203.0.113.9")
 
 
 class AuditLogRetentionTests(TestCase):
@@ -318,15 +338,54 @@ class AuditLogRetentionTests(TestCase):
         self.assertIsNone(entry.user_id)
         self.assertEqual(entry.username, "audited-actor")
 
-    @unittest.expectedFailure
     def test_expired_records_are_purged_on_their_retention_schedule(self):
         """Covers: B8 FR-017.
 
-        Known gap. FR-017 sets four retention periods — AuditLog 2 years, source IP
-        6 months, Read Notifications 90 days, Unread Notifications 1 year — and no
-        scheduled removal implements any of them. `core.scheduler` registers only the
-        Warranty/AMC expiry sweep. Nothing here can pass until a purge job exists.
+        All four periods, each measured from its own event: the entry from the event,
+        the source IP from the event but six months sooner, a Read Notification from
+        when it became Read, an Unread one from creation.
         """
+        from django.utils import timezone
+
+        from .retention import purge_expired
+
+        _, profile = _profile("retention-subject")
+        now = timezone.now()
+
+        old_entry = AuditLog.objects.create(action="Old", module="Assets")
+        recent_ip = AuditLog.objects.create(action="Recent", module="Assets",
+                                            ip_address="203.0.113.1")
+        stale_ip = AuditLog.objects.create(action="Stale", module="Assets",
+                                           ip_address="203.0.113.2")
+        AuditLog.objects.filter(pk=old_entry.pk).update(
+            date=now - timezone.timedelta(days=800))
+        AuditLog.objects.filter(pk=stale_ip.pk).update(
+            date=now - timezone.timedelta(days=200))
+
+        old_read = Notification.objects.create(user=profile, message="read long ago",
+                                               status="Read")
+        fresh_read = Notification.objects.create(user=profile, message="just read",
+                                                 status="Read")
+        old_unread = Notification.objects.create(user=profile, message="never opened")
+        Notification.objects.filter(pk=old_read.pk).update(
+            read_at=now - timezone.timedelta(days=120))
+        Notification.objects.filter(pk=fresh_read.pk).update(read_at=now)
+        Notification.objects.filter(pk=old_unread.pk).update(
+            created=now - timezone.timedelta(days=400))
+
+        purge_expired()
+
+        self.assertFalse(AuditLog.objects.filter(pk=old_entry.pk).exists())
+        self.assertEqual(AuditLog.objects.get(pk=recent_ip.pk).ip_address, "203.0.113.1")
+        # The entry survives; only its address is cleared.
+        self.assertTrue(AuditLog.objects.filter(pk=stale_ip.pk).exists())
+        self.assertEqual(AuditLog.objects.get(pk=stale_ip.pk).ip_address, "")
+        self.assertFalse(Notification.objects.filter(pk=old_read.pk).exists())
+        self.assertTrue(Notification.objects.filter(pk=fresh_read.pk).exists())
+        self.assertFalse(Notification.objects.filter(pk=old_unread.pk).exists())
+
+    def test_the_retention_job_is_scheduled(self):
+        """Covers: B8 FR-017."""
         import io
 
         from . import scheduler

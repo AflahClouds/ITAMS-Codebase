@@ -1378,6 +1378,25 @@ B1's C6 decision.
 **Provenance note**: these changes were written implementation-first and covered
 by tests afterwards, not through the red-green loop Principle IV requires.
 
+### Conformance Gap Closure (2026-08-13)
+
+Rows 2, 5, 10, 14, and 15 are closed, with passing tests in
+`backend/assets/tests_b3_b5_conformance.py`. The register above is preserved as the
+dated review record.
+
+| Row | Closed by |
+| --- | --- |
+| 2 - department retained when the holder has none (FR-006) | The department follows the holder unconditionally, so an Asset handed to someone unaffiliated no longer stays filed under the last department that held it. |
+| 5 - no rule requires return remarks (FR-014) | A return in a worse condition is refused without them. `New` to `Good` is excluded: "New" describes an unused Asset rather than a level of care, so the first return of a new Asset in good order is expected, and prompting there would put a justification box on the most ordinary check-in in the system. |
+| 10 - no interrupted-closure marker (FR-028) | `closed_as_interrupted` distinguishes a closure forced by something else from a return an operator performed. |
+| 14 - row lock is a no-op on SQLite (FR-011) | A partial unique index on open Checkouts holds regardless of engine or timing, which `select_for_update` never did here. |
+| 15 - nothing prevents two open Checkouts (FR-001, FR-007) | The same index. |
+
+**Not closed**: rows 1, 3, and 4 were already closed on 2026-08-12. Rows 6 (Overdue
+state and notification), 7 (audit entries for rejections), 8 and 9 (Notification
+recipients and destinations), 11 (`approved_by` naming), 12 (frontend panel label), and
+13 (Admin direct edit of a Checkout record) remain open.
+
 ## Out of Scope *(mandatory)*
 
 ### Adjacent Baseline Ownership
