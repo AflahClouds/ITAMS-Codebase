@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-29
 
-**Status**: Draft — Clarify reviewed; scope decision pending
+**Status**: Accepted scope — implementation pending
 
 **Input**: Keep Checkout for temporarily assigning an Asset to an employee. Extend the Transfer module with separate ongoing Assign and Take Back actions. Users with `asset_custody_manage` perform Assign and Take Back immediately; employee-to-employee Transfer retains its request-and-approval process.
 
@@ -28,9 +28,9 @@
 - `specs/006-transfer-baseline/spec.md`
 - `specs/007-service-record-baseline/spec.md`
 
-**Supersedes**: On acceptance, the rule that every store-to-employee issue is a Checkout, the rejection of Assignment as a domain term, and the requirement that every post-service reissue must be a Checkout. Transfer approval, single custody, department derivation, Service Record clearing custody, and terminal accountability remain applicable.
+**Supersedes**: The rule that every store-to-employee issue is a Checkout, the rejection of Assignment as a domain term, and the requirement that every post-service reissue must be a Checkout. Transfer approval, single custody, department derivation, Service Record clearing custody, and terminal accountability remain applicable.
 
-**Reciprocal Links**: Pending accepted scope; predecessor requirements remain unchanged during this draft. This specification uses the repository's durable feature convention under constitution 1.1.0. It does not authorize migration to a single living specification or deletion of feature history.
+**Reciprocal Links**: Add lineage metadata to predecessor records during this delivery; their accepted requirements remain unchanged. This specification uses the repository's durable feature convention under constitution 1.1.0. It does not authorize migration to a single living specification or deletion of feature history.
 
 ## Domain Alignment *(mandatory)*
 
@@ -197,10 +197,10 @@ IT continues managing Assets issued before the distinction existed without losin
 ## Assumptions
 
 - This is a change to the existing ITAMS application and permission model; no technology or authentication change is proposed.
-- Existing accepted rules apply except where this draft explicitly replaces them. Proposed additions, including notification recipients, remain subject to design review.
-- The user confirmed direct-action permissions and approved entry into Clarify. The Clarify coverage scan and three material answers are recorded above. Approval to enter the final scope decision, final scope acceptance and current-update local-delivery authority remain separate decisions.
+- Existing accepted rules apply except where this change feature explicitly replaces them. Notification recipients are included in the accepted scope.
+- The user confirmed direct-action permissions, approved entry into Clarify and the final scope decision separately, accepted the final clarified scope, and authorized this update's local delivery. The Clarify coverage scan and three material answers are recorded above. This authority grants no push, merge, deployment or release.
 - Prior active pointer was `specs/013-procurement-invoice-attachment-change`; its files and unrelated working-tree changes are preserved. Initial revision: `5de8099386ea20c67be8612a3f608e1db244a3f6`. No native workflow run exists for this change.
-- Implementation review must reconcile the relevant CONTEXT and ADR terminology and predecessor lineage after scope acceptance. This draft does not claim current software already provides Assignment/Take Back or that observed code gaps are intended behavior.
+- Implementation review must reconcile the relevant CONTEXT and ADR terminology and predecessor lineage. This specification does not claim current software already provides Assignment/Take Back or that observed code gaps are intended behavior.
 
 ## Out of Scope *(mandatory)*
 

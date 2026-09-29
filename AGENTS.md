@@ -67,8 +67,8 @@ Missing constitution, README, feature pointer, tasks, or workflow state is norma
 
 ## Project context
 
-- Purpose and documentation entry point: repository README when available; Codex establishes it from the accepted business goal.
-- Code and operating documentation: not established yet; link relevant entry points as they become available.
+- Purpose: IT Asset Management System for procurement, employee custody, service, and end-of-life tracking. No root README is checked in; start with `CONTEXT.md`, `ROADMAP.md`, and `specs/README.md`.
+- Code entry points: `backend/assets/` for custody models and lifecycle services, `backend/assets/urls.py` for API routes, and `frontend/src/pages/checkout/`, `frontend/src/pages/transfer/`, and `frontend/src/pages/asset/` for the current browser flows. Deployment and operating documentation are not established in this checkout.
 
 ## Project authority
 
@@ -76,17 +76,25 @@ Missing constitution, README, feature pointer, tasks, or workflow state is norma
 
 ## GitHub repository
 
-- Full repository name: not verified yet; discover from origin when available.
+- No Git origin is configured in this checkout; the ITAMS repository's full remote name is unverified. Do not infer it from the separate Clouds Spec Kit installer source.
 - New repositories requested through this workflow: private, under `Cloud-Shoes-LLP`; do not alter an existing remote without authorization.
 
 ## Technology envelope
 
-- Not established yet. Discover and preserve an existing stack from checked-in evidence; for greenfield work, recommend one and obtain approval before implementation. Record the approved language/runtime, framework, package manager, data store, tests, architecture/deployment, and material dependencies here.
+- Existing backend: Python, Django 6.0.5, Django REST Framework 3.17.1, requirements pinned in `backend/requirements.txt`. The original checkout has a Python 3.14.4 virtual environment that passed `manage.py check` against this isolated worktree.
+- Existing frontend: React 19, Vite 8, Material UI 9, npm package lock and scripts in `frontend/package.json`; Node 24.15.0 and npm 11.12.1 are available locally.
+- Existing data store: Django SQLite configuration in `backend/itams/settings.py`. Tests use Django's test runner and Vitest/React Testing Library. Architecture is a Django REST service with a React browser client. Deployment target is not verified.
+- Preserve this stack for the asset-custody change. No new framework, database, cloud provider, deployment architecture, test framework, or material production dependency is approved by the current sprint.
 
 ## Repository commands
 
-- Not verified yet. Discover setup, fast checks, full tests, lint/format, build/run, and applicable operation commands from checked-in sources. Record each only after verification; mark unavailable or inapplicable commands explicitly.
+- Verified backend fast check in this worktree: from `backend/`, run `D:/AFLAH V K/ITAMS - Codebase/backend/Env/Scripts/python.exe manage.py check`; result was `System check identified no issues (0 silenced)`.
+- Backend `manage.py test assets` and `manage.py test` are required by the constitution but have not yet been run in this worktree.
+- Frontend package scripts discovered: `npm test -- --run`, `npm run lint`, and `npm run build`. Use `C:/Program Files/nodejs/npm.cmd` because the `npm.ps1` on PATH currently points to a missing user-global npm install. Their exit results are not yet verified in this worktree; its `frontend/node_modules` is absent.
+- Setup, run and deployment commands beyond those sources are unverified. Do not claim a successful command until its terminal exit is observed.
 
 <!-- SPECKIT START -->
-<!-- Managed by the official Spec Kit agent-context extension. -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at specs/014-asset-assignments/plan.md
 <!-- SPECKIT END -->
