@@ -706,12 +706,16 @@ class CloudsDeliveryPassStep(StepBase):
             prompt,
             "--model",
             model,
-            "--sandbox",
-            selected_permission,
-            "--approve-for-me",
-            "--ephemeral",
-            "--json",
         ]
+        # Current Codex CLI makes --approve-for-me (workspace-write with
+        # automatic approval review) mutually exclusive with --sandbox.
+        # Preserve the builder's reviewed write sandbox and the reviewer's
+        # explicit read-only sandbox as separate, valid launch modes.
+        if selected_permission == "workspace-write":
+            argv.append("--approve-for-me")
+        else:
+            argv.extend(("--sandbox", selected_permission))
+        argv.extend(("--ephemeral", "--json"))
         try:
             return subprocess.run(
                 argv,
