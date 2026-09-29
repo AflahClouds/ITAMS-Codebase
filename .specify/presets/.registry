@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "presets": {
+    "clouds-core": {
+      "version": "1.4.0",
+      "source": "local",
+      "manifest_hash": "sha256:3eae3064eef13c2faf727e218cd4c01b8f855cbd6b7a1a017b5e0169fdd37381",
+      "enabled": true,
+      "priority": 5,
+      "registered_commands": {
+        "codex": [
+          "guide",
+          "speckit.specify",
+          "speckit.plan",
+          "speckit.tasks",
+          "speckit.analyze",
+          "speckit.implement",
+          "speckit.converge"
+        ]
+      },
+      "registered_skills": {
+        "codex": [
+          "speckit-guide",
+          "speckit-specify",
+          "speckit-plan",
+          "speckit-tasks",
+          "speckit-analyze",
+          "speckit-implement",
+          "speckit-converge"
+        ]
+      },
+      "installed_at": "2026-09-29T09:25:19.783417+00:00"
+    }
+  }
+}

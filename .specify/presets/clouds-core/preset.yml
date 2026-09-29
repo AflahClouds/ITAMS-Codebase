@@ -1,0 +1,79 @@
+schema_version: "1.0"
+
+preset:
+  id: "clouds-core"
+  name: "Clouds Core"
+  version: "1.4.0"
+  description: "Business-first Codex guidance, governance, continuity, checkpoints, and repository closeout layered on upstream Spec Kit."
+  author: "Clouds Team"
+  repository: "https://github.com/Cloud-Shoes-LLP/clouds-spec-kit"
+  license: "Proprietary"
+
+requires:
+  speckit_version: ">=1.0.6,<1.0.7"
+  extensions:
+    - id: "agent-context"
+      version: ">=1.0.0"
+    - id: "assess"
+      version: ">=1.0.0"
+
+provides:
+  templates:
+    - type: "template"
+      name: "constitution-template"
+      file: "templates/constitution-template.md"
+      description: "Extensible Clouds base constitution"
+      replaces: "constitution-template"
+
+    - type: "template"
+      name: "clouds-agents"
+      file: "templates/clouds-agents-template.md"
+      description: "Lean Codex AGENTS.md continuity starter"
+
+    - type: "command"
+      name: "guide"
+      file: "commands/guide.md"
+      description: "Guide a business user from goal through converged implementation"
+
+    - type: "command"
+      name: "speckit.specify"
+      file: "commands/speckit.specify.md"
+      description: "Preserve upstream specification content and add approval safeguards"
+      strategy: "append"
+
+    - type: "command"
+      name: "speckit.plan"
+      file: "commands/speckit.plan.md"
+      description: "Add technology-envelope and predecessor cleanup planning"
+      strategy: "append"
+
+    - type: "command"
+      name: "speckit.tasks"
+      file: "commands/speckit.tasks.md"
+      description: "Add high-risk test-first and cleanup task requirements"
+      strategy: "append"
+
+    - type: "command"
+      name: "speckit.analyze"
+      file: "commands/speckit.analyze.md"
+      description: "Add Clouds governance checks to upstream analysis"
+      strategy: "append"
+
+    - type: "command"
+      name: "speckit.implement"
+      file: "commands/speckit.implement.md"
+      description: "Add bounded autonomy, test-first, and active-tree cleanup rules"
+      strategy: "append"
+
+    - type: "command"
+      name: "speckit.converge"
+      file: "commands/speckit.converge.md"
+      description: "Add cleanup convergence checks and stable workflow outcome markers"
+      strategy: "append"
+
+tags:
+  - "codex"
+  - "business-first"
+  - "finance"
+  - "operations"
+  - "governance"

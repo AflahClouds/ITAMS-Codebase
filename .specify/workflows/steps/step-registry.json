@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "steps": {
+    "clouds-delivery-pass": {
+      "name": "Clouds Delivery Pass",
+      "version": "1.4.0",
+      "description": "Runs one evidence-checked Codex implementation and convergence pass.",
+      "author": "Clouds Team",
+      "source": "dev",
+      "source_path": "D:\\AFLAH V K\\ITAMS - Codebase\\.clouds-install-source\\components\\steps\\clouds-delivery-pass",
+      "type_key": "clouds-delivery-pass",
+      "installed_at": "2026-09-29T09:25:20.5993842+00:00",
+      "updated_at": "2026-09-29T09:25:20.5993842+00:00"
+    }
+  }
+}

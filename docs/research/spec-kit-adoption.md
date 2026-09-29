@@ -4,6 +4,29 @@
 **Target:** Existing ITAMS repository on Windows, using Codex and PowerShell  
 **Official Spec Kit release checked:** v0.14.2
 
+## Clouds pilot update (2026-09-29)
+
+This repository now has the Clouds Spec Kit v1.4.0 source candidate installed
+from private `Cloud-Shoes-LLP/clouds-spec-kit` commit
+`f24b69fc4c954df09f258c6c3d46a34f6f582678`, with the official Specify
+CLI pinned to 1.0.6. The source installer registered `clouds-core`,
+`clouds-delivery-pass`, `clouds-delivery`, `agent-context`, and `assess` for
+Codex. The prior Claude integration remains registered. The installer source
+used for this pilot is an ignored local cache at `.clouds-install-source/`;
+its staged files were checked against the source commit's Git blob hashes.
+
+The live ITAMS constitution, project template overrides, local-ticket policy,
+and active feature pointer were preserved. Clouds' living-spec convention has
+not been adopted for ITAMS; changing the existing accepted-spec persistence
+rules requires the constitution's amendment process and designated-owner
+approval. The installation alone does not authorize a delivery sprint or a
+specification migration.
+
+The 0.14.2 installation notes below record the original adoption. For this
+pilot, use `specify` 1.0.6 and the private Clouds source installer documented
+in its repository README. The six Codex files reported as modified by
+`specify integration status` are the expected `clouds-core` compositions.
+
 ## Decision
 
 Keep Spec Kit infrastructure and durable feature artifacts separate:

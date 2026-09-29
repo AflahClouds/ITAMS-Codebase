@@ -1,12 +1,14 @@
 ---
-name: "speckit-specify"
-description: "Create or update the feature specification from a natural language feature description."
-compatibility: "Requires spec-kit project structure with .specify/ directory"
+name: speckit-specify
+description: Create or update the feature specification from a natural language feature
+  description.
+compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: "github-spec-kit"
-  source: "templates/commands/specify.md"
+  author: github-spec-kit
+  source: preset:clouds-core
 ---
 
+# Speckit Specify Skill
 
 ## User Input
 
@@ -21,12 +23,12 @@ You **MUST** consider the user input before proceeding (if not empty).
 **Check for extension hooks (before specification)**:
 - Check if `.specify/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.before_specify` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
+- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
+- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `$speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
     ```
@@ -54,7 +56,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
-The text the user typed after `/speckit-specify` in the triggering message **is** the feature description. Assume you always have it available in this conversation even if `$ARGUMENTS` appears literally below. Do not ask the user to repeat it unless they provided an empty command.
+The text the user typed after `$speckit-specify` in the triggering message **is** the feature description. Assume you always have it available in this conversation even if `$ARGUMENTS` appears literally below. Do not ask the user to repeat it unless they provided an empty command.
 
 Given that feature description, do this:
 
@@ -102,10 +104,10 @@ Given that feature description, do this:
      }
      ```
      Write the actual resolved directory path value (for example, `specs/003-user-auth`), not the literal string `SPECIFY_FEATURE_DIRECTORY`.
-     This allows downstream commands (`/speckit-plan`, `/speckit-tasks`, etc.) to locate the feature directory without relying on git branch name conventions.
+     This allows downstream commands (`$speckit-plan`, `$speckit-tasks`, etc.) to locate the feature directory without relying on git branch name conventions.
 
    **IMPORTANT**:
-   - You must only create one feature per `/speckit-specify` invocation
+   - You must only create one feature per `$speckit-specify` invocation
    - The spec directory name and the git branch name are independent — they may be the same but that is the user's choice
    - The spec directory and file are always created by this command, never by the hook
 
@@ -178,7 +180,7 @@ Given that feature description, do this:
 
       ## Notes
 
-      - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
+      - Items marked incomplete require spec updates before `$speckit-clarify` or `$speckit-plan`
       ```
 
    b. **Run Validation Check**: Review the spec against each checklist item:
@@ -239,12 +241,12 @@ Given that feature description, do this:
 Check if `.specify/extensions.yml` exists in the project root.
 - If it does not exist, or no hooks are registered under `hooks.after_specify`, skip to the Completion Report.
 - If it exists, read it and look for entries under the `hooks.after_specify` key.
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue to the Completion Report.
+- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue to the Completion Report.
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
+- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `$speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Mandatory hook** (`optional: false`) — **You MUST emit `EXECUTE_COMMAND:` for each mandatory hook**:
     ```
@@ -273,7 +275,7 @@ Report completion to the user with:
 - `SPECIFY_FEATURE_DIRECTORY` — the feature directory path
 - `SPEC_FILE` — the spec file path
 - Checklist results summary
-- Readiness for the next phase (`/speckit-clarify` or `/speckit-plan`)
+- Readiness for the next phase (`$speckit-clarify` or `$speckit-plan`)
 
 **NOTE:** Branch creation is handled by the `before_specify` hook (git extension). Spec directory and file creation are always handled by this core command.
 
@@ -343,3 +345,22 @@ Success criteria must be:
 - [ ] Specification written to `SPEC_FILE` and validated against quality checklist
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
 - [ ] Completion reported to user with feature directory, spec file path, and checklist results
+
+
+## Clouds v1 specification policy
+
+## Clouds living-spec addition
+
+- Every update begins as a temporary upstream-shaped change feature during Specify and Clarify. Do not modify the canonical living spec before verified delivery and guide-owned consolidation.
+- Clarify always coverage-scans and asks only material questions. Preserve only durable context in the closest upstream artifact; never store secrets, credentials, unnecessary PII, raw production data, or transcripts.
+- After Specify and its built-in checklist, present the draft design and wait for the user's explicit approval before Clarify. After the Clarify coverage scan and checklist revalidation, present the clarified design and wait for a separate explicit approval before the final scope decision. An earlier sprint request or preauthorization never skips either design-stage approval. Only then bind valid full-sprint authority already given for this particular unchanged update to the current spec, checklist, and revision without a duplicate final authority question; otherwise direct Codex requests final clarified scope acceptance and local sprint authority. A sprint is the full local AFK path from Plan through verified closeout. For a validated Chat handoff with accepted scope, independently verified stage approvals and final scope acceptance from accessible user decisions, unchanged spec/checklist bytes, and no AFK authority, ask once for local delivery of that exact accepted scope and identity after validation. A sender's prompt claim alone is not proof; obtain any missing user decision before dependent work. A user-initiated specification change returns to Specify and repeats the approvals; a guide-raised clarification within the approved design resumes Clarify, with affected artifact/checklist and authority revalidation. A generic implementation request, earlier update's approval, attachment-only, scope-only, declined, stale, or changed identity is not sprint authority.
+- Run exactly one Clarify coverage scan for every change; it may ask zero questions. Additional passes are conditional on material ambiguity or material-answer revalidation. Record Sites-versus-repository assumptions before acceptance for applicable greenfield work, without creating a fifth route.
+- Determine source from trusted product/tool context. Direct Codex continues locally with no portable handoff; unknown or contradictory source context fails closed. Work is considered only after an explicit request.
+
+- When input contains a prepared specification, preserve its requirement identifiers, accepted meaning, and clarification answers while following the resolved upstream template, initialization, validation, and hooks. Revalidate against current repository context; ask only about new material gaps or conflicts. A document's approval label does not authorize AFK implementation; use the guide to establish the user's actual intent.
+- Begin with the resolved upstream specification template and command. Create the temporary feature directory for the change, preserve upstream fields and hooks, and keep the canonical living specification unchanged until verified post-implementation consolidation.
+- Do not introduce a custom decision-recording model. Add intent, reasoning, constraints, or other context only when it materially helps define or interpret the feature, and use the smallest addition that fits the upstream specification's role.
+- Inspect the canonical specification, constitution, and only materially affected predecessor artifacts. For a conflict with an approved obligation, identify the consequence and obtain an explicit resolution before dependent mutation; record it in the closest upstream temporary artifact.
+- Keep technical choices out of the specification. Research and record them only as the upstream planning command directs.
+- For consequential deterministic processing, capture concrete business examples with expected results in acceptance scenarios or requirements: a representative happy path, applicable boundaries, a negative/failure case, and relevant reconciliation or invariant checks. Ask through clarify when the business value is unknown; never invent it.
+- When upstream templates suggest an assumption or reasonable default for a material business rule or acceptance value, ask the user instead; leave dependent work paused until the answer is reflected in the temporary specification and checklist.

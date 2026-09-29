@@ -1,0 +1,23 @@
+## Clouds v1 implementation policy
+
+## Clouds living-spec addition
+
+- Separate explicit Specify and Clarify stage approvals plus accepted final scope and local sprint authority bound to temporary spec, checklist, and revision authorize local implementation; stop before dependent mutation for the guide's exhaustive stop taxonomy.
+- Keep one writer and a fresh read-only reviewer. Select each independently by evidenced capability; they may use the same model but never the same assignment, invocation, or permission.
+- The builder finishes before review. Reviewer findings return through the exact canonical payload binding to the same bounded builder assignment; the same bounded reviewer assignment then re-reviews. Under `--ephemeral`, reconstruct assignment identity rather than claiming session continuity. The root coordinates and never substitutes as writer.
+- Verify checklist/spec/plan hashes, expected HEAD, tag refs, authority reference, and invocation binding before each dispatch/resume. Only a bound builder may advance HEAD. Purpose/model changes require the verified ten-field transition; reviewers leave HEAD unchanged.
+
+- Before implementation, verify the two user-approved design transitions, accepted final scope, explicit sprint authority for this particular clarified update, and its bound identity. A prepared document, generic implementation request, earlier update's approval, or approval label alone is insufficient; use `$speckit-guide` to resolve the owning stage without repeating a valid current-update decision. A guide-raised clarification within approved design resumes Clarify with affected artifact/checklist and authority revalidation; a user-initiated spec change returns Specify and repeats the approvals.
+- In a Git-backed repository, before any edits or resumed work, verify the checkout is on the current task's development branch, separate from `main` (or the project's designated stable branch). If not, follow the guide's safe branch setup; preserve unrelated changes. Never develop directly on `main` or merge to it as part of AFK implementation. Promotion requires explicit user approval even when implementation and development pushes are authorized.
+- Work autonomously inside the approved active requirements and technology envelope. If implementation reveals a conflict with an approved requirement or a documented decision in the normal upstream artifacts, stop, identify the exact conflict, and obtain explicit user approval before changing the affected artifact or behavior. Do not create an extra decision record.
+- For high-risk deterministic data tasks, write the specified test first and observe it fail for the intended reason before changing production code. Do not mark the implementation task complete without the required boundary and reconciliation tests passing.
+- After successor behavior is proven, remove the affected superseded code, tests, dependencies, configuration, flags, documentation, and duplicate execution paths named by the tasks. Do not preserve history through comments, old filenames, disabled branches, or silent fallbacks.
+- Keep compatibility behavior only when its current purpose and removal condition are documented. Ask before uncertain or destructive cleanup whose intent cannot be established.
+- Keep the temporary feature through verified task-ledger delivery. Its canonical consolidation and deletion are guide-owned closeout work, never an implementation shortcut.
+- Run the relevant fast checks while implementing and the specified full verification before completion.
+- In a Git-backed repository, create a focused local commit after each completed user story or coherent task group whose relevant checks pass. Stage only current-work files, preserve unrelated changes, and never commit secrets or create a broken checkpoint. Defer push decisions to the guide and constitution: a development push needs separate affirmative authorization. Report an unavailable or rejected authorized push without claiming success; it is not an implementation blocker. This does not authorize force-pushing, rewriting remote history, or enabling automatic merging to `main`.
+Your final response MUST end with exactly one of these lines, matching the real outcome:
+
+`CLOUDS_IMPLEMENTATION: completed`
+`CLOUDS_IMPLEMENTATION: approval_required`
+`CLOUDS_IMPLEMENTATION: blocked`

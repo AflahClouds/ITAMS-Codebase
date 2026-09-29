@@ -1,12 +1,14 @@
 ---
-name: "speckit-plan"
-description: "Execute the implementation planning workflow using the plan template to generate design artifacts."
-compatibility: "Requires spec-kit project structure with .specify/ directory"
+name: speckit-plan
+description: Execute the implementation planning workflow using the plan template
+  to generate design artifacts.
+compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: "github-spec-kit"
-  source: "templates/commands/plan.md"
+  author: github-spec-kit
+  source: preset:clouds-core
 ---
 
+# Speckit Plan Skill
 
 ## User Input
 
@@ -21,12 +23,12 @@ You **MUST** consider the user input before proceeding (if not empty).
 **Check for extension hooks (before planning)**:
 - Check if `.specify/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.before_plan` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
+- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
+- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `$speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
     ```
@@ -54,7 +56,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
-1. **Setup**: Run `.specify/scripts/powershell/setup-plan.ps1 -Json` from repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, SPECS_DIR, BRANCH. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+1. **Setup**: Run `.specify/scripts/powershell/setup-plan.ps1 -Json` from repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, FEATURE_DIR, BRANCH. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
 2. **Load context**: Read FEATURE_SPEC and `.specify/memory/constitution.md`. Load IMPL_PLAN template (already copied).
 
@@ -73,12 +75,12 @@ You **MUST** consider the user input before proceeding (if not empty).
 Check if `.specify/extensions.yml` exists in the project root.
 - If it does not exist, or no hooks are registered under `hooks.after_plan`, skip to the Completion Report.
 - If it exists, read it and look for entries under the `hooks.after_plan` key.
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue to the Completion Report.
+- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue to the Completion Report.
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
+- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `$speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Mandatory hook** (`optional: false`) — **You MUST emit `EXECUTE_COMMAND:` for each mandatory hook**:
     ```
@@ -164,3 +166,20 @@ Command ends after Phase 1 design. Report branch, IMPL_PLAN path, and generated 
 - [ ] Plan workflow executed and design artifacts generated
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
 - [ ] Completion reported to user with branch, plan path, and generated artifacts
+
+
+## Clouds v1 planning policy
+
+## Clouds living-spec addition
+
+- Only after separate explicit Specify and Clarify stage approvals, accepted final scope, and current-update sprint authority, planning continues without a routine user gate. Analyze runs automatically when plan and tasks exist.
+- Plan temporary-to-canonical traceability and one combined closeout discipline, but do not create or modify the canonical living spec before verified delivery.
+- Record the trusted source, expected Git/checklist identity, assignment boundaries, durable-policy owner, hard stops, and applicable Sites destination decision. Start with the simplest sufficient solution; justify added runtime/token/context/maintenance cost and remove superseded overlap.
+- Plan guide-owned canonical review and safe temporary-artifact cleanup with relevant post-cleanup verification. Do not make an installed project's delivery workflow run this repository's candidate or release checks.
+
+- Existing repositories stay inside the technology envelope recorded in `AGENTS.md`. For greenfield work, planning may proceed only after that envelope has been approved. A new language, runtime, primary framework, database, cloud provider, deployment architecture, test framework, or material production dependency is an exception requiring explicit approval.
+- Follow upstream Phase 0: consolidate researched unknowns, dependencies, integrations, and technology choices in `research.md` using Decision, Rationale, and Alternatives considered. Do not copy that reasoning into `spec.md`, promote it into a Clouds-specific register, or create a separate decision file.
+- Identify every affected predecessor that the plan will supersede: code, tests, dependencies, configuration, feature flags, documentation, and duplicate execution paths. State how successor behavior will be proven before removal. Keep the scan bounded to the behavior and architecture being changed.
+- A routine technical plan inside the accepted behavior and approved envelope does not require user approval.
+- Provide a concise business-facing plan review when the user asks for one or when planning exposes a material choice. Cover requirement traceability, operational impact, controls, data obligations, material risks, exclusions, and acceptance coverage. Pause only when resolving the issue would change accepted business behavior, scope, acceptance, material risk, or the approved technology envelope.
+- Treat the temporary feature as a disposable delivery artifact: plan its traceable consolidation into the canonical living specification and deletion only after clean post-workflow review and verification.

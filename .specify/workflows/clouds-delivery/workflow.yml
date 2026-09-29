@@ -1,0 +1,132 @@
+schema_version: "1.0"
+
+workflow:
+  id: "clouds-delivery"
+  name: "Clouds AFK Delivery"
+  version: "1.4.0"
+  author: "Clouds Team"
+  description: "Runs upstream implementation and convergence until the active feature is complete."
+  integration: "codex"
+  model: "{{ inputs.model }}"
+
+requires:
+  speckit_version: ">=1.0.6,<1.0.7"
+  integrations:
+    any:
+      - "codex"
+
+inputs:
+  model:
+    type: string
+    default: ""
+    prompt: "Builder model selected and evidenced by the Clouds guide"
+  reviewer_model:
+    type: string
+    default: ""
+    prompt: "Read-only reviewer model independently selected and evidenced by the Clouds guide"
+  astra_user_requested:
+    type: string
+    default: "false"
+    enum:
+      - "false"
+      - "true"
+    prompt: "Set true only with the user's explicit Astra request recorded in the authorization evidence"
+  task_class:
+    type: string
+    default: "unknown"
+    enum:
+      - "unknown"
+      - "mechanical"
+      - "routine"
+      - "high-risk-deterministic"
+      - "consequential"
+      - "ambiguous"
+    prompt: "Task class evidenced by the approved plan and tasks"
+  oracle_evidence:
+    type: string
+    default: ""
+    prompt: "Use complete: followed by fail-before oracle evidence when required by the guide's risk rubric"
+  authorization_ref:
+    type: string
+    default: ""
+    prompt: "Reference to the user's accepted scope and local implementation authorization"
+  assignment_transition:
+    type: string
+    default: ""
+    prompt: "Empty for ordinary dispatch; otherwise exact canonical JSON for a verified ten-field assignment continuation or supersession"
+  reassessment_payload:
+    type: string
+    default: ""
+    prompt: "Empty unless a non-finding assignment transition binds a strict canonical JSON reassessment object"
+  approval_action:
+    type: string
+    default: ""
+    enum:
+      - ""
+      - "resume"
+      - "abort"
+    prompt: "Set only when resuming an approval pause"
+  approval_response:
+    type: string
+    default: ""
+    prompt: "The user's answer to the approval question"
+  limit_action:
+    type: string
+    default: ""
+    enum:
+      - ""
+      - "abort"
+    prompt: "Use abort to close a run stopped at the twelve-pass safety limit"
+
+steps:
+  - id: delivery-identity
+    type: clouds-delivery-pass
+    prepare_only: true
+  - id: delivery-pass-01
+    type: clouds-delivery-pass
+    previous_step: delivery-identity
+  - id: delivery-pass-02
+    type: clouds-delivery-pass
+    previous_step: delivery-pass-01
+  - id: delivery-pass-03
+    type: clouds-delivery-pass
+    previous_step: delivery-pass-02
+  - id: delivery-pass-04
+    type: clouds-delivery-pass
+    previous_step: delivery-pass-03
+  - id: delivery-pass-05
+    type: clouds-delivery-pass
+    previous_step: delivery-pass-04
+  - id: delivery-pass-06
+    type: clouds-delivery-pass
+    previous_step: delivery-pass-05
+  - id: delivery-pass-07
+    type: clouds-delivery-pass
+    previous_step: delivery-pass-06
+  - id: delivery-pass-08
+    type: clouds-delivery-pass
+    previous_step: delivery-pass-07
+  - id: delivery-pass-09
+    type: clouds-delivery-pass
+    previous_step: delivery-pass-08
+  - id: delivery-pass-10
+    type: clouds-delivery-pass
+    previous_step: delivery-pass-09
+  - id: delivery-pass-11
+    type: clouds-delivery-pass
+    previous_step: delivery-pass-10
+  - id: delivery-pass-12
+    type: clouds-delivery-pass
+    previous_step: delivery-pass-11
+
+  - id: convergence-safety-check
+    type: if
+    condition: "{{ steps.delivery-pass-12.output.status == 'tasks_appended' }}"
+    then:
+      - id: convergence-safety-stop
+        type: gate
+        message: "Clouds reached twelve convergence passes with work still pending. Inspect the active artifacts and workflow log; abort this run rather than treating it as complete."
+        options:
+          - "abort"
+        on_reject: "abort"
+        verdict_input: "limit_action"

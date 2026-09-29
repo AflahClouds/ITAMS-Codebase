@@ -1,12 +1,14 @@
 ---
-name: "speckit-analyze"
-description: "Perform a non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md after task generation."
-compatibility: "Requires spec-kit project structure with .specify/ directory"
+name: speckit-analyze
+description: Perform a non-destructive cross-artifact consistency and quality analysis
+  across spec.md, plan.md, and tasks.md after task generation.
+compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: "github-spec-kit"
-  source: "templates/commands/analyze.md"
+  author: github-spec-kit
+  source: preset:clouds-core
 ---
 
+# Speckit Analyze Skill
 
 ## User Input
 
@@ -21,12 +23,12 @@ You **MUST** consider the user input before proceeding (if not empty).
 **Check for extension hooks (before analysis)**:
 - Check if `.specify/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.before_analyze` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
+- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
+- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `$speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
     ```
@@ -54,19 +56,19 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Goal
 
-Identify inconsistencies, duplications, ambiguities, and underspecified items across the three core artifacts (`spec.md`, `plan.md`, `tasks.md`) before implementation. This command MUST run only after `/speckit-tasks` has successfully produced a complete `tasks.md`.
+Identify inconsistencies, duplications, ambiguities, and underspecified items across the three core artifacts (`spec.md`, `plan.md`, `tasks.md`) before implementation. This command MUST run only after `$speckit-tasks` has successfully produced a complete `tasks.md`.
 
 ## Operating Constraints
 
 **STRICTLY READ-ONLY**: Do **not** modify any files. Output a structured analysis report. Offer an optional remediation plan (user must explicitly approve before any follow-up editing commands would be invoked manually).
 
-**Constitution Authority**: The project constitution (`.specify/memory/constitution.md`) is **non-negotiable** within this analysis scope. Constitution conflicts are automatically CRITICAL and require adjustment of the spec, plan, or tasks—not dilution, reinterpretation, or silent ignoring of the principle. If a principle itself needs to change, that must occur in a separate, explicit constitution update outside `/speckit-analyze`.
+**Constitution Authority**: The project constitution (`.specify/memory/constitution.md`) is **non-negotiable** within this analysis scope. Constitution conflicts are automatically CRITICAL and require adjustment of the spec, plan, or tasks—not dilution, reinterpretation, or silent ignoring of the principle. If a principle itself needs to change, that must occur in a separate, explicit constitution update outside `$speckit-analyze`.
 
 ## Execution Steps
 
 ### 1. Initialize Analysis Context
 
-Run `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
+Run `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireSpec -RequireTasks -IncludeTasks` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
 
 - SPEC = FEATURE_DIR/spec.md
 - PLAN = FEATURE_DIR/plan.md
@@ -196,9 +198,9 @@ Output a Markdown report (no file writes) with the following structure:
 
 At end of report, output a concise Next Actions block:
 
-- If CRITICAL issues exist: Recommend resolving before `/speckit-implement`
+- If CRITICAL issues exist: Recommend resolving before `$speckit-implement`
 - If only LOW/MEDIUM: User may proceed, but provide improvement suggestions
-- Provide explicit command suggestions: e.g., "Run /speckit-specify with refinement", "Run /speckit-plan to adjust architecture", "Manually edit tasks.md to add coverage for 'performance-metrics'"
+- Provide explicit command suggestions: e.g., "Run $speckit-specify with refinement", "Run $speckit-plan to adjust architecture", "Manually edit tasks.md to add coverage for 'performance-metrics'"
 
 ### 8. Offer Remediation
 
@@ -208,12 +210,12 @@ Ask the user: "Would you like me to suggest concrete remediation edits for the t
 
 After reporting, check if `.specify/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.after_analyze` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
+- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
+- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `$speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
     ```
@@ -257,3 +259,34 @@ After reporting, check if `.specify/extensions.yml` exists in the project root.
 ## Context
 
 $ARGUMENTS
+
+
+## Clouds v1 analysis policy
+
+## Clouds living-spec addition
+
+Report a finding when a plan edits the canonical living spec before verified temporary delivery, lacks separate explicit Specify and Clarify transition approvals, lacks accepted scope or exact revision-bound local-AFK authority, omits a stop condition, routes Bug without it being installed/enabled or separately authorized, or lacks temporary-to-canonical traceability.
+
+Also report zero-Clarify wording, a direct-Codex portable handoff, default Work routing, optional review, parallel writers/review of a changing candidate, silent purpose/model changes, missing payload/HEAD/checklist/tag binding, project-policy overwrite, unjustified overlapping complexity, or a plan that makes the installed delivery step execute maintainer-only candidate/release work.
+
+Report a stage-evidence finding when a Chat repository handoff relies only on its own `Specify approved`, `Clarify approved`, `Scope accepted`, or `Authorization: combined-local-afk` assertion instead of accessible user decisions; when a repository-free skill omits its constitution, active feature pointer, persistent `plan.md`/`research.md`/`quickstart.md`/`tasks.md`, applicable data model/contracts, or Analyze/Implement/Converge evidence; or when a user-initiated specification change is treated as a Clarify-only continuation. A guide-raised question within the approved design may resume Clarify after affected artifact/checklist and authority revalidation.
+
+In addition to the upstream read-only analysis, report a finding when:
+
+- a plan or task changes accepted business behavior or the approved technology envelope without explicit approval;
+- work mutates the canonical living specification before the temporary change is verified;
+- temporary-to-canonical traceability omits a still-current obligation or fails to identify a superseded obligation;
+- a temporary specification conflicts with an approved requirement, decision, or materially relevant intent or rationale without a recorded resolution;
+- high-risk deterministic data implementation is not preceded by specific failing-test tasks;
+- a consequential deterministic example, expected value, boundary, negative case, or reconciliation/invariant obligation in the specification has no traceable fail-before/pass-after test task;
+- an affected predecessor lacks successor proof and removal work;
+- tasks permit obsolete code, tests, dependencies, configuration, flags, documentation, or duplicate execution paths to remain without a current specification requirement and removal condition;
+- tasks omit the single repository-wide closeout review covering both self-description and stale-material removal;
+- completed logical implementation groups have no safe Git checkpoint plan.
+
+Report a governance finding if the planned work develops directly on `main` (or the project's designated stable branch), treats implementation or combined local-AFK authority as development-push authorization, or treats development-push authorization as approval to merge or enable automatic merging. Local checkpoint commits are expected; push and promotion decisions defer to the guide and constitution and are not implementation findings.
+
+Do not edit artifacts during analysis. End with exactly one machine-readable line:
+
+- `CLOUDS_ANALYSIS: clean` when no findings remain.
+- `CLOUDS_ANALYSIS: findings` when any finding remains.

@@ -1,12 +1,15 @@
 ---
-name: "speckit-converge"
-description: "Assess the current codebase against the feature's spec, plan, and tasks, then append any remaining unbuilt work as new tasks to tasks.md so implement can complete it."
-compatibility: "Requires spec-kit project structure with .specify/ directory"
+name: speckit-converge
+description: Assess the current codebase against the feature's spec, plan, and tasks,
+  then append any remaining unbuilt work as new tasks to tasks.md so implement can
+  complete it.
+compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
-  author: "github-spec-kit"
-  source: "templates/commands/converge.md"
+  author: github-spec-kit
+  source: preset:clouds-core
 ---
 
+# Speckit Converge Skill
 
 ## User Input
 
@@ -22,12 +25,12 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 - Check if `.specify/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.before_converge` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
+- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
+- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `$speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
 
@@ -65,8 +68,8 @@ source of intent** (with the constitution as governing constraints), assess the 
 state of the code, determine which requirements, acceptance criteria, plan decisions, and
 existing tasks are unmet, incomplete, or only partially satisfied, and **append each piece
 of remaining work as a new, traceable task** at the bottom of `tasks.md` so that
-`/speckit-implement` can complete it. This command MUST run only after
-`/speckit-implement` has run on the current `tasks.md`, and after `/speckit-tasks` has produced a complete `tasks.md`.
+`$speckit-implement` can complete it. This command MUST run only after
+`$speckit-implement` has run on the current `tasks.md`, and after `$speckit-tasks` has produced a complete `tasks.md`.
 
 This is **not** a diff tool and does **not** track changes. It assesses the present state
 of the code relative to the feature's artifacts — no git, no branch comparison, no history.
@@ -80,7 +83,7 @@ of the code relative to the feature's artifacts — no git, no branch comparison
 - rewrite, renumber, reorder, or delete any existing task (including tasks from a prior
   Convergence phase);
 - modify, create, or delete any application code — completing the appended tasks is the
-  job of `/speckit-implement`.
+  job of `$speckit-implement`.
 
 When the codebase already satisfies everything, the command MUST leave `tasks.md`
 **byte-for-byte unchanged** (no empty Convergence header) and report a clean result.
@@ -94,15 +97,15 @@ skip constitution checks gracefully rather than failing.
 
 ### 1. Initialize Convergence Context
 
-Run `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
+Run `.specify/scripts/powershell/check-prerequisites.ps1 -Json -RequireSpec -RequireTasks -IncludeTasks` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
 
 - SPEC = FEATURE_DIR/spec.md
 - PLAN = FEATURE_DIR/plan.md
 - TASKS = FEATURE_DIR/tasks.md
 - CONSTITUTION = `.specify/memory/constitution.md` (if present)
 If `spec.md`, `plan.md`, or `tasks.md` is missing, STOP with a clear, actionable message naming the
-prerequisite command to run (`/speckit-specify` for a missing spec, `/speckit-plan` for a missing plan,
-`/speckit-tasks` for missing tasks). Do not produce partial output.
+prerequisite command to run (`$speckit-specify` for a missing spec, `$speckit-plan` for a missing plan,
+`$speckit-tasks` for missing tasks). Do not produce partial output.
 For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
 ### 2. Load Artifacts (Progressive Disclosure)
@@ -231,7 +234,7 @@ Append to the **end** of `tasks.md`, per the append contract:
 ### 8. Provide Next Actions (Handoff)
 
 - On `tasks_appended`: state how many tasks were appended under which phase, and recommend
-  running `/speckit-implement` to complete them; note that a follow-up converge
+  running `$speckit-implement` to complete them; note that a follow-up converge
   run will find fewer or no remaining items.
 - On `converged`: recommend proceeding to review / opening a PR. No further implement pass
   is needed for this feature's specified scope.
@@ -241,14 +244,14 @@ Append to the **end** of `tasks.md`, per the append contract:
 After producing the result, check if `.specify/extensions.yml` exists in the project root.
 
 - If it exists, read it and look for entries under the `hooks.after_converge` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
+- If the YAML cannot be parsed or is invalid, do not skip silently: tell the user that `.specify/extensions.yml` could not be read (include the parser error) and that no hooks were checked, including any mandatory (`optional: false`) hooks registered there, then continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
 - Report the convergence outcome (`converged` or `tasks_appended`) in-session before listing
   any hooks, so users can decide whether to run optional follow-up commands.
-- When constructing slash commands from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
+- When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `$speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
 
@@ -275,3 +278,34 @@ After producing the result, check if `.specify/extensions.yml` exists in the pro
     After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session (the invocation may differ from the literal `{command}` id shown above, e.g. a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`). Emitting the block alone does not run the hook.
 
 - If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+
+
+## Clouds v1 convergence policy
+
+## Clouds living-spec addition
+
+Treat closeout as a repair/recheck/re-review discipline: findings return to the sole builder, impacted and relevant broader checks rerun, and independent review repeats until clean. Do not delete temporary artifacts or restore canonical routing during the task ledger; those are guide-owned post-workflow obligations.
+
+After native convergence is clean, return control to the guide for post-convergence canonical consolidation and checklist review, temporary-artifact deletion, routing restoration, and post-cleanup checks. None of these guide-owned obligations is an unchecked `tasks.md` item. The native delivery step does not run this maintainer repository's release/candidate checks in an installed project. Any closeout finding returns to the same builder and read-only reviewer sequence; uncertain destructive work or missing external authority still stops.
+
+Extend the upstream intent inventory with the predecessor list and the final pre-closeout repository-wide task from `tasks.md`. In one review, inspect the entire active tree for both outcomes:
+
+- repository context is sufficient for a fresh competent person or agent to understand the system, modify and test it safely, operate affected production behavior when applicable, and resume unfinished work without chat history;
+- no confirmed stale or superseded code, tests, dependency, configuration, flag, documentation, example, generated artifact, or duplicate execution path remains.
+
+For normal/manual upstream `$speckit-converge`, append traceable pre-closeout context, implementation cleanup, checkpoint, or verification tasks using the upstream append-only contract; never edit implementation or documentation during converge. A separate `STATUS.md` is not required when the existing feature artifacts, tasks, native workflow state, Git history, and agent-context block make resumption unambiguous. If a potential implementation deletion is uncertain or its intent cannot be established, append a user-approval task rather than assuming.
+
+When the existing `clouds-delivery` workflow invokes this command as its automated reviewer, that invocation is read-only: do not edit files, append tasks, or apply corrections. Return `CLOUDS_FINDINGS_JSON: []` when clean; otherwise return a JSON array of finding objects with `id`, `finding`, and `required_action`. In this automated-reviewer mode, `CLOUDS_CONVERGENCE: tasks_appended` means findings were returned for the builder to apply, not that the reviewer mutated `tasks.md`.
+
+Temporary change directories are disposable working artifacts, not intentional completed flow-forward history. Do not delete them during convergence; after clean convergence, require the guide-owned canonical review and checklist/reference validation before deletion.
+
+Convergence assesses local development work, not push or promotion to `main`. Awaiting affirmative push or merge approval is not an implementation gap: do not append a publication task solely to obtain a converged result, perform a push or merge, or enable automatic merging. Changes reach `main` only through a separately, explicitly user-approved promotion.
+
+Before declaring convergence, check the active tree's tracked project files as appropriate, including dependency manifests, references to removed paths or names, project documentation, repository commands, deterministic test coverage, Git checkpoint coverage, and the latest verification results. Missing pre-closeout context, implementation cleanup, checkpoint, or verification work means the result is `tasks_appended`; guide-owned post-convergence work is not a convergence blocker.
+
+End the response with exactly one machine-readable line after all other output:
+
+- `CLOUDS_CONVERGENCE: tasks_appended` for normal/manual upstream converge when one or more tasks were appended; for the automated `clouds-delivery` reviewer when non-empty structured findings were returned and `tasks.md` is unchanged.
+- `CLOUDS_CONVERGENCE: clean` only when `tasks.md` is byte-for-byte unchanged and all Clouds checks are clean.
+- `CLOUDS_CONVERGENCE: approval_required` when a specific user decision is required; state the concrete question before this final line.
+- `CLOUDS_CONVERGENCE: blocked` when work cannot continue; state the blocker before this final line.
