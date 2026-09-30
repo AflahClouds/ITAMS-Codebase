@@ -49,11 +49,11 @@ _ASSIGNMENT_TRANSITION_KEYS = frozenset(
     }
 )
 _ROLE_PURPOSES = {
-    "builder": "Implement the accepted feature and repair verified findings.",
+    "builder": "Implement the accepted feature one local issue at a time and repair verified findings.",
     "reviewer": "Independently review the stable candidate without writing.",
 }
 _PHASE_PROMPTS = {
-    "implementation": "Implement the accepted feature as the sole writer.",
+    "implementation": "Implement one bound local issue as the sole writer.",
     "repair": "Repair only the canonicalized reviewer findings as the sole writer.",
     "review": "Independently review the frozen candidate without writing.",
     "re-review": "Re-review the repaired frozen candidate without writing.",
@@ -220,20 +220,40 @@ class CloudsDeliveryPassStep(StepBase):
             )
 
         tasks_path = self._feature_file(root, identity, "tasks.md")
+        self._verify_baseline_worktree(root, identity)
+        issues_before = self._issues_evidence(root, identity)
+        active_issue = (
+            None if prior.get("review_findings") else self._next_issue(issues_before)
+        )
+        if active_issue is None and not prior.get("review_findings"):
+            raise DeliveryEvidenceError(
+                "No open local issue remains for an implementation pass."
+            )
+        tasks_before = self._task_evidence(tasks_path)
         builder_head = self._require_expected_head(root, identity)
         self._record_invocation_binding(
             identity,
             "builder",
             "repair" if prior.get("review_findings") else "implementation",
-            transition_payload,
+            transition_payload
+            if active_issue is None
+            else {"issue": active_issue, "sha256": issues_before[active_issue]["sha256"]},
+        )
+        issue_prompt = (
+            "Continue the active authorized feature. The user approved one local "
+            "issue per builder pass. For this invocation, complete only "
+            f"{identity['feature_directory']}/issues/{active_issue}, its listed "
+            "tasks and tests, issue evidence, and one stable local checkpoint. "
+            "Leave later issues untouched. Do not push or perform remote operations."
+            if active_issue else
+            "Repair the structured reviewer findings as the same bounded builder. "
+            "Complete any affected tasks and verification, then commit a stable "
+            "local checkpoint. Do not push or perform remote operations."
         )
         implementation = self._invoke(
             "implementation",
             "speckit.implement",
-            "Continue the active authorized feature. Complete all unchecked tasks, "
-            "including required verification, documentation, cleanup, and stable "
-            "local checkpoint commits. Do not push or perform remote operations."
-            + self._review_finding_context(prior),
+            issue_prompt + self._review_finding_context(prior),
             root,
             model,
         )
@@ -248,7 +268,9 @@ class CloudsDeliveryPassStep(StepBase):
                 identity,
                 "implementation",
                 implementation,
-                self._task_evidence(tasks_path),
+                tasks_before,
+                active_issue=active_issue,
+                issues_before=issues_before,
             )
         if implementation["status"] == "blocked":
             raise DeliveryEvidenceError(
@@ -259,6 +281,13 @@ class CloudsDeliveryPassStep(StepBase):
             root, identity, model, reviewer_model, astra_user_requested,
             authorization_ref, task_class, oracle_evidence
         )
+        if active_issue is not None:
+            return self._finish_issue_pass(
+                root, identity, active_issue, issues_before, tasks_before,
+                implementation["message"],
+                model, reviewer_model, astra_user_requested,
+                authorization_ref, task_class, oracle_evidence,
+            )
         return self._run_convergence(
             root,
             model,
@@ -270,6 +299,70 @@ class CloudsDeliveryPassStep(StepBase):
             oracle_evidence,
             self._task_evidence(tasks_path),
             implementation["message"],
+        )
+
+    def _finish_issue_pass(
+        self,
+        root: Path,
+        identity: dict[str, Any],
+        active_issue: str,
+        issues_before: dict[str, dict[str, Any]],
+        tasks_before: dict[str, Any],
+        implementation_message: str,
+        model: str,
+        reviewer_model: str,
+        astra_user_requested: str,
+        authorization_ref: str,
+        task_class: str,
+        oracle_evidence: str,
+    ) -> StepResult:
+        issues_after = self._issues_evidence(root, identity)
+        if self._next_issue(issues_before) != active_issue:
+            raise DeliveryEvidenceError("Completed issue was not the next open local issue.")
+        if set(issues_after) != set(issues_before):
+            raise DeliveryEvidenceError("Builder changed the local issue inventory.")
+        for name in issues_before:
+            if name != active_issue and issues_after[name] != issues_before[name]:
+                raise DeliveryEvidenceError(
+                    f"Builder changed {name} outside the bound issue pass."
+                )
+        if issues_after[active_issue]["unchecked"] != 0:
+            raise DeliveryEvidenceError(
+                f"Builder reported completion while {active_issue} remains open."
+            )
+        tasks_after = self._task_evidence(self._feature_file(root, identity, "tasks.md"))
+        if tasks_after["unchecked"] >= tasks_before["unchecked"]:
+            raise DeliveryEvidenceError(
+                f"Builder completed {active_issue} without reducing unchecked tasks."
+            )
+        self._verify_baseline_worktree(root, identity)
+        next_issue = self._next_issue(issues_after)
+        if next_issue is not None:
+            return StepResult(
+                status=StepStatus.COMPLETED,
+                output={
+                    "status": "issue_completed",
+                    "identity": identity,
+                    "completed_issue": active_issue,
+                    "next_issue": next_issue,
+                    "issues_after_phase": issues_after,
+                    "tasks_after_phase": tasks_after,
+                    "implementation_message": implementation_message,
+                    "pass_head": self._current_head(root),
+                },
+            )
+        if tasks_after["unchecked"] != 0:
+            raise DeliveryEvidenceError(
+                "All local issues closed while tasks.md still has unchecked work."
+            )
+        self._verify_identity(
+            root, identity, model, reviewer_model, astra_user_requested,
+            authorization_ref, task_class, oracle_evidence,
+        )
+        return self._run_convergence(
+            root, model, reviewer_model, astra_user_requested,
+            authorization_ref, identity, task_class, oracle_evidence,
+            tasks_after, implementation_message,
         )
 
     def _resume_approval(
@@ -335,17 +428,34 @@ class CloudsDeliveryPassStep(StepBase):
         tasks_path = self._feature_file(root, identity, "tasks.md")
 
         if phase == "implementation":
+            active_issue = paused.get("active_issue")
+            issues_before = paused.get("issues_before_phase")
+            if active_issue is not None and (
+                not isinstance(active_issue, str)
+                or not isinstance(issues_before, dict)
+                or active_issue not in issues_before
+            ):
+                raise DeliveryEvidenceError("Paused issue binding is invalid.")
             builder_head = self._require_expected_head(root, identity)
             self._record_invocation_binding(
                 identity,
                 "builder",
                 "repair" if paused.get("review_findings") else "implementation",
-                transition_payload,
+                transition_payload
+                if active_issue is None
+                else {"issue": active_issue, "sha256": issues_before[active_issue]["sha256"]},
+            )
+            issue_prompt = (
+                f"Resume only {identity['feature_directory']}/issues/{active_issue}. "
+                "Finish its tests, task markers, issue evidence, and local checkpoint. "
+                "Leave later issues untouched."
+                if active_issue is not None
+                else "Resume the paused reviewer-finding repair."
             )
             implementation = self._invoke(
                 "implementation",
                 "speckit.implement",
-                "Resume the paused active feature without changing its accepted scope."
+                issue_prompt
                 + self._review_finding_context(paused)
                 + prompt_suffix,
                 root,
@@ -363,6 +473,8 @@ class CloudsDeliveryPassStep(StepBase):
                     "implementation",
                     implementation,
                     self._task_evidence(tasks_path),
+                    active_issue=active_issue,
+                    issues_before=issues_before,
                 )
             if implementation["status"] == "blocked":
                 raise DeliveryEvidenceError(
@@ -373,6 +485,13 @@ class CloudsDeliveryPassStep(StepBase):
                 root, identity, model, reviewer_model, astra_user_requested,
                 authorization_ref, task_class, oracle_evidence
             )
+            if active_issue is not None:
+                return self._finish_issue_pass(
+                    root, identity, active_issue, issues_before,
+                    paused.get("tasks_before_phase", {}), implementation["message"],
+                    model, reviewer_model, astra_user_requested,
+                    authorization_ref, task_class, oracle_evidence,
+                )
             return self._run_convergence(
                 root,
                 model,
@@ -552,6 +671,9 @@ class CloudsDeliveryPassStep(StepBase):
         result: dict[str, str],
         tasks_before: dict[str, Any],
         implementation_message: str = "",
+        *,
+        active_issue: str | None = None,
+        issues_before: dict[str, dict[str, Any]] | None = None,
     ) -> StepResult:
         question = self._message_body(result["message"])
         if not question:
@@ -568,6 +690,8 @@ class CloudsDeliveryPassStep(StepBase):
                 "tasks_before_phase": tasks_before,
                 "implementation_message": implementation_message,
                 "pause_head": identity.get("expected_head", ""),
+                "active_issue": active_issue,
+                "issues_before_phase": issues_before,
             },
         )
 
@@ -1406,6 +1530,48 @@ class CloudsDeliveryPassStep(StepBase):
             "sha256": hashlib.sha256(content).hexdigest(),
             "unchecked": len(_UNCHECKED_TASK.findall(text)),
         }
+
+    @staticmethod
+    def _issues_evidence(
+        root: Path, identity: dict[str, Any]
+    ) -> dict[str, dict[str, Any]]:
+        feature = (root / str(identity["feature_directory"])).resolve()
+        try:
+            feature.relative_to(root)
+        except ValueError as exc:
+            raise DeliveryEvidenceError("Stored feature directory escapes the project.") from exc
+        issue_dir = feature / "issues"
+        if not issue_dir.is_dir():
+            raise DeliveryEvidenceError("Active feature has no local issues directory.")
+        files = sorted(
+            path for path in issue_dir.glob("[0-9][0-9]-*.md") if path.is_file()
+        )
+        if not files:
+            raise DeliveryEvidenceError("Active feature has no numbered local issues.")
+        evidence: dict[str, dict[str, Any]] = {}
+        for path in files:
+            try:
+                path.resolve().relative_to(issue_dir.resolve())
+            except ValueError as exc:
+                raise DeliveryEvidenceError("Local issue escapes its directory.") from exc
+            content = path.read_bytes()
+            text = content.decode("utf-8-sig")
+            total = len(re.findall(r"(?m)^\s*- \[[ xX]\]", text))
+            if total == 0:
+                raise DeliveryEvidenceError(f"Local issue {path.name} has no checkboxes.")
+            evidence[path.name] = {
+                "sha256": hashlib.sha256(content).hexdigest(),
+                "unchecked": len(_UNCHECKED_TASK.findall(text)),
+                "total": total,
+            }
+        return evidence
+
+    @staticmethod
+    def _next_issue(issues: dict[str, dict[str, Any]]) -> str | None:
+        return next(
+            (name for name in sorted(issues) if issues[name]["unchecked"]),
+            None,
+        )
 
     @staticmethod
     def _sha256(path: Path) -> str:
