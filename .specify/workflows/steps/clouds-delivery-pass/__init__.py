@@ -8,6 +8,9 @@ import os
 import re
 import shutil
 import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -857,23 +860,85 @@ class CloudsDeliveryPassStep(StepBase):
         else:
             argv.extend(("--sandbox", selected_permission))
         argv.extend(("--ephemeral", "--json"))
+        progress_dir = root / ".specify" / "workflows" / "runs" / "child-progress"
+        progress_dir.mkdir(parents=True, exist_ok=True)
+        progress_path = progress_dir / f"{time.time_ns()}.jsonl"
+        with progress_path.open("x", encoding="utf-8") as progress:
+            def record(value: dict[str, Any]) -> None:
+                progress.write(json.dumps({
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    **value,
+                }) + "\n")
+                progress.flush()
+
+            def collect(stream: Any, report: bool) -> str:
+                lines: list[str] = []
+                for line in stream:
+                    lines.append(line)
+                    if report:
+                        record(CloudsDeliveryPassStep._progress_event(line))
+                return "".join(lines)
+
+            with subprocess.Popen(
+                argv, cwd=str(root), env=child_env,
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
+            ) as child, ThreadPoolExecutor(max_workers=2) as readers:
+                record({"event": "child_started", "pid": child.pid,
+                        "model": model, "permission": selected_permission})
+                stdout = readers.submit(collect, child.stdout, True)
+                stderr = readers.submit(collect, child.stderr, False)
+                try:
+                    child.wait(timeout=7200)
+                except subprocess.TimeoutExpired as exc:
+                    child.kill()
+                    child.wait()
+                    stdout.result()
+                    stderr.result()
+                    record({"event": "child_timeout", "pid": child.pid})
+                    raise DeliveryEvidenceError(
+                        f"Codex {command} exceeded the two-hour execution limit."
+                    ) from exc
+                output, errors = stdout.result(), stderr.result()
+                record({"event": "child_exited", "pid": child.pid,
+                        "exit_code": child.returncode})
+                return subprocess.CompletedProcess(argv, child.returncode, output, errors)
+
+    @staticmethod
+    def _progress_event(raw: str) -> dict[str, Any]:
+        """Keep protocol metadata only; omit prompts, commands, output and messages."""
         try:
-            return subprocess.run(
-                argv,
-                cwd=str(root),
-                env=child_env,
-                stdin=subprocess.DEVNULL,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                capture_output=True,
-                timeout=7200,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise DeliveryEvidenceError(
-                f"Codex {command} exceeded the two-hour execution limit."
-            ) from exc
+            event = json.loads(raw)
+        except json.JSONDecodeError:
+            return {"event": "unparsed_line"}
+        if not isinstance(event, dict):
+            return {"event": "unparsed_line"}
+        event_type = event.get("type")
+        allowed_events = {
+            "thread.started", "turn.started", "turn.completed", "turn.failed",
+            "item.started", "item.updated", "item.completed", "error",
+        }
+        result: dict[str, Any] = {
+            "event": event_type
+            if isinstance(event_type, str) and event_type in allowed_events else "other",
+        }
+        item = event.get("item")
+        if isinstance(item, dict):
+            item_type = item.get("type")
+            allowed_items = {
+                "agent_message", "reasoning", "command_execution", "file_change",
+                "mcp_tool_call", "web_search", "todo_list", "collab_tool_call",
+            }
+            result["item_type"] = item_type
+            if not isinstance(item_type, str) or item_type not in allowed_items:
+                result["item_type"] = "other"
+            if isinstance(item.get("status"), str) and item["status"] in {
+                "in_progress", "completed", "failed",
+            }:
+                result["status"] = item["status"]
+            if isinstance(item.get("exit_code"), int):
+                result["exit_code"] = item["exit_code"]
+        return result
 
     @staticmethod
     def _parse_jsonl(

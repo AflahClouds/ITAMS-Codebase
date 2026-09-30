@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import importlib.util
+import io
+import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 STEP_FILE = Path(__file__).resolve().parents[1] / "steps" / "clouds-delivery-pass" / "__init__.py"
@@ -90,6 +93,55 @@ class IssueDeliveryTests(unittest.TestCase):
             )
         self.assertEqual(result, "review dispatched")
         review.assert_called_once()
+
+
+class RunnerProgressTests(unittest.TestCase):
+    def test_progress_omits_commands_outputs_and_messages(self):
+        raw = json.dumps({
+            "type": "item.completed",
+            "item": {"type": "command_execution", "status": "completed",
+                     "exit_code": 0, "command": "secret command",
+                     "aggregated_output": "private output", "text": "private message"},
+        })
+        self.assertEqual(Step._progress_event(raw), {
+            "event": "item.completed", "item_type": "command_execution",
+            "status": "completed", "exit_code": 0,
+        })
+
+    def test_runner_preserves_builder_and_reviewer_permissions(self):
+        for command, permission in (("speckit.implement", "workspace-write"),
+                                    ("speckit.converge", "read-only")):
+            with self.subTest(permission=permission), tempfile.TemporaryDirectory() as directory:
+                child = MagicMock()
+                child.__enter__.return_value = child
+                child.stdout = io.StringIO('{"type":"turn.completed"}\n')
+                child.stderr = io.StringIO("warning\n")
+                child.pid, child.returncode = 123, 0
+                login = subprocess.CompletedProcess([], 0, "Logged in using ChatGPT", "")
+                with patch.dict(MODULE.os.environ, {
+                    "SPECKIT_INTEGRATION_CODEX_EXECUTABLE": "codex.exe",
+                    "SPECKIT_INTEGRATION_CODEX_EXTRA_ARGS": "",
+                    "OPENAI_API_KEY": "test-secret",
+                }), patch.object(MODULE.subprocess, "run", return_value=login), patch.object(
+                    MODULE.subprocess, "Popen", return_value=child
+                ) as launch:
+                    result = Step._run_codex(command, "diagnostic", Path(directory), "gpt-6-sol")
+                argv = launch.call_args.args[0]
+                self.assertNotIn("OPENAI_API_KEY", launch.call_args.kwargs["env"])
+                self.assertIn("--ephemeral", argv)
+                self.assertIn("--json", argv)
+                if permission == "workspace-write":
+                    self.assertIn("--approve-for-me", argv)
+                    self.assertNotIn("--sandbox", argv)
+                else:
+                    self.assertNotIn("--approve-for-me", argv)
+                    self.assertEqual(argv[argv.index("--sandbox") + 1], "read-only")
+                self.assertEqual(result.stdout, '{"type":"turn.completed"}\n')
+                self.assertEqual(result.stderr, "warning\n")
+                log = next((Path(directory) / ".specify/workflows/runs/child-progress").glob("*.jsonl"))
+                records = [json.loads(line) for line in log.read_text().splitlines()]
+                self.assertEqual([entry["event"] for entry in records],
+                                 ["child_started", "turn.completed", "child_exited"])
 
 
 if __name__ == "__main__":
