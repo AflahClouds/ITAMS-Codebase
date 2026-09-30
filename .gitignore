@@ -2,6 +2,9 @@
 __pycache__/
 *.py[cod]
 backend/Env/
+.venv/
+venv/
+*.egg-info/
 
 # Django
 backend/db.sqlite3
@@ -11,7 +14,10 @@ backend/media/
 frontend/node_modules/
 frontend/dist/
 frontend/dist-ssr/
+dist/
+build/
 *.local
+.env*
 
 # Logs
 *.log
@@ -24,3 +30,6 @@ yarn-error.log*
 !.vscode/extensions.json
 .idea
 .DS_Store
+Thumbs.db
+*.tmp
+*.swp

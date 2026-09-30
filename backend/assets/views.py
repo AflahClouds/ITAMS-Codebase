@@ -2,9 +2,9 @@ from datetime import date as date_cls
 
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Max, Q
+from django.db.models import Max, Prefetch, Q
 from rest_framework import status as http_status
-from rest_framework import viewsets
+from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -16,10 +16,11 @@ from core.services import get_profile, log_action, notify_many
 
 from .barcodes import generate_asset_barcode
 from .checkout import check_in, check_out
+from .custody import assign
 from .models import (ASSET_CONDITIONS, TERMINAL_STATUSES, AmcContract, Asset,
-                     AssetCheckout, AssetConditionLog, AssetDocument, AssetImage,
+                     AssetAssignment, AssetCheckout, AssetConditionLog, AssetDocument, AssetImage,
                      AssetTransfer, LifecycleError, Procurement, ServiceRecord)
-from .serializers import (AmcContractSerializer, AssetDocumentSerializer,
+from .serializers import (AmcContractSerializer, AssignmentSerializer, AssetDocumentSerializer,
                           AssetImageSerializer, AssetSerializer,
                           CheckoutSerializer, ConditionLogSerializer,
                           ProcurementSerializer, ServiceRecordSerializer,
@@ -63,7 +64,12 @@ class AssetViewSet(viewsets.ModelViewSet):
                       "renew_amc": "asset_edit", "end_amc_support": "asset_edit"}
     queryset = Asset.objects.all().select_related(
         'category', 'brand', 'model', 'location', 'custodian', 'department',
-        'procurement').order_by('-id')
+        'procurement').prefetch_related(
+        Prefetch('assignments', queryset=AssetAssignment.objects.filter(status="Open"),
+                 to_attr='active_assignments'),
+        Prefetch('checkouts', queryset=AssetCheckout.objects.filter(status="Open"),
+                 to_attr='active_checkouts'),
+    ).order_by('-id')
     serializer_class = AssetSerializer
 
     def get_queryset(self):
@@ -197,6 +203,8 @@ class AssetViewSet(viewsets.ModelViewSet):
     def history(self, request, pk=None):
         asset = self.get_object()
         return Response({
+            "assignments": AssignmentSerializer(
+                asset.assignments.order_by('-issued_at'), many=True).data,
             "checkouts": CheckoutSerializer(
                 asset.checkouts.order_by('-checkout_date'), many=True).data,
             "transfers": TransferSerializer(
@@ -395,6 +403,41 @@ class AssetDocumentViewSet(viewsets.ModelViewSet):
         log_action(self.request, "Document Delete", "Assets", old_value=instance.file_name)
         instance.file.delete(save=False)
         instance.delete()
+
+
+# ---------- Ongoing Assignments ----------
+
+class AssignmentViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
+    permission_classes = [HasRolePermission]
+    permission_map = {"list": "asset_view", "retrieve": "asset_view",
+                      "create": "asset_custody_manage"}
+    serializer_class = AssignmentSerializer
+    queryset = AssetAssignment.objects.all().select_related(
+        'asset', 'user', 'issued_by', 'closed_by').order_by('-issued_at', '-id')
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        profile = scoped_profile(self.request)
+        if profile is not None:
+            qs = qs.filter(user=profile)
+        asset_id = self.request.query_params.get('asset')
+        if asset_id:
+            qs = qs.filter(asset_id=asset_id)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            assignment = assign(
+                data['asset'], data['user'], get_profile(request),
+                remarks=data.get('remarks', ""), request=request,
+            )
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(assignment).data,
+                        status=http_status.HTTP_201_CREATED)
 
 
 # ---------- Checkouts ----------

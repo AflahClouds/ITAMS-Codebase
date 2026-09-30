@@ -11,11 +11,13 @@ import { useAuth } from '../../auth/useAuth';
 
 const Transfers = () => {
   const [rows, setRows] = useState([]);
+  const [assignments, setAssignments] = useState([]);
   const [message, setMessage] = useState(null);
   const { can } = useAuth();
 
   const load = () => {
     AxiosInstance.get('/transfer/').then((res) => setRows(res.data));
+    AxiosInstance.get('/assignment/').then((res) => setAssignments(res.data));
   };
 
   useEffect(() => { load(); }, []);
@@ -76,22 +78,45 @@ const Transfers = () => {
     },
   ], []);
 
+  const assignmentColumns = useMemo(() => [
+    { accessorFn: (r) => r.asset_details?.asset_id, id: 'asset', header: 'Asset' },
+    { accessorFn: (r) => r.user_details?.user_name, id: 'holder', header: 'Employee' },
+    { accessorKey: 'issue_condition', header: 'Issue Condition' },
+    { accessorKey: 'issued_at', header: 'Issued At' },
+    { accessorKey: 'status', header: 'Status' },
+  ], []);
+
   return (
     <div>
       <Box className={'TopBar'}>
         <SwapHorizIcon />
         <Typography sx={{ marginLeft: '10px', fontWeight: 'bold' }} variant="subtitle2">
-          Asset Transfers
+          Assignments &amp; Transfers
         </Typography>
+        {can('asset_custody_manage') && (
+          <Button href="/transfer/assign" variant="contained" size="small"
+            sx={{ marginLeft: 'auto' }}>
+            Assign Asset
+          </Button>
+        )}
         {can('transfer_request') && (
           <Button href="/transfer/create" variant="contained" size="small"
-            sx={{ marginLeft: 'auto' }}>
+            sx={{ marginLeft: '8px' }}>
             Request Transfer
           </Button>
         )}
       </Box>
 
       {message}
+
+      <Typography variant="subtitle2" sx={{ marginTop: '16px', marginBottom: '8px' }}>
+        Ongoing Assignments
+      </Typography>
+      <MaterialReactTable columns={assignmentColumns} data={assignments} />
+
+      <Typography variant="subtitle2" sx={{ marginTop: '16px', marginBottom: '8px' }}>
+        Transfer Requests
+      </Typography>
 
       <MaterialReactTable
         columns={columns}

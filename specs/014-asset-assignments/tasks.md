@@ -10,19 +10,19 @@
 
 **Goal**: Establish the single custody invariant and schema without changing a user workflow yet.
 
-- [ ] T001 Add failing API/domain tests for incompatible concurrent or stale custody changes, partial-write rollback, custom-role permission denial, and exact active-arrangement identity in `backend/assets/tests_custody.py` (FR-003, ALR-001–003).
-- [ ] T002 Add the `AssetAssignment` record and Checkout administrative-closure/classification metadata described in `data-model.md`, with an additive migration and no physical-return backfill, in `backend/assets/models.py` and `backend/assets/migrations/0013_asset_assignment.py` (FR-003, FR-010–011).
-- [ ] T003 Implement one transactional custody transition boundary and read-only custody-type resolver, including current-holder checks, row locking where supported, uniqueness, audit coupling and safe notification scheduling, in `backend/assets/custody.py` (FR-003, ALR-002–004).
-- [ ] T004 Verify red-to-green foundational tests and migration compatibility on a populated legacy Checkout fixture in `backend/assets/tests_custody.py` and `backend/assets/migrations/0013_asset_assignment.py` (FR-003, FR-011).
+- [x] T001 Add failing API/domain tests for incompatible concurrent or stale custody changes, partial-write rollback, custom-role permission denial, and exact active-arrangement identity in `backend/assets/tests_custody.py` (FR-003, ALR-001–003).
+- [x] T002 Add the `AssetAssignment` record and Checkout administrative-closure/classification metadata described in `data-model.md`, with an additive migration and no physical-return backfill, in `backend/assets/models.py` and `backend/assets/migrations/0013_asset_assignment.py` (FR-003, FR-010–011).
+- [x] T003 Implement one transactional custody transition boundary and read-only custody-type resolver, including current-holder checks, row locking where supported, uniqueness, audit coupling and safe notification scheduling, in `backend/assets/custody.py` (FR-003, ALR-002–004).
+- [x] T004 Verify red-to-green foundational tests and migration compatibility on a populated legacy Checkout fixture in `backend/assets/tests_custody.py` and `backend/assets/migrations/0013_asset_assignment.py` (FR-003, FR-011).
 
 ## Phase 2: User Story 1 — Assign an everyday Asset (P1)
 
 **Independent test**: Authorized IT Assigns an Available Asset to an active employee; current Asset, ongoing history, audit and notification agree, without Checkout or Transfer.
 
-- [ ] T005 [US1] Add failing Assign API integration tests for AS-001–004, department-null, In Storage and terminal rejection, duplicate issue, custom-role permission and notification outcomes in `backend/assets/tests_custody.py` (FR-001–003, ALR-001–005).
-- [ ] T006 [US1] Implement Assign with explicit issue condition, active-user check, atomic Asset/Assignment/audit update, and `/assignment/` endpoint in `backend/assets/custody.py`, `backend/assets/serializers.py`, `backend/assets/views.py` and `backend/assets/urls.py` (FR-002–003, ALR-001–005).
-- [ ] T007 [US1] Add failing UI test for Assign form, eligibility, permission-gated action and ongoing label in `frontend/src/pages/transfer/Assignments.test.jsx` (FR-001–003).
-- [ ] T008 [US1] Add Assign action to the existing Transfer area and current-custody display in `frontend/src/pages/transfer/Transfers.jsx`, `frontend/src/pages/transfer/Create.jsx` and `frontend/src/pages/asset/Detail.jsx`; verify the UI test turns green (FR-001, FR-013).
+- [x] T005 [US1] Add failing Assign API integration tests for AS-001–004, department-null, In Storage and terminal rejection, duplicate issue, custom-role permission and notification outcomes in `backend/assets/tests_custody.py` (FR-001–003, ALR-001–005).
+- [x] T006 [US1] Implement Assign with explicit issue condition, active-user check, atomic Asset/Assignment/audit update, and `/assignment/` endpoint in `backend/assets/custody.py`, `backend/assets/serializers.py`, `backend/assets/views.py` and `backend/assets/urls.py` (FR-002–003, ALR-001–005).
+- [x] T007 [US1] Add failing UI test for Assign form, eligibility, permission-gated action and ongoing label in `frontend/src/pages/transfer/Assignments.test.jsx` (FR-001–003).
+- [x] T008 [US1] Add Assign action to the existing Transfer area and current-custody display in `frontend/src/pages/transfer/Transfers.jsx`, `frontend/src/pages/transfer/Create.jsx` and `frontend/src/pages/asset/Detail.jsx`; verify the UI test turns green (FR-001, FR-013).
 
 ## Phase 3: User Story 2 — Take Back a physical return (P1)
 

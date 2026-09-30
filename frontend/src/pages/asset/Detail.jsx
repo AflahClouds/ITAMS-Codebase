@@ -24,7 +24,7 @@ const AssetDetail = () => {
   const { id } = useParams();
   const [asset, setAsset] = useState(null);
   const [history, setHistory] = useState({
-    checkouts: [], transfers: [], condition_logs: [], services: [], amc_contracts: [],
+    assignments: [], checkouts: [], transfers: [], condition_logs: [], services: [], amc_contracts: [],
   });
   const [condition, setCondition] = useState('Good');
   const [notes, setNotes] = useState('');
@@ -186,6 +186,7 @@ const AssetDetail = () => {
               Custody & Warranty
             </Typography>
             <Row label="Custodian" value={asset.custodian_details?.user_name} />
+            <Row label="Custody Type" value={asset.custody_type} />
             <Row label="Department" value={asset.department_details?.name} />
             <Row label="Location" value={asset.location_details?.name} />
             <Row label="Warranty Start" value={asset.warranty_start} />
@@ -392,6 +393,28 @@ const AssetDetail = () => {
             </Paper>
           </Grid>
         )}
+
+        <Grid size={{ xs: 12, md: 3 }}>
+          <Paper sx={{ padding: '16px' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', marginBottom: '8px' }}>
+              Ongoing Assignments
+            </Typography>
+            {(history.assignments || []).length === 0 && (
+              <Typography variant="body2" color="text.secondary">No ongoing assignments.</Typography>)}
+            {(history.assignments || []).map((assignment) => (
+              <Box key={assignment.id} sx={{ padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <Typography variant="body2">
+                  {assignment.user_details?.user_name} — <Chip label={assignment.status} size="small" />
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Issued {new Date(assignment.issued_at).toLocaleString()}
+                  {assignment.issued_by_details && ` by ${assignment.issued_by_details.user_name}`}
+                  {` · ${assignment.issue_condition}`}
+                </Typography>
+              </Box>
+            ))}
+          </Paper>
+        </Grid>
 
         <Grid size={{ xs: 12, md: 3 }}>
           <Paper sx={{ padding: '16px' }}>

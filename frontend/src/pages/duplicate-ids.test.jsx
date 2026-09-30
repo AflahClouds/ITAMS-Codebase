@@ -16,8 +16,13 @@ vi.mock('../api/client', () => ({
 
 vi.mock('react-router', () => ({
   useNavigate: () => vi.fn(),
+  useLocation: () => ({ pathname: '/transfer/create' }),
   useParams: () => ({ id: '1' }),
   Link: ({ children, ...rest }) => <a {...rest}>{children}</a>,
+}));
+
+vi.mock('../auth/useAuth', () => ({
+  useAuth: () => ({ can: () => true }),
 }));
 
 import AssetCreate from './asset/Create';

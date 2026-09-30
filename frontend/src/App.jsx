@@ -79,6 +79,7 @@ function App() {
 
                 {/* Transfer Routes */}
                 <Route path="/transfer" element={<ProtectedRoute permission="asset_view"><Transfers /></ProtectedRoute>} />
+                <Route path="/transfer/assign" element={<ProtectedRoute permission="asset_custody_manage"><TransferCreate /></ProtectedRoute>} />
                 <Route path="/transfer/create" element={<ProtectedRoute permission="transfer_request"><TransferCreate /></ProtectedRoute>} />
 
                 {/* Procurement Routes */}

@@ -12,8 +12,9 @@ from catalog.serializers import (BrandSerializer, CategorySerializer,
                                  VendorSerializer)
 
 from .checkout import close_all_open_checkouts
+from .custody import custody_type
 from .models import (ASSET_CONDITIONS, ASSET_STATUSES, LIFECYCLE_MANAGED_STATUSES,
-                     TERMINAL_STATUSES, AmcContract, Asset, AssetCheckout,
+                     TERMINAL_STATUSES, AmcContract, Asset, AssetAssignment, AssetCheckout,
                      AssetConditionLog, AssetDocument, AssetImage, AssetTransfer,
                      Procurement, ProcurementArrival, ProcurementAssetLink,
                      ServiceRecord)
@@ -55,6 +56,7 @@ class AssetSerializer(serializers.ModelSerializer):
     department_details = DepartmentSerializer(source='department', read_only=True)
     custodian_details = UserLiteSerializer(source='custodian', read_only=True)
     procurement_details = ProcurementLiteSerializer(source='procurement', read_only=True)
+    custody_type = serializers.SerializerMethodField()
     has_procurement = serializers.SerializerMethodField()
     warranty_days_left = serializers.ReadOnlyField()
     has_amc = serializers.BooleanField(required=False, default=False)
@@ -77,6 +79,9 @@ class AssetSerializer(serializers.ModelSerializer):
 
     def get_has_procurement(self, obj):
         return obj.procurement_id is not None
+
+    def get_custody_type(self, obj):
+        return custody_type(obj)
 
     def get_barcode_url(self, obj):
         if not obj.barcode_path:
@@ -421,7 +426,26 @@ class CheckoutSerializer(serializers.ModelSerializer):
         # return_condition and return_remarks are written by check_in, not by a
         # client PATCH — the checkout record is created with intake data only.
         read_only_fields = ('checkout_date', 'return_date', 'approved_by',
-                            'return_condition', 'return_remarks', 'status')
+                            'return_condition', 'return_remarks', 'status',
+                            'classification', 'closure_reason', 'closed_at',
+                            'classified_at', 'classified_by', 'superseded_by_transfer')
+
+
+class AssignmentSerializer(serializers.ModelSerializer):
+    asset_details = AssetLiteSerializer(source='asset', read_only=True)
+    user_details = UserLiteSerializer(source='user', read_only=True)
+    issued_by_details = UserLiteSerializer(source='issued_by', read_only=True)
+    closed_by_details = UserLiteSerializer(source='closed_by', read_only=True)
+
+    class Meta:
+        model = AssetAssignment
+        fields = "__all__"
+        read_only_fields = (
+            'issued_at', 'issued_by', 'issue_condition', 'status', 'closed_at',
+            'closed_by', 'closure_reason', 'return_condition', 'return_remarks',
+            'source_transfer', 'source_checkout', 'superseded_by_transfer',
+            'provenance', 'date_basis',
+        )
 
 
 class TransferSerializer(serializers.ModelSerializer):
