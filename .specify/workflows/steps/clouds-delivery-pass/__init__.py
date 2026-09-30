@@ -589,7 +589,24 @@ class CloudsDeliveryPassStep(StepBase):
             )
         )
         if completed.returncode != 0:
-            detail = (completed.stderr or completed.stdout or "no diagnostic").strip()
+            # JSONL carries the actual turn error on stdout; stderr often has
+            # only startup warnings. Keep the failure actionable without
+            # dumping the full child transcript or tool arguments.
+            failures: list[str] = []
+            for raw in completed.stdout.splitlines():
+                try:
+                    event = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(event, dict):
+                    continue
+                if event.get("type") in {"error", "turn.failed"}:
+                    value = event.get("error") or event.get("message")
+                    failures.append(str(value)[:1200])
+            detail = (
+                " | ".join(failures[-3:])
+                or (completed.stderr or completed.stdout or "no diagnostic").strip()[-1800:]
+            )
             raise DeliveryEvidenceError(
                 f"Codex {kind} command exited with {completed.returncode}: {detail}"
             )
