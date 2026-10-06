@@ -96,6 +96,39 @@ class IssueDeliveryTests(unittest.TestCase):
 
 
 class RunnerProgressTests(unittest.TestCase):
+    def test_child_receives_recorded_role_authority_and_artifact_binding(self):
+        for role, phase, permission in (("builder", "implementation", "workspace-write"),
+                                        ("reviewer", "review", "read-only")):
+            with self.subTest(role=role):
+                identity = {
+                    "model": "gpt-6-sol", "reviewer_model": "gpt-6-sol",
+                    "builder_assignment_id": "builder-assignment",
+                    "reviewer_assignment_id": "reviewer-assignment",
+                    "builder_purpose": "Implement accepted issues.",
+                    "reviewer_purpose": "Review without writing.",
+                    "authorization_ref": "explicit local sprint approval",
+                    "feature_directory": "specs/014-test",
+                    "expected_head": "a" * 40,
+                    "spec_sha256": "spec-digest", "plan_sha256": "plan-digest",
+                    "requirements_checklist_sha256": "checklist-digest",
+                    "phase_contract_sha256": {phase: "phase-digest"},
+                }
+                binding = Step._record_invocation_binding(
+                    identity, role, phase, {"issue": "02-take-back.md"}
+                )
+                prompt = Step._delegation_context(identity, binding)
+                context = json.loads(prompt.split("Assignment binding:\n", 1)[1])
+                self.assertEqual(context["permission"], permission)
+                self.assertEqual(context["assignment_id"], f"{role}-assignment")
+                self.assertEqual(context["authorization_ref"], identity["authorization_ref"])
+                self.assertEqual(context["selected_model"], "gpt-6-sol")
+                for key, value in binding.items():
+                    self.assertEqual(context[key], value)
+                for key in ("spec_sha256", "plan_sha256", "requirements_checklist_sha256"):
+                    self.assertEqual(context[key], identity[key])
+                self.assertIn("do not start, resume, or wait", prompt)
+                self.assertIn("no push, merge, remote write", prompt)
+
     def test_progress_omits_commands_outputs_and_messages(self):
         raw = json.dumps({
             "type": "item.completed",

@@ -56,10 +56,10 @@ _ROLE_PURPOSES = {
     "reviewer": "Independently review the stable candidate without writing.",
 }
 _PHASE_PROMPTS = {
-    "implementation": "Implement one bound local issue as the sole writer.",
-    "repair": "Repair only the canonicalized reviewer findings as the sole writer.",
-    "review": "Independently review the frozen candidate without writing.",
-    "re-review": "Re-review the repaired frozen candidate without writing.",
+    "implementation": "As the delegated builder, implement one bound local issue as the sole writer.",
+    "repair": "As the delegated builder, repair only the canonicalized reviewer findings as the sole writer.",
+    "review": "As the delegated reviewer, independently review the frozen candidate without writing.",
+    "re-review": "As the delegated reviewer, re-review the repaired frozen candidate without writing.",
 }
 
 
@@ -234,7 +234,7 @@ class CloudsDeliveryPassStep(StepBase):
             )
         tasks_before = self._task_evidence(tasks_path)
         builder_head = self._require_expected_head(root, identity)
-        self._record_invocation_binding(
+        binding = self._record_invocation_binding(
             identity,
             "builder",
             "repair" if prior.get("review_findings") else "implementation",
@@ -256,7 +256,8 @@ class CloudsDeliveryPassStep(StepBase):
         implementation = self._invoke(
             "implementation",
             "speckit.implement",
-            issue_prompt + self._review_finding_context(prior),
+            self._delegation_context(identity, binding)
+            + issue_prompt + self._review_finding_context(prior),
             root,
             model,
         )
@@ -440,7 +441,7 @@ class CloudsDeliveryPassStep(StepBase):
             ):
                 raise DeliveryEvidenceError("Paused issue binding is invalid.")
             builder_head = self._require_expected_head(root, identity)
-            self._record_invocation_binding(
+            binding = self._record_invocation_binding(
                 identity,
                 "builder",
                 "repair" if paused.get("review_findings") else "implementation",
@@ -458,7 +459,7 @@ class CloudsDeliveryPassStep(StepBase):
             implementation = self._invoke(
                 "implementation",
                 "speckit.implement",
-                issue_prompt
+                self._delegation_context(identity, binding) + issue_prompt
                 + self._review_finding_context(paused)
                 + prompt_suffix,
                 root,
@@ -510,13 +511,14 @@ class CloudsDeliveryPassStep(StepBase):
 
         if phase == "convergence":
             reviewer_head = self._require_expected_head(root, identity)
-            self._record_invocation_binding(
+            binding = self._record_invocation_binding(
                 identity, "reviewer", "review", paused.get("review_findings", [])
             )
             convergence = self._invoke(
                 "convergence",
                 "speckit.converge",
-                "Resume the paused independent convergence review." + prompt_suffix,
+                self._delegation_context(identity, binding)
+                + "Resume the paused independent convergence review." + prompt_suffix,
                 root,
                 reviewer_model,
             )
@@ -557,11 +559,12 @@ class CloudsDeliveryPassStep(StepBase):
     ) -> StepResult:
         reviewer_head = self._require_expected_head(root, identity)
         phase = "re-review" if identity.get("review_generation", 0) else "review"
-        self._record_invocation_binding(identity, "reviewer", phase, [])
+        binding = self._record_invocation_binding(identity, "reviewer", phase, [])
         convergence = self._invoke(
             "convergence",
             "speckit.converge",
-            "Independently assess the active feature as a read-only reviewer. Do not "
+            self._delegation_context(identity, binding)
+            + "Independently assess the active feature as a read-only reviewer. Do not "
             "edit files, append tasks, or apply corrections. Report no findings as "
             "CLOUDS_FINDINGS_JSON: []; otherwise report a JSON array of objects with "
             "id, finding, and required_action before the terminal status. Do not trust "
@@ -1460,6 +1463,40 @@ class CloudsDeliveryPassStep(StepBase):
         identity["assignment_transition_sha256"] = raw_digest
         identity["assignment_transition_payload_sha256"] = self._canonical_sha256(payload)
         identity["reassessment_payload"] = payload if isinstance(payload, dict) else {}
+
+    @classmethod
+    def _delegation_context(
+        cls, identity: dict[str, Any], binding: dict[str, str]
+    ) -> str:
+        """Give the child the same verified assignment the coordinator records."""
+        role = binding["role"]
+        if role not in {"builder", "reviewer"}:
+            raise DeliveryEvidenceError("Delegation has an invalid role.")
+        context = {
+            **binding,
+            "selected_model": identity["model" if role == "builder" else "reviewer_model"],
+            "permission": "workspace-write" if role == "builder" else "read-only",
+            "bounded_purpose": identity[f"{role}_purpose"],
+            "authorization_ref": identity["authorization_ref"],
+            "feature_directory": identity["feature_directory"],
+            "spec_sha256": identity["spec_sha256"],
+            "plan_sha256": identity["plan_sha256"],
+            "requirements_checklist_sha256": identity["requirements_checklist_sha256"],
+        }
+        return (
+            f"You are the delegated native Clouds {role} for this invocation. "
+            "The parent coordinator has verified the current update's design approvals, "
+            "accepted scope, sprint authority, and repository identity. Read and enforce "
+            "AGENTS.md and the constitution, then execute your bounded subprocedure. "
+            "You are not the parent coordinator: do not start, resume, or wait on the "
+            "clouds-delivery workflow, and do not dispatch another writer. "
+            "Preserve accepted spec/checklist/plan hashes. Validate the assigned issue's "
+            "task IDs and required tests, recording actual exits and fail-before evidence. "
+            "Publication boundary: local work only; no push, merge, remote write, release, "
+            "deployment, billing, or paid capacity. Report a genuine missing approval or "
+            "blocker using the subprocedure's terminal status. Assignment binding:\n"
+            + json.dumps(context, sort_keys=True, ensure_ascii=False) + "\n\n"
+        )
 
     @classmethod
     def _record_invocation_binding(
