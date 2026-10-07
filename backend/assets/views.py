@@ -16,7 +16,7 @@ from core.services import get_profile, log_action, notify_many
 
 from .barcodes import generate_asset_barcode
 from .checkout import check_in, check_out
-from .custody import assign
+from .custody import assign, take_back
 from .models import (ASSET_CONDITIONS, TERMINAL_STATUSES, AmcContract, Asset,
                      AssetAssignment, AssetCheckout, AssetConditionLog, AssetDocument, AssetImage,
                      AssetTransfer, LifecycleError, Procurement, ServiceRecord)
@@ -410,7 +410,7 @@ class AssetDocumentViewSet(viewsets.ModelViewSet):
 class AssignmentViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
-                      "create": "asset_custody_manage"}
+                      "create": "asset_custody_manage", "take_back": "asset_custody_manage"}
     serializer_class = AssignmentSerializer
     queryset = AssetAssignment.objects.all().select_related(
         'asset', 'user', 'issued_by', 'closed_by').order_by('-issued_at', '-id')
@@ -438,6 +438,17 @@ class AssignmentViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
             return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(assignment).data,
                         status=http_status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='take-back')
+    def take_back(self, request, pk=None):
+        assignment = self.get_object()
+        try:
+            result = take_back(assignment, request.data.get('condition'),
+                               get_profile(request), remarks=request.data.get('remarks', ''),
+                               request=request)
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(result).data)
 
 
 # ---------- Checkouts ----------

@@ -8,10 +8,10 @@ vi.mock('react-router', () => ({
   useLocation: () => ({ pathname: '/transfer/assign' }),
 }));
 vi.mock('material-react-table', () => ({
-  MaterialReactTable: ({ data, columns }) => <table><tbody>{data.map((row) =>
+  MaterialReactTable: ({ data, columns, renderRowActions }) => <table><tbody>{data.map((row) =>
     <tr key={row.id}>{columns.map((column) => <td key={column.id || column.accessorKey}>
       {column.accessorFn ? column.accessorFn(row) : row[column.accessorKey]}
-    </td>)}</tr>)}</tbody></table>,
+    </td>)}{renderRowActions && <td>{renderRowActions({ row: { original: row } })}</td>}</tr>)}</tbody></table>,
 }));
 
 const permissions = { current: [] };
@@ -73,5 +73,59 @@ describe('Assign ongoing custody', () => {
     expect(await screen.findByRole('link', { name: 'Assign Asset' })).toHaveAttribute(
       'href', '/transfer/assign');
     expect(screen.getByText('Ongoing Assignments')).toBeInTheDocument();
+  });
+});
+
+describe('Take Back ongoing custody', () => {
+  beforeEach(() => {
+    permissions.current = ['asset_view', 'asset_custody_manage'];
+    AxiosInstance.get.mockReset().mockImplementation((path) => {
+      if (path === '/assignment/') return Promise.resolve({ data: [
+        { id: 11, asset_details: held, user_details: employee, status: 'Open',
+          issued_at: '2026-09-29T10:00:00Z', issue_condition: 'Good' },
+      ] });
+      return Promise.resolve({ data: [] });
+    });
+    AxiosInstance.post.mockReset().mockResolvedValue({ data: {
+      id: 11, status: 'Closed', return_condition: 'Damaged', asset_details: {
+        ...held, status: 'Available', condition: 'Damaged', custody_type: 'None',
+      },
+    } });
+  });
+
+  it('requires an explicit condition and deterioration remarks, then shows actual return', async () => {
+    render(<Transfers />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Take Back AST-004' }));
+    expect(screen.getByText(/Assignment #11/)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Actual return condition' })).toHaveValue('');
+    await userEvent.click(screen.getByRole('button', { name: 'Record Take Back' }));
+    expect(AxiosInstance.post).not.toHaveBeenCalled();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Actual return condition' }), 'Damaged');
+    await userEvent.click(screen.getByRole('button', { name: 'Record Take Back' }));
+    expect(AxiosInstance.post).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Return remarks' }), 'Screen cracked');
+    await userEvent.click(screen.getByRole('button', { name: 'Record Take Back' }));
+    await waitFor(() => expect(AxiosInstance.post).toHaveBeenCalledWith(
+      '/assignment/11/take-back/', { condition: 'Damaged', remarks: 'Screen cracked' }));
+    expect(await screen.findByText(/Available.*Damaged/)).toBeInTheDocument();
+  });
+
+  it('shows the Pending Transfer error and keeps the return form open', async () => {
+    AxiosInstance.post.mockRejectedValueOnce({ response: { data: {
+      detail: 'Transfer request is not closed.',
+    } } });
+    render(<Transfers />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Take Back AST-004' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Actual return condition' }), 'Good');
+    await userEvent.click(screen.getByRole('button', { name: 'Record Take Back' }));
+    expect(await screen.findByText('Transfer request is not closed.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record Take Back' })).toBeInTheDocument();
+  });
+
+  it('hides Take Back when custody permission is absent', async () => {
+    permissions.current = ['asset_view'];
+    render(<Transfers />);
+    expect(await screen.findByText('Ongoing Assignments')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Take Back AST-004' })).not.toBeInTheDocument();
   });
 });

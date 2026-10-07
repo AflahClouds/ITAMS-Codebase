@@ -404,13 +404,22 @@ const AssetDetail = () => {
             {(history.assignments || []).map((assignment) => (
               <Box key={assignment.id} sx={{ padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
                 <Typography variant="body2">
-                  {assignment.user_details?.user_name} — <Chip label={assignment.status} size="small" />
+                  {`Assignment #${assignment.id} · ${assignment.user_details?.user_name}`} — <Chip label={assignment.status} size="small" />
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Issued {new Date(assignment.issued_at).toLocaleString()}
                   {assignment.issued_by_details && ` by ${assignment.issued_by_details.user_name}`}
                   {` · ${assignment.issue_condition}`}
                 </Typography>
+                {assignment.status === 'Open' && can('asset_custody_manage') && (
+                  <Button size="small" href="/transfer">Take Back</Button>
+                )}
+                {assignment.closure_reason === 'Take Back' && (
+                  <Typography variant="caption" display="block">
+                    {`Take Back ${new Date(assignment.closed_at).toLocaleString()} by ${assignment.closed_by_details?.user_name || 'IT'} · Available · Actual condition: ${assignment.return_condition}`}
+                    {assignment.return_remarks && ` · ${assignment.return_remarks}`}
+                  </Typography>
+                )}
               </Box>
             ))}
           </Paper>

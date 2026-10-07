@@ -13,7 +13,7 @@ from accounts.models import Department, Permission, Role, User
 from catalog.models import Brand, Category, Model
 from core.models import AuditLog, Notification
 
-from .models import Asset, AssetCheckout, AssetTransfer
+from .models import Asset, AssetAssignment, AssetCheckout, AssetConditionLog, AssetTransfer
 
 
 class AssignCustodyTests(TestCase):
@@ -58,6 +58,117 @@ class AssignCustodyTests(TestCase):
             "user": (user or self.employee).pk,
             "remarks": remarks,
         }, format="json")
+
+    def take_back(self, assignment, **payload):
+        return self.client.post(f"/assignment/{assignment.pk}/take-back/",
+                                payload, format="json")
+
+    def assigned_record(self, *, condition="Good"):
+        self.asset.condition = condition
+        self.asset.save(update_fields=["condition"])
+        self.assertEqual(self.assign().status_code, 201)
+        return AssetAssignment.objects.get(asset=self.asset, status="Open")
+
+    def test_take_back_requires_explicit_canonical_condition_and_custody_permission(self):
+        record = self.assigned_record()
+        self.assertEqual(self.take_back(record).status_code, 400)
+        self.assertEqual(self.take_back(record, condition="Broken").status_code, 400)
+        self.client.force_authenticate(self.reader.account)
+        self.assertEqual(self.take_back(record, condition="Good").status_code, 403)
+        self.asset.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual((self.asset.status, record.status), ("Assigned", "Open"))
+        self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
+
+    def test_take_back_inspects_actual_condition_and_clears_custody_even_when_damaged(self):
+        record = self.assigned_record()
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.take_back(record, condition="Damaged", remarks="Screen cracked")
+        self.assertEqual(response.status_code, 200, getattr(response, "data", None))
+        self.asset.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual((self.asset.status, self.asset.condition), ("Available", "Damaged"))
+        self.assertIsNone(self.asset.custodian_id)
+        self.assertIsNone(self.asset.department_id)
+        self.assertEqual((record.status, record.closure_reason, record.return_condition,
+                          record.return_remarks, record.closed_by_id),
+                         ("Closed", "Take Back", "Damaged", "Screen cracked", self.operator.pk))
+        self.assertIsNotNone(record.closed_at)
+        log = AssetConditionLog.objects.get(asset=self.asset)
+        self.assertEqual((log.condition, log.inspector_id), ("Damaged", self.operator.pk))
+        self.assertEqual(AuditLog.objects.filter(action="Take Back", module="Assignments").count(), 1)
+        self.assertEqual(Notification.objects.filter(user=self.employee).count(), 1)
+        self.assertEqual(self.client.get(f"/asset/{self.asset.pk}/").data["custody_type"], "None")
+
+    def test_take_back_requires_deterioration_remarks_but_exempts_new_to_good(self):
+        record = self.assigned_record()
+        self.assertEqual(self.take_back(record, condition="Average").status_code, 400)
+        self.asset.refresh_from_db()
+        self.assertEqual((self.asset.status, self.asset.condition), ("Assigned", "Good"))
+        self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
+        self.assertEqual(self.take_back(record, condition="Repair Required",
+                                        remarks="  Needs repair  ").status_code, 200)
+        self.asset.refresh_from_db()
+        self.assertEqual((self.asset.status, self.asset.condition), ("Available", "Repair Required"))
+
+        fresh = self.make_asset("CUS-NEW", condition="New")
+        self.assertEqual(self.assign(asset=fresh).status_code, 201)
+        new_record = AssetAssignment.objects.get(asset=fresh, status="Open")
+        self.assertEqual(self.take_back(new_record, condition="Good").status_code, 200)
+
+    def test_disabled_former_holder_can_be_taken_back_without_notification(self):
+        record = self.assigned_record()
+        self.employee.status = "Disabled"
+        self.employee.save(update_fields=["status"])
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.take_back(record, condition="Good")
+        self.assertEqual(response.status_code, 200, getattr(response, "data", None))
+        self.assertFalse(Notification.objects.filter(user=self.employee).exists())
+
+    def test_pending_transfer_blocks_take_back_without_any_mutation(self):
+        record = self.assigned_record()
+        transfer = AssetTransfer.objects.create(asset=self.asset, previous_owner=self.employee,
+                                                new_owner=self.other, status="Pending")
+        response = self.take_back(record, condition="Good")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["detail"], "Transfer request is not closed.")
+        self.asset.refresh_from_db()
+        record.refresh_from_db()
+        transfer.refresh_from_db()
+        self.assertEqual((self.asset.status, self.asset.condition, self.asset.custodian_id),
+                         ("Assigned", "Good", self.employee.pk))
+        self.assertEqual((record.status, transfer.status), ("Open", "Pending"))
+        self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
+        self.assertFalse(AuditLog.objects.filter(action="Take Back").exists())
+
+    def test_stale_or_repeated_take_back_cannot_release_later_custody(self):
+        old = self.assigned_record()
+        self.assertEqual(self.take_back(old, condition="Good").status_code, 200)
+        self.assertEqual(self.assign(user=self.other).status_code, 201)
+        self.assertEqual(self.take_back(old, condition="Good").status_code, 400)
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.custodian_id, self.other.pk)
+        self.assertEqual(AssetAssignment.objects.filter(asset=self.asset, status="Open").count(), 1)
+
+    def test_audit_failure_rolls_back_take_back_and_inspection(self):
+        record = self.assigned_record()
+        with patch("assets.custody.log_action", side_effect=RuntimeError("audit unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.take_back(record, condition="Good")
+        self.asset.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual((self.asset.status, record.status), ("Assigned", "Open"))
+        self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
+        self.assertFalse(Notification.objects.filter(user=self.employee).exists())
+
+    def test_notification_failure_does_not_undo_take_back(self):
+        record = self.assigned_record()
+        with patch("assets.custody.notify", side_effect=RuntimeError("delivery unavailable")):
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.take_back(record, condition="Good")
+        self.assertEqual(response.status_code, 200, getattr(response, "data", None))
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.status, "Available")
 
     def test_assign_creates_one_ongoing_record_and_matching_asset_without_transfer(self):
         from .models import AssetAssignment
