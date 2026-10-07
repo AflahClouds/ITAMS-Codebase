@@ -187,3 +187,5 @@ Command ends after Phase 1 design. Report branch, IMPL_PLAN path, and generated 
 - A routine technical plan inside the accepted behavior and approved envelope does not require user approval.
 - Provide a concise business-facing plan review when the user asks for one or when planning exposes a material choice. Cover requirement traceability, operational impact, controls, data obligations, material risks, exclusions, and acceptance coverage. Pause only when resolving the issue would change accepted business behavior, scope, acceptance, material risk, or the approved technology envelope.
 - Treat the temporary feature as a disposable delivery artifact: plan its traceable consolidation into the canonical living specification and deletion only after clean post-workflow review and verification.
+
+- Plan the necessary verification from accepted requirements and risks. Reuse adequate coverage; add or extend tests only when accepted requirements, governing project standards, or a concrete uncovered behavior or defect risk require them. Choose verification proportionate to consequences, preserving mandatory fail-before/permanent regressions and required project checks.

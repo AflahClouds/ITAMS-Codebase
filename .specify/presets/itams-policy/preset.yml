@@ -1,0 +1,42 @@
+schema_version: "1.0"
+
+preset:
+  id: "itams-policy"
+  name: "ITAMS project policy"
+  version: "1.0.0"
+  description: "Project-owned constitution propagation for durable local feature delivery."
+  author: "ITAMS"
+
+requires:
+  speckit_version: ">=1.0.13,<1.0.14"
+
+provides:
+  templates:
+    - type: "command"
+      name: "guide"
+      file: "commands/guide.md"
+      strategy: "append"
+    - type: "command"
+      name: "speckit.specify"
+      file: "commands/speckit.specify.md"
+      strategy: "append"
+    - type: "command"
+      name: "speckit.plan"
+      file: "commands/speckit.plan.md"
+      strategy: "append"
+    - type: "command"
+      name: "speckit.tasks"
+      file: "commands/speckit.tasks.md"
+      strategy: "append"
+    - type: "command"
+      name: "speckit.analyze"
+      file: "commands/speckit.analyze.md"
+      strategy: "append"
+    - type: "command"
+      name: "speckit.implement"
+      file: "commands/speckit.implement.md"
+      strategy: "append"
+    - type: "command"
+      name: "speckit.converge"
+      file: "commands/speckit.converge.md"
+      strategy: "append"

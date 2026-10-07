@@ -2,9 +2,9 @@
   "schema_version": "1.0",
   "presets": {
     "clouds-core": {
-      "version": "1.4.0",
+      "version": "1.5.0",
       "source": "local",
-      "manifest_hash": "sha256:3eae3064eef13c2faf727e218cd4c01b8f855cbd6b7a1a017b5e0169fdd37381",
+      "manifest_hash": "sha256:27202e82a49a43fe9e629692ca4917f12488eb24450d7a08e7bb90ed40a5d88b",
       "enabled": true,
       "priority": 5,
       "registered_commands": {
@@ -29,7 +29,37 @@
           "speckit-converge"
         ]
       },
-      "installed_at": "2026-09-29T09:25:19.783417+00:00"
+      "installed_at": "2026-10-07T03:52:50.036567+00:00"
+    },
+    "itams-policy": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:01d9d7cdb2568b061faa17af7f5dc2ba7a1db9beaefb02c65902e203824b32d6",
+      "enabled": true,
+      "priority": 1,
+      "registered_commands": {
+        "codex": [
+          "guide",
+          "speckit.specify",
+          "speckit.plan",
+          "speckit.tasks",
+          "speckit.analyze",
+          "speckit.implement",
+          "speckit.converge"
+        ]
+      },
+      "registered_skills": {
+        "codex": [
+          "speckit-guide",
+          "speckit-specify",
+          "speckit-plan",
+          "speckit-tasks",
+          "speckit-analyze",
+          "speckit-implement",
+          "speckit-converge"
+        ]
+      },
+      "installed_at": "2026-10-07T04:05:22.708120+00:00"
     }
   }
 }

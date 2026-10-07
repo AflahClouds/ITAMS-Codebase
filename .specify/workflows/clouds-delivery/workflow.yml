@@ -3,19 +3,23 @@ schema_version: "1.0"
 workflow:
   id: "clouds-delivery"
   name: "Clouds AFK Delivery"
-  version: "1.4.0"
+  version: "1.5.0"
   author: "Clouds Team"
   description: "Runs upstream implementation and convergence until the active feature is complete."
   integration: "codex"
   model: "{{ inputs.model }}"
 
 requires:
-  speckit_version: ">=1.0.6,<1.0.7"
+  speckit_version: ">=1.0.13,<1.0.14"
   integrations:
     any:
       - "codex"
 
 inputs:
+  dispatch_result:
+    type: string
+    default: ""
+    prompt: "Exact native child result JSON, at most 8 KiB UTF-8, only after the guide verifies the pending request and host completion event"
   model:
     type: string
     default: ""

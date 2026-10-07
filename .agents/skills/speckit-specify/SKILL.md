@@ -5,7 +5,7 @@ description: Create or update the feature specification from a natural language 
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
   author: github-spec-kit
-  source: preset:clouds-core
+  source: preset:itams-policy
 ---
 
 # Speckit Specify Skill
@@ -364,3 +364,8 @@ Success criteria must be:
 - Keep technical choices out of the specification. Research and record them only as the upstream planning command directs.
 - For consequential deterministic processing, capture concrete business examples with expected results in acceptance scenarios or requirements: a representative happy path, applicable boundaries, a negative/failure case, and relevant reconciliation or invariant checks. Ask through clarify when the business value is unknown; never invent it.
 - When upstream templates suggest an assumption or reasonable default for a material business rule or acceptance value, ask the user instead; leave dependent work paused until the answer is reflected in the temporary specification and checklist.
+
+
+## ITAMS durable-feature correction
+
+For feature 014, the existing accepted specs/014-asset-assignments/spec.md is the durable requirements source. Validate its approved identity and checklist without creating a disposable change feature or editing accepted requirement content. New substantive changes need a new numbered feature directory and reciprocal lineage under constitution 1.1.0. The Clouds Core temporary-to-living instruction does not apply to ITAMS.

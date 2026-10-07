@@ -3,14 +3,14 @@
   "steps": {
     "clouds-delivery-pass": {
       "name": "Clouds Delivery Pass",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "description": "Runs one evidence-checked Codex implementation and convergence pass.",
       "author": "Clouds Team",
       "source": "dev",
-      "source_path": "D:\\AFLAH V K\\ITAMS - Codebase\\.clouds-install-source\\components\\steps\\clouds-delivery-pass",
+      "source_path": "C:\\Users\\aflah.vk\\AppData\\Local\\Temp\\clouds-spec-kit-update-12def63a34104322b6a896fd8a0d22ac\\components\\steps\\clouds-delivery-pass",
       "type_key": "clouds-delivery-pass",
-      "installed_at": "2026-09-29T09:25:20.5993842+00:00",
-      "updated_at": "2026-09-29T09:25:20.5993842+00:00"
+      "installed_at": "2026-10-07T03:52:50.7488209+00:00",
+      "updated_at": "2026-10-07T03:52:50.7488209+00:00"
     }
   }
 }

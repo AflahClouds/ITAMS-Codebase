@@ -4,10 +4,10 @@ step:
   id: "clouds-delivery-pass"
   type_key: "clouds-delivery-pass"
   name: "Clouds Delivery Pass"
-  version: "1.4.0"
-  description: "Runs one revision-bound sequential Codex implementation and convergence pass."
+  version: "1.5.0"
+  description: "Persists revision-bound native subagent dispatch and validates one sequential delivery pass."
   author: "Clouds Team"
   license: "Proprietary"
 
 requires:
-  speckit_version: ">=1.0.6,<1.0.7"
+  speckit_version: ">=1.0.13,<1.0.14"
