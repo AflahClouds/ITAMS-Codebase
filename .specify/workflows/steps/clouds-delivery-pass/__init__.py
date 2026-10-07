@@ -1,4 +1,8 @@
-"""Evidence-checked implementation/convergence pass for Clouds delivery."""
+"""Evidence-checked implementation/convergence pass for Clouds delivery.
+
+ITAMS project-owned issue gate: see docs/spec-kit/itams-native-delivery.md before
+refreshing this installed Clouds step.
+"""
 
 from __future__ import annotations
 
@@ -57,13 +61,17 @@ _ASSIGNMENT_TRANSITION_KEYS = frozenset(
         "authority_ref",
     }
 )
+_REVIEW_CRITERION = (
+    "Frozen candidate receives independent read-only review; the same builder repairs "
+    "and the same reviewer re-reviews; commits stay local."
+)
 _ROLE_PURPOSES = {
-    "builder": "Implement the accepted feature and repair verified findings.",
+    "builder": "Implement the bound local issue, repair verified findings, or record verified final review evidence.",
     "reviewer": "Independently review the stable candidate without writing.",
 }
 _PHASE_PROMPTS = {
-    "implementation": "Implement the accepted feature as the sole writer.",
-    "repair": "Repair only the canonicalized reviewer findings as the sole writer.",
+    "implementation": "Implement one bound local issue, its tests and tasks, and a stable checkpoint as the sole writer.",
+    "repair": "Repair canonicalized reviewer findings or record verified final review evidence as the sole writer.",
     "review": "Independently review the frozen candidate without writing.",
     "re-review": "Re-review the repaired frozen candidate without writing.",
 }
@@ -197,8 +205,16 @@ class CloudsDeliveryPassStep(StepBase):
             if result["status"] == "approval_required":
                 if not result["message"].strip():
                     raise DeliveryEvidenceError("Approval requires a concrete question.")
-                return StepResult(status=StepStatus.PAUSED, output={"status": "approval_required", "identity": identity, "role": role, "phase": request["phase"], "question": result["message"], "review_findings": request["payload"] if isinstance(request["payload"], list) else [], "resume_payload": request["payload"], "tasks_before_phase": request["tasks"], "implementation_message": prior_self.get("implementation_message", "")})
+                return StepResult(status=StepStatus.PAUSED, output={"status": "approval_required", "identity": identity, "role": role, "phase": request["phase"], "question": result["message"], "review_findings": request["payload"] if isinstance(request["payload"], list) else [], "resume_payload": request["payload"], "tasks_before_phase": request["payload"].get("tasks_before", request["tasks"]) if isinstance(request["payload"], dict) else request["tasks"], "issue_initial_head": request["payload"].get("issue_initial_head", request["expected_head"]) if isinstance(request["payload"], dict) else request["expected_head"], "implementation_message": prior_self.get("implementation_message", "")})
             if role == "builder":
+                if request["phase"] == "implementation":
+                    return self._finish_issue_pass(
+                        context, config, root, identity, request, result["message"]
+                    )
+                if isinstance(request["payload"], dict) and "review_completion_issue" in request["payload"]:
+                    return self._finish_review_evidence(
+                        context, config, root, identity, request, result["message"]
+                    )
                 return self._dispatch(context, config, root, identity, "reviewer", "re-review" if identity.get("review_generation") else "review", [], result["message"])
             identity["review_generation"] = int(identity.get("review_generation", 0)) + 1
             tasks_after = self._task_evidence(self._feature_file(root, identity, "tasks.md"))
@@ -207,7 +223,25 @@ class CloudsDeliveryPassStep(StepBase):
             if result["status"] == "clean":
                 if tasks_after["unchecked"]:
                     raise DeliveryEvidenceError("Clean result has unchecked tasks.")
+                issues_after = self._issues_evidence(root, identity)
+                open_issue = self._next_issue(issues_after)
                 self._verify_baseline_worktree(root, identity)
+                if open_issue:
+                    if not self._review_criterion_pending(
+                        root, identity, open_issue, issues_after
+                    ):
+                        raise DeliveryEvidenceError(
+                            "Clean review left unrelated local issue criteria open."
+                        )
+                    return self._dispatch(
+                        context, config, root, identity, "builder", "repair",
+                        {
+                            "review_completion_issue": open_issue,
+                            "issues_before": issues_after,
+                            "review_child_id": result["child_id"],
+                        },
+                        result["message"],
+                    )
             return StepResult(status=StepStatus.COMPLETED, output={"status": result["status"], "identity": identity, "review_findings": result["findings"], "tasks_after_phase": tasks_after, "clean_revision": self._current_head(root) if result["status"] == "clean" else "", "convergence_message": result["message"]})
         if result_raw:
             raise DeliveryEvidenceError("Stale or replayed result without a pending request.")
@@ -227,14 +261,155 @@ class CloudsDeliveryPassStep(StepBase):
                 return StepResult(status=StepStatus.FAILED, output={**prior_self, "aborted": True}, error="User aborted delivery.")
             if action != "resume" or not isinstance(response, str) or not response.strip():
                 raise DeliveryEvidenceError("Resume requires approval_action=resume and a concrete user response.")
-            payload = {"approval_response": response, "prior_payload": payload if transition_raw else prior_self.get("resume_payload", payload)}
+            if prior_self["role"] == "builder" and prior_self["phase"] == "implementation":
+                bound = prior_self.get("resume_payload")
+                if not isinstance(bound, dict) or not {"issue", "issues_before"} <= set(bound):
+                    raise DeliveryEvidenceError("Approval resume lost its bound local issue.")
+                resumed = dict(bound)
+                resumed["approval_response"] = response
+                resumed["tasks_before"] = prior_self["tasks_before_phase"]
+                resumed["issue_initial_head"] = prior_self["issue_initial_head"]
+                if transition_raw:
+                    resumed["reassessment"] = payload
+                payload = resumed
+            else:
+                payload = {"approval_response": response, "prior_payload": payload if transition_raw else prior_self.get("resume_payload", payload)}
             return self._dispatch(context, config, root, identity, prior_self["role"], prior_self["phase"], payload, prior_self.get("implementation_message", ""))
         if prior.get("status") == "clean":
             if self._task_evidence(self._feature_file(root, identity, "tasks.md")) != prior.get("tasks_after_phase") or self._current_head(root) != prior.get("clean_revision"):
                 raise DeliveryEvidenceError("Previously clean task or revision evidence changed.")
             self._verify_baseline_worktree(root, identity)
             return StepResult(status=StepStatus.SKIPPED, output={**prior, "skipped": True})
-        return self._dispatch(context, config, root, identity, "builder", "repair" if prior.get("review_findings") else "implementation", payload)
+        if prior.get("review_findings"):
+            return self._dispatch(context, config, root, identity, "builder", "repair", payload)
+        if prior.get("completed_issue"):
+            if (self._current_head(root) != prior.get("pass_head") or
+                    self._task_evidence(self._feature_file(root, identity, "tasks.md")) != prior.get("tasks_after_phase") or
+                    self._issues_evidence(root, identity) != prior.get("issues_after_phase")):
+                raise DeliveryEvidenceError("Completed local issue evidence changed before the next pass.")
+            self._verify_baseline_worktree(root, identity)
+        return self._dispatch(
+            context, config, root, identity, "builder", "implementation",
+            self._issue_payload(root, identity, payload if transition_raw else None),
+        )
+
+    def _finish_issue_pass(
+        self, context, config, root, identity, request, implementation_message
+    ):
+        payload = request["payload"]
+        allowed = {"issue", "issues_before", "reassessment", "approval_response", "tasks_before", "issue_initial_head"}
+        if (not isinstance(payload, dict) or not {"issue", "issues_before"} <= set(payload) or
+                not set(payload) <= allowed):
+            raise DeliveryEvidenceError("Implementation request has no bound local issue.")
+        if ("reassessment" in payload and
+                payload["reassessment"] != identity.get("reassessment_payload")):
+            raise DeliveryEvidenceError("Bound issue reassessment payload changed.")
+        active_issue, issues_before = payload["issue"], payload["issues_before"]
+        if (not isinstance(active_issue, str) or not isinstance(issues_before, dict) or
+                self._next_issue(issues_before) != active_issue):
+            raise DeliveryEvidenceError("Implementation request did not bind the next open issue.")
+        issues_after = self._issues_evidence(root, identity)
+        if set(issues_after) != set(issues_before):
+            raise DeliveryEvidenceError("Builder changed the local issue inventory.")
+        for name in issues_before:
+            if name != active_issue and issues_after[name] != issues_before[name]:
+                raise DeliveryEvidenceError(
+                    f"Builder changed {name} outside the bound issue pass."
+                )
+        before = issues_before[active_issue]
+        after = issues_after[active_issue]
+        review_owned = self._review_criterion_pending(
+            root, identity, active_issue, issues_after
+        )
+        if (not isinstance(before, dict) or before.get("unchecked", 0) == 0 or
+                after["total"] != before.get("total") or
+                after["criteria"] != before.get("criteria") or
+                (after["unchecked"] != 0 and not review_owned) or
+                (before.get("review_criterion") == "unchecked" and not review_owned)):
+            raise DeliveryEvidenceError(
+                f"Builder reported completion while {active_issue} criteria remain open or were removed."
+            )
+        if (active_issue == sorted(issues_after)[-1] and
+                self._review_criterion_state(root, identity, active_issue) == "checked"):
+            raise DeliveryEvidenceError(
+                "Final review criterion was checked before independent review."
+            )
+        tasks_after = self._task_evidence(self._feature_file(root, identity, "tasks.md"))
+        tasks_before = payload.get("tasks_before", request["tasks"])
+        if not isinstance(tasks_before, dict) or tasks_after["unchecked"] >= tasks_before["unchecked"]:
+            raise DeliveryEvidenceError(
+                f"Builder completed {active_issue} without reducing unchecked tasks."
+            )
+        if self._current_head(root) == payload.get("issue_initial_head", request["expected_head"]):
+            raise DeliveryEvidenceError(
+                f"Builder completed {active_issue} without a Git checkpoint."
+            )
+        self._verify_baseline_worktree(root, identity)
+        next_issue = self._next_issue(issues_after)
+        if next_issue and not review_owned:
+            return StepResult(
+                status=StepStatus.COMPLETED,
+                output={
+                    "status": "tasks_appended",
+                    "identity": identity,
+                    "completed_issue": active_issue,
+                    "next_issue": next_issue,
+                    "issues_after_phase": issues_after,
+                    "tasks_after_phase": tasks_after,
+                    "implementation_message": implementation_message,
+                    "pass_head": self._current_head(root),
+                    "review_findings": [],
+                },
+            )
+        if tasks_after["unchecked"]:
+            raise DeliveryEvidenceError(
+                "Final review cannot begin while tasks.md still has unchecked work."
+            )
+        return self._dispatch(
+            context, config, root, identity, "reviewer",
+            "re-review" if identity.get("review_generation") else "review",
+            [], implementation_message,
+        )
+
+    def _finish_review_evidence(
+        self, context, config, root, identity, request, implementation_message
+    ):
+        payload = request["payload"]
+        if (set(payload) != {"review_completion_issue", "issues_before", "review_child_id"} or
+                not isinstance(payload["review_child_id"], str) or
+                payload["review_child_id"] != identity.get("child_bindings", {}).get(
+                    identity["reviewer_assignment_id"]
+                )):
+            raise DeliveryEvidenceError("Final review evidence request is not bound to the verified reviewer.")
+        issue = payload["review_completion_issue"]
+        issues_before = payload["issues_before"]
+        if (not isinstance(issue, str) or not isinstance(issues_before, dict) or
+                issue not in issues_before or issue != sorted(issues_before)[-1] or
+                issues_before[issue]["unchecked"] != 1 or
+                issues_before[issue].get("review_criterion") != "unchecked"):
+            raise DeliveryEvidenceError("Final review evidence did not start from the one review-owned criterion.")
+        issues_after = self._issues_evidence(root, identity)
+        if set(issues_after) != set(issues_before):
+            raise DeliveryEvidenceError("Review evidence changed the local issue inventory.")
+        for name in issues_before:
+            if name != issue and issues_after[name] != issues_before[name]:
+                raise DeliveryEvidenceError(
+                    f"Builder changed {name} outside the bound review evidence pass."
+                )
+        if (issues_after[issue]["total"] != issues_before[issue]["total"] or
+                issues_after[issue]["criteria"] != issues_before[issue]["criteria"] or
+                issues_after[issue]["unchecked"] != 0 or
+                self._review_criterion_state(root, identity, issue) != "checked"):
+            raise DeliveryEvidenceError("Verified final review criterion remains open or was removed.")
+        if self._task_evidence(self._feature_file(root, identity, "tasks.md")) != request["tasks"]:
+            raise DeliveryEvidenceError("Final review evidence changed the completed task ledger.")
+        if self._current_head(root) == request["expected_head"]:
+            raise DeliveryEvidenceError("Final review evidence has no Git checkpoint.")
+        self._verify_baseline_worktree(root, identity)
+        return self._dispatch(
+            context, config, root, identity, "reviewer", "re-review",
+            [], implementation_message,
+        )
 
     def _dispatch(self, context, config, root, identity, role, phase, payload, implementation_message=""):
         self._require_expected_head(root, identity)
@@ -979,6 +1154,96 @@ class CloudsDeliveryPassStep(StepBase):
             "sha256": hashlib.sha256(content).hexdigest(),
             "unchecked": len(_UNCHECKED_TASK.findall(text)),
         }
+
+    @staticmethod
+    def _issues_evidence(
+        root: Path, identity: dict[str, Any]
+    ) -> dict[str, dict[str, Any]]:
+        feature = (root / str(identity["feature_directory"])).resolve()
+        try:
+            feature.relative_to(root)
+        except ValueError as exc:
+            raise DeliveryEvidenceError("Stored feature directory escapes the project.") from exc
+        issue_dir = feature / "issues"
+        if not issue_dir.is_dir():
+            raise DeliveryEvidenceError("Active feature has no local issues directory.")
+        files = sorted(path for path in issue_dir.glob("[0-9][0-9]-*.md") if path.is_file())
+        if not files:
+            raise DeliveryEvidenceError("Active feature has no numbered local issues.")
+        evidence = {}
+        for path in files:
+            try:
+                path.resolve().relative_to(issue_dir.resolve())
+            except ValueError as exc:
+                raise DeliveryEvidenceError("Local issue escapes its directory.") from exc
+            content = path.read_bytes()
+            text = content.decode("utf-8-sig")
+            total = len(re.findall(r"(?m)^\s*- \[[ xX]\]", text))
+            if not total:
+                raise DeliveryEvidenceError(f"Local issue {path.name} has no checkboxes.")
+            lines = text.splitlines()
+            review_criterion = (
+                "unchecked" if f"- [ ] {_REVIEW_CRITERION}" in lines
+                else "checked" if f"- [x] {_REVIEW_CRITERION}" in lines
+                else None
+            )
+            evidence[path.name] = {
+                "sha256": hashlib.sha256(content).hexdigest(),
+                "unchecked": len(_UNCHECKED_TASK.findall(text)),
+                "total": total,
+                "criteria": re.findall(r"(?m)^\s*- \[[ xX]\] (.*)$", text),
+                "review_criterion": review_criterion,
+            }
+        return evidence
+
+    @staticmethod
+    def _review_criterion_state(
+        root: Path, identity: dict[str, Any], issue: str
+    ) -> str | None:
+        path = root / str(identity["feature_directory"]) / "issues" / issue
+        text = path.read_text(encoding="utf-8-sig")
+        unchecked = f"- [ ] {_REVIEW_CRITERION}"
+        checked = f"- [x] {_REVIEW_CRITERION}"
+        if unchecked in text.splitlines():
+            return "unchecked"
+        if checked in text.splitlines():
+            return "checked"
+        return None
+
+    @classmethod
+    def _review_criterion_pending(
+        cls, root: Path, identity: dict[str, Any], issue: str,
+        issues: dict[str, dict[str, Any]]
+    ) -> bool:
+        if issue != sorted(issues)[-1] or issues[issue]["unchecked"] != 1:
+            return False
+        if cls._review_criterion_state(root, identity, issue) != "unchecked":
+            return False
+        path = root / str(identity["feature_directory"]) / "issues" / issue
+        unchecked = re.findall(r"(?m)^\s*- \[ \] (.*)$", path.read_text(encoding="utf-8-sig"))
+        return unchecked == [_REVIEW_CRITERION]
+
+    @staticmethod
+    def _next_issue(issues: dict[str, dict[str, Any]]) -> str | None:
+        return next(
+            (name for name in sorted(issues) if issues[name]["unchecked"]),
+            None,
+        )
+
+    def _issue_payload(
+        self, root: Path, identity: dict[str, Any],
+        reassessment: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        issues = self._issues_evidence(root, identity)
+        active = self._next_issue(issues)
+        if active is None:
+            raise DeliveryEvidenceError("No open local issue remains for an implementation pass.")
+        payload = {"issue": active, "issues_before": issues}
+        if reassessment is not None:
+            if not isinstance(reassessment, dict) or not reassessment:
+                raise DeliveryEvidenceError("Non-finding issue reassessment must be a nonempty object.")
+            payload["reassessment"] = reassessment
+        return payload
 
     @staticmethod
     def _sha256(path: Path) -> str:
