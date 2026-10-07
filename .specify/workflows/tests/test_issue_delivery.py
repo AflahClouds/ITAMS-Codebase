@@ -360,6 +360,17 @@ class NativeIssueDeliveryTests(unittest.TestCase):
         self.assertEqual(request["payload"]["issue"], original["payload"]["issue"])
         self.assertEqual(request["payload"]["issues_before"], original["payload"]["issues_before"])
         self.assertEqual(request["payload"]["approval_response"], "Continue within accepted scope.")
+        paused_again = self.native_result(
+            context, 1, "builder", "approval_required", child_id="native-builder"
+        )
+        self.assertEqual(paused_again.output["status"], "approval_required", paused_again.error)
+        context.inputs["approval_action"] = "resume"
+        context.inputs["approval_response"] = "Continue the same bound issue."
+        resumed_again = self.native_pass(context, 1, "delivery-identity")
+        self.assertEqual(resumed_again.output["status"], "dispatch_required", resumed_again.error)
+        self.assertEqual(resumed_again.output["request"]["payload"]["issue"], original["payload"]["issue"])
+        self.assertEqual(resumed_again.output["request"]["payload"]["issues_before"], original["payload"]["issues_before"])
+        self.assertEqual(resumed_again.output["request"]["payload"]["approval_response"], "Continue the same bound issue.")
 
     def test_native_findings_repair_approval_resume_keeps_findings(self):
         context = self.native_dispatch_final_issue()
@@ -399,6 +410,18 @@ class NativeIssueDeliveryTests(unittest.TestCase):
             resumed.output["request"]["payload"],
             {"approval_response": "Continue the bounded repair.", "prior_payload": [finding]},
             resumed.error,
+        )
+        paused_again = self.native_result(
+            context, 3, "builder", "approval_required", child_id="native-builder"
+        )
+        self.assertEqual(paused_again.output["status"], "approval_required", paused_again.error)
+        context.inputs["approval_action"] = "resume"
+        context.inputs["approval_response"] = "Continue the same bounded repair."
+        resumed_again = self.native_pass(context, 3, "delivery-pass-02")
+        self.assertEqual(
+            resumed_again.output["request"]["payload"],
+            {"approval_response": "Continue the same bounded repair.", "prior_payload": [finding]},
+            resumed_again.error,
         )
         completed = self.native_result(
             context, 3, "builder", "completed", child_id="native-builder"
@@ -475,6 +498,63 @@ class NativeIssueDeliveryTests(unittest.TestCase):
         )
         self.assertEqual(outcome.status, MODULE.StepStatus.FAILED)
         self.assertIn("criterion", outcome.error)
+
+    def test_native_review_evidence_survives_two_approval_pauses(self):
+        context, original, _, review_line = self.native_pause_final_review_evidence()
+        paused_again = self.native_result(
+            context, 2, "builder", "approval_required", child_id="native-builder"
+        )
+        self.assertEqual(paused_again.output["status"], "approval_required", paused_again.error)
+        context.inputs["approval_action"] = "resume"
+        context.inputs["approval_response"] = "Record the same reviewed issue locally."
+        resumed = self.native_pass(context, 2, "delivery-pass-01")
+        self.assertEqual(resumed.output["status"], "dispatch_required", resumed.error)
+        payload = resumed.output["request"]["payload"]
+        self.assertEqual(payload["review_completion_issue"], original["review_completion_issue"])
+        self.assertEqual(payload["issues_before"], original["issues_before"])
+        self.assertEqual(payload["review_child_id"], original["review_child_id"])
+        self.assertEqual(payload["approval_response"], "Record the same reviewed issue locally.")
+        self.third.write_text(
+            f"# Third\n- [x] implementation\n- [x] {review_line}\n",
+            encoding="utf-8",
+        )
+        self.commit()
+        re_review = self.native_result(
+            context, 2, "builder", "completed", child_id="native-builder"
+        )
+        self.assertEqual(re_review.output["request"]["role"], "reviewer", re_review.error)
+        self.assertEqual(re_review.output["request"]["phase"], "re-review", re_review.error)
+        clean = self.native_result(
+            context, 2, "reviewer", "clean", child_id="native-reviewer"
+        )
+        self.assertEqual(clean.output["status"], "clean", clean.error)
+
+    def test_native_review_evidence_second_approval_rejects_altered_binding(self):
+        context, _, _, _ = self.native_pause_final_review_evidence()
+        paused_again = self.native_result(
+            context, 2, "builder", "approval_required", child_id="native-builder"
+        )
+        self.assertEqual(paused_again.output["status"], "approval_required", paused_again.error)
+        context.steps["delivery-pass-02"]["output"]["resume_payload"]["review_child_id"] = "different-reviewer"
+        context.inputs["approval_action"] = "resume"
+        context.inputs["approval_response"] = "Record the same reviewed issue locally."
+        resumed = self.native_pass(context, 2, "delivery-pass-01")
+        self.assertEqual(resumed.status, MODULE.StepStatus.FAILED)
+        self.assertIn("review", resumed.error)
+
+    def test_native_review_evidence_second_approval_rejects_altered_inventory(self):
+        context, _, _, _ = self.native_pause_final_review_evidence()
+        paused_again = self.native_result(
+            context, 2, "builder", "approval_required", child_id="native-builder"
+        )
+        self.assertEqual(paused_again.output["status"], "approval_required", paused_again.error)
+        issue = paused_again.output["resume_payload"]["review_completion_issue"]
+        paused_again.output["resume_payload"]["issues_before"][issue]["sha256"] = "0" * 64
+        context.inputs["approval_action"] = "resume"
+        context.inputs["approval_response"] = "Record the same reviewed issue locally."
+        resumed = self.native_pass(context, 2, "delivery-pass-01")
+        self.assertEqual(resumed.status, MODULE.StepStatus.FAILED)
+        self.assertIn("original issue inventory", resumed.error)
 
     def test_native_final_review_closes_review_owned_criterion_truthfully(self):
         context, _ = self.native_start()

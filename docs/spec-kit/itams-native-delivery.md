@@ -23,7 +23,9 @@ retain the original issue inventory, task-progress baseline, and checkpoint
 start; a non-finding assignment reassessment remains in the digest-bound
 issue request. An approval pause during final review-evidence recording
 retains the reviewed issue inventory and reviewer child binding at the top
-level of the resumed native request.
+level of the resumed native request. Repeated pauses preserve those original
+fields, which are checked against the first digest-bound repair invocation;
+ordinary issue and findings-repair approvals retain their own bindings.
 
 The final issue has one criterion that can only be verified by independent
 review. The builder may leave only its exact "Frozen candidate receives

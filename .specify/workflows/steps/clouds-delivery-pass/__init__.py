@@ -287,12 +287,11 @@ class CloudsDeliveryPassStep(StepBase):
                 and "review_completion_issue" in prior_self["resume_payload"]
             ):
                 bound = prior_self["resume_payload"]
-                if set(bound) != {"review_completion_issue", "issues_before", "review_child_id"}:
-                    raise DeliveryEvidenceError("Approval resume lost its bound final review evidence.")
                 resumed = dict(bound)
                 resumed["approval_response"] = response
                 if transition_raw:
                     resumed["reassessment"] = payload
+                self._review_completion_binding(identity, resumed)
                 payload = resumed
             elif prior_self["role"] == "builder" and prior_self["phase"] == "repair":
                 bound = prior_self.get("resume_payload")
@@ -409,27 +408,7 @@ class CloudsDeliveryPassStep(StepBase):
         self, context, config, root, identity, request, implementation_message
     ):
         payload = request["payload"]
-        required = {"review_completion_issue", "issues_before", "review_child_id"}
-        optional = {"approval_response", "reassessment"}
-        if (not isinstance(payload, dict) or not required <= set(payload) or
-                not set(payload) <= required | optional or
-                ("approval_response" in payload and
-                 (not isinstance(payload["approval_response"], str) or
-                  not payload["approval_response"].strip())) or
-                ("reassessment" in payload and
-                 payload["reassessment"] != identity.get("reassessment_payload")) or
-                not isinstance(payload["review_child_id"], str) or
-                payload["review_child_id"] != identity.get("child_bindings", {}).get(
-                    identity["reviewer_assignment_id"]
-                )):
-            raise DeliveryEvidenceError("Final review evidence request is not bound to the verified reviewer.")
-        issue = payload["review_completion_issue"]
-        issues_before = payload["issues_before"]
-        if (not isinstance(issue, str) or not isinstance(issues_before, dict) or
-                issue not in issues_before or issue != sorted(issues_before)[-1] or
-                issues_before[issue]["unchecked"] != 1 or
-                issues_before[issue].get("review_criterion") != "unchecked"):
-            raise DeliveryEvidenceError("Final review evidence did not start from the one review-owned criterion.")
+        issue, issues_before = self._review_completion_binding(identity, payload)
         issues_after = self._issues_evidence(root, identity)
         if set(issues_after) != set(issues_before):
             raise DeliveryEvidenceError("Review evidence changed the local issue inventory.")
@@ -452,6 +431,43 @@ class CloudsDeliveryPassStep(StepBase):
             context, config, root, identity, "reviewer", "re-review",
             [], implementation_message,
         )
+
+    def _review_completion_binding(self, identity, payload):
+        required = {"review_completion_issue", "issues_before", "review_child_id"}
+        optional = {"approval_response", "reassessment"}
+        if (not isinstance(payload, dict) or not required <= set(payload) or
+                not set(payload) <= required | optional or
+                ("approval_response" in payload and
+                 (not isinstance(payload["approval_response"], str) or
+                  not payload["approval_response"].strip())) or
+                ("reassessment" in payload and
+                 payload["reassessment"] != identity.get("reassessment_payload")) or
+                not isinstance(payload["review_child_id"], str) or
+                payload["review_child_id"] != identity.get("child_bindings", {}).get(
+                    identity["reviewer_assignment_id"]
+                )):
+            raise DeliveryEvidenceError("Final review evidence request is not bound to the verified reviewer.")
+        issue = payload["review_completion_issue"]
+        issues_before = payload["issues_before"]
+        if (not isinstance(issue, str) or not isinstance(issues_before, dict) or
+                issue not in issues_before or issue != sorted(issues_before)[-1] or
+                not isinstance(issues_before[issue], dict) or
+                issues_before[issue]["unchecked"] != 1 or
+                issues_before[issue].get("review_criterion") != "unchecked"):
+            raise DeliveryEvidenceError("Final review evidence did not start from the one review-owned criterion.")
+        original = {key: payload[key] for key in required}
+        digest = self._canonical_sha256(original)
+        if not any(
+            binding.get("role") == "builder"
+            and binding.get("phase") == "repair"
+            and binding.get("payload_digest") == digest
+            for binding in identity.get("invocation_bindings", [])
+            if isinstance(binding, dict)
+        ):
+            raise DeliveryEvidenceError(
+                "Final review evidence lost its original issue inventory and reviewer binding."
+            )
+        return issue, issues_before
 
     def _dispatch(self, context, config, root, identity, role, phase, payload, implementation_message=""):
         self._require_expected_head(root, identity)
