@@ -28,10 +28,10 @@
 
 **Independent test**: IT physically receives an ongoing Asset, explicitly records its actual condition, and sees Available with no Custodian, including Damaged/Repair Required.
 
-- [ ] T009 [US2] Add failing Take Back API tests for AS-005–008/018/022, including no preselected condition, deterioration remarks with New-to-Good exception, disabled employee, Pending Transfer, stale Assignment, repeated action and audit/inspection/notification rollback in `backend/assets/tests_custody.py` (FR-004–006, ALR-001–004).
-- [ ] T010 [US2] Implement transactional Take Back and `/assignment/{id}/take-back/`, preserving physical inspection fields only for real receipt and returning the exact Pending Transfer error, in `backend/assets/custody.py`, `backend/assets/serializers.py`, `backend/assets/views.py` and `backend/assets/urls.py` (FR-004–006).
-- [ ] T011 [US2] Add failing Take Back UI test for required explicit condition, deterioration remarks, pending-request error and `Available` plus actual condition in `frontend/src/pages/transfer/Assignments.test.jsx` (FR-004–006).
-- [ ] T012 [US2] Add permission-gated Take Back controls, current Assignment identity, actual condition and inspection result in `frontend/src/pages/transfer/Transfers.jsx` and `frontend/src/pages/asset/Detail.jsx`; verify UI test turns green (FR-001, FR-004–006, FR-013).
+- [x] T009 [US2] Add failing Take Back API tests for AS-005–008/018/022, including no preselected condition, deterioration remarks with New-to-Good exception, disabled employee, Pending Transfer, stale Assignment, repeated action and audit/inspection/notification rollback in `backend/assets/tests_custody.py` (FR-004–006, ALR-001–004).
+- [x] T010 [US2] Implement transactional Take Back and `/assignment/{id}/take-back/`, preserving physical inspection fields only for real receipt and returning the exact Pending Transfer error, in `backend/assets/custody.py`, `backend/assets/serializers.py`, `backend/assets/views.py` and `backend/assets/urls.py` (FR-004–006).
+- [x] T011 [US2] Add failing Take Back UI test for required explicit condition, deterioration remarks, pending-request error and `Available` plus actual condition in `frontend/src/pages/transfer/Assignments.test.jsx` (FR-004–006).
+- [x] T012 [US2] Add permission-gated Take Back controls, current Assignment identity, actual condition and inspection result in `frontend/src/pages/transfer/Transfers.jsx` and `frontend/src/pages/asset/Detail.jsx`; verify UI test turns green (FR-001, FR-004–006, FR-013).
 
 ## Phase 4: User Story 3 — Preserve temporary Checkout (P1)
 

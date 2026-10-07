@@ -137,6 +137,7 @@ class AssignCustodyTests(TestCase):
         transfer.refresh_from_db()
         self.assertEqual((self.asset.status, self.asset.condition, self.asset.custodian_id),
                          ("Assigned", "Good", self.employee.pk))
+        self.assertEqual(self.asset.department_id, self.department.pk)
         self.assertEqual((record.status, transfer.status), ("Open", "Pending"))
         self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
         self.assertFalse(AuditLog.objects.filter(action="Take Back").exists())
@@ -159,6 +160,23 @@ class AssignCustodyTests(TestCase):
         record.refresh_from_db()
         self.assertEqual((self.asset.status, record.status), ("Assigned", "Open"))
         self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
+        self.assertFalse(Notification.objects.filter(user=self.employee).exists())
+
+    def test_inspection_failure_rolls_back_take_back_before_audit_or_notification(self):
+        record = self.assigned_record()
+        with patch("assets.custody.AssetConditionLog.objects.create",
+                   side_effect=RuntimeError("inspection unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.take_back(record, condition="Damaged", remarks="Screen cracked")
+        self.asset.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual((self.asset.status, self.asset.condition,
+                          self.asset.custodian_id, self.asset.department_id),
+                         ("Assigned", "Good", self.employee.pk, self.department.pk))
+        self.assertEqual((record.status, record.closed_at, record.return_condition),
+                         ("Open", None, ""))
+        self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
+        self.assertFalse(AuditLog.objects.filter(action="Take Back").exists())
         self.assertFalse(Notification.objects.filter(user=self.employee).exists())
 
     def test_notification_failure_does_not_undo_take_back(self):

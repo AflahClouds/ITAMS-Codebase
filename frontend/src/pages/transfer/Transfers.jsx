@@ -117,12 +117,17 @@ const Transfers = () => {
   ], []);
 
   const assignmentColumns = useMemo(() => [
+    { accessorFn: (r) => `Assignment #${r.id}`, id: 'assignment', header: 'Assignment' },
     { accessorFn: (r) => r.asset_details?.asset_id, id: 'asset', header: 'Asset' },
     { accessorFn: (r) => r.user_details?.user_name, id: 'holder', header: 'Employee' },
     { accessorKey: 'issue_condition', header: 'Issue Condition' },
     { accessorKey: 'issued_at', header: 'Issued At' },
     { accessorKey: 'status', header: 'Status' },
     { accessorKey: 'return_condition', header: 'Actual Return Condition' },
+    { accessorFn: (r) => r.closure_reason === 'Take Back' && r.closed_at
+      ? `${new Date(r.closed_at).toLocaleString()} by ${r.closed_by_details?.user_name || 'IT'}`
+      : '-', id: 'returned', header: 'Taken Back' },
+    { accessorKey: 'return_remarks', header: 'Inspection Remarks' },
   ], []);
 
   return (

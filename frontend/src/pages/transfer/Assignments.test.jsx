@@ -96,7 +96,7 @@ describe('Take Back ongoing custody', () => {
   it('requires an explicit condition and deterioration remarks, then shows actual return', async () => {
     render(<Transfers />);
     await userEvent.click(await screen.findByRole('button', { name: 'Take Back AST-004' }));
-    expect(screen.getByText(/Assignment #11/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Take Back AST-004.*Assignment #11/ })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Actual return condition' })).toHaveValue('');
     await userEvent.click(screen.getByRole('button', { name: 'Record Take Back' }));
     expect(AxiosInstance.post).not.toHaveBeenCalled();
@@ -127,5 +127,23 @@ describe('Take Back ongoing custody', () => {
     render(<Transfers />);
     expect(await screen.findByText('Ongoing Assignments')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Take Back AST-004' })).not.toBeInTheDocument();
+  });
+
+  it('shows the return operator, time and inspection in ongoing history', async () => {
+    const closedAt = '2026-10-06T10:00:00Z';
+    AxiosInstance.get.mockImplementation((path) => Promise.resolve({ data:
+      path === '/assignment/' ? [{
+        id: 11, asset_details: { ...held, status: 'Available', condition: 'Damaged' },
+        user_details: employee, status: 'Closed', closure_reason: 'Take Back',
+        issued_at: '2026-09-29T10:00:00Z', issue_condition: 'Good',
+        closed_at: closedAt, closed_by_details: { user_name: 'IT operator' },
+        return_condition: 'Damaged', return_remarks: 'Screen cracked',
+      }] : [],
+    }));
+    render(<Transfers />);
+    expect(await screen.findByText('Assignment #11')).toBeInTheDocument();
+    expect(screen.getByText(`${new Date(closedAt).toLocaleString()} by IT operator`)).toBeInTheDocument();
+    expect(screen.getByText('Damaged')).toBeInTheDocument();
+    expect(screen.getByText('Screen cracked')).toBeInTheDocument();
   });
 });
