@@ -69,6 +69,14 @@ class AssignCustodyTests(TestCase):
         self.assertEqual(self.assign().status_code, 201)
         return AssetAssignment.objects.get(asset=self.asset, status="Open")
 
+    def checkout(self, *, asset=None, user=None):
+        return self.client.post("/checkout/", {
+            "asset": (asset or self.asset).pk,
+            "user": (user or self.employee).pk,
+            "purpose": "On-call spare",
+            "expected_return_date": "2026-11-01",
+        }, format="json")
+
     def test_take_back_requires_explicit_canonical_condition_and_custody_permission(self):
         record = self.assigned_record()
         self.assertEqual(self.take_back(record).status_code, 400)
@@ -187,6 +195,127 @@ class AssignCustodyTests(TestCase):
         self.assertEqual(response.status_code, 200, getattr(response, "data", None))
         self.asset.refresh_from_db()
         self.assertEqual(self.asset.status, "Available")
+
+    def test_new_checkout_is_temporary_and_checkin_is_physical_return(self):
+        response = self.checkout()
+        self.assertEqual(response.status_code, 201, getattr(response, "data", None))
+        self.asset.refresh_from_db()
+        record = AssetCheckout.objects.get(pk=response.data["id"])
+        self.assertEqual((record.classification, record.purpose,
+                          str(record.expected_return_date)),
+                         ("Temporary", "On-call spare", "2026-11-01"))
+        self.assertEqual((self.asset.status, self.asset.custodian_id,
+                          self.asset.department_id),
+                         ("Assigned", self.employee.pk, self.department.pk))
+        self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+        self.assertEqual(self.client.get(f"/asset/{self.asset.pk}/").data[
+            "custody_type"], "Temporary")
+
+        self.assertEqual(self.client.post(f"/checkout/{record.pk}/checkin/", {
+            "condition": "Damaged"}, format="json").status_code, 400)
+        result = self.client.post(f"/checkout/{record.pk}/checkin/", {
+            "condition": "Damaged", "remarks": "Screen cracked"}, format="json")
+        self.assertEqual(result.status_code, 200, getattr(result, "data", None))
+        self.asset.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual((record.status, record.closure_reason,
+                          record.return_condition, record.return_remarks),
+                         ("Returned", "Returned", "Damaged", "Screen cracked"))
+        self.assertIsNotNone(record.return_date)
+        self.assertEqual((self.asset.status, self.asset.condition,
+                          self.asset.custodian_id, self.asset.department_id),
+                         ("Available", "Damaged", None, None))
+        self.assertEqual(AssetConditionLog.objects.filter(asset=self.asset,
+                                                         inspector=self.operator).count(), 1)
+        self.assertFalse(AuditLog.objects.filter(action="Take Back").exists())
+
+    def test_confirmed_temporary_holder_blocks_assign_to_another_employee(self):
+        self.assertEqual(self.checkout().status_code, 201)
+        rejected_assign = self.assign(user=self.other)
+        self.assertEqual(rejected_assign.status_code, 400)
+        self.assertIn("temporarily held by another employee",
+                      rejected_assign.data["detail"])
+        self.asset.refresh_from_db()
+        self.assertEqual((self.asset.status, self.asset.custodian_id,
+                          self.asset.department_id),
+                         ("Assigned", self.employee.pk, self.department.pk))
+        self.assertEqual(AssetCheckout.objects.filter(asset=self.asset,
+                                                      status="Open").count(), 1)
+        self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+
+    def test_confirmed_temporary_holder_blocks_transfer_without_pending_request(self):
+        self.assertEqual(self.checkout().status_code, 201)
+        requester = self.profile("requester", {"transfer_request"})
+        self.client.force_authenticate(requester.account)
+        rejected_transfer = self.client.post("/transfer/", {
+            "asset": self.asset.pk, "new_owner": self.other.pk,
+        }, format="json")
+        self.assertEqual(rejected_transfer.status_code, 400)
+        self.assertIn("temporarily held by another employee",
+                      rejected_transfer.data["detail"])
+        self.asset.refresh_from_db()
+        self.assertEqual((self.asset.status, self.asset.custodian_id,
+                          self.asset.department_id),
+                         ("Assigned", self.employee.pk, self.department.pk))
+        self.assertEqual(AssetCheckout.objects.filter(asset=self.asset,
+                                                      status="Open").count(), 1)
+        self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+        self.assertFalse(AssetTransfer.objects.filter(asset=self.asset).exists())
+
+    def test_pending_transfer_cannot_be_approved_after_asset_enters_temporary_custody(self):
+        pending = AssetTransfer.objects.create(
+            asset=self.asset, previous_owner=self.employee,
+            new_owner=self.other, status="Pending")
+        self.assertEqual(self.checkout().status_code, 201)
+        result = self.client.post(f"/transfer/{pending.pk}/approve/", {}, format="json")
+        self.assertEqual(result.status_code, 400)
+        pending.refresh_from_db()
+        self.asset.refresh_from_db()
+        self.assertEqual(pending.status, "Pending")
+        self.assertEqual(self.asset.custodian_id, self.employee.pk)
+        self.assertTrue(AssetCheckout.objects.filter(asset=self.asset,
+                                                     user=self.employee,
+                                                     status="Open").exists())
+
+    def test_checkout_notification_failure_does_not_undo_committed_temporary_custody(self):
+        with patch("assets.checkout.notify", side_effect=RuntimeError("delivery unavailable")):
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.checkout()
+        self.assertEqual(response.status_code, 201, getattr(response, "data", None))
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.custodian_id, self.employee.pk)
+        self.assertTrue(AssetCheckout.objects.filter(asset=self.asset,
+                                                     status="Open").exists())
+
+    def test_stale_temporary_checkin_does_not_release_later_custody(self):
+        response = self.checkout()
+        self.assertEqual(response.status_code, 201)
+        record = AssetCheckout.objects.get(pk=response.data["id"])
+        Asset.objects.filter(pk=self.asset.pk).update(custodian=self.other,
+                                                       department=None)
+        AssetAssignment.objects.create(asset=self.asset, user=self.other,
+                                       issued_by=self.operator,
+                                       issue_condition="Good")
+        result = self.client.post(f"/checkout/{record.pk}/checkin/", {
+            "condition": "Good"}, format="json")
+        self.assertEqual(result.status_code, 400)
+        self.asset.refresh_from_db()
+        record.refresh_from_db()
+        self.assertEqual((self.asset.status, self.asset.custodian_id,
+                          record.status, record.return_date),
+                         ("Assigned", self.other.pk, "Open", None))
+        self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
+
+    def test_checkout_rejects_conflicting_active_assignment_even_if_snapshot_says_available(self):
+        AssetAssignment.objects.create(asset=self.asset, user=self.employee,
+                                       issued_by=self.operator,
+                                       issue_condition="Good")
+        result = self.checkout(user=self.other)
+        self.assertEqual(result.status_code, 400)
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.status, "Available")
+        self.assertIsNone(self.asset.custodian_id)
+        self.assertFalse(AssetCheckout.objects.filter(asset=self.asset).exists())
 
     def test_assign_creates_one_ongoing_record_and_matching_asset_without_transfer(self):
         from .models import AssetAssignment

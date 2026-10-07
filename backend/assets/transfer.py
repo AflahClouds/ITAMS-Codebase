@@ -5,6 +5,7 @@ from django.utils import timezone
 from accounts.models import users_with_permission
 from core.services import notify, notify_many
 
+from .custody import TEMPORARY_HOLDER_ERROR, confirmed_temporary_holder, custody_type
 from .models import Asset, AssetTransfer, LifecycleError, TERMINAL_STATUSES
 
 # Under Repair means an open Service Record has custody (asset.custodian is already
@@ -16,6 +17,9 @@ NOT_TRANSFERABLE_STATUSES = ("Under Repair",) + TERMINAL_STATUSES
 
 def request_transfer(asset, new_owner, requested_by, *, new_department=None,
                       condition=None, remarks=""):
+    asset = Asset.objects.get(pk=asset.pk)
+    if confirmed_temporary_holder(asset, new_owner):
+        raise LifecycleError(TEMPORARY_HOLDER_ERROR)
     if asset.status in NOT_TRANSFERABLE_STATUSES:
         raise LifecycleError(f"This asset is {asset.status} and cannot be transferred.")
     if asset.custodian_id and asset.custodian_id == new_owner.pk:
@@ -52,6 +56,9 @@ def approve(transfer, approved_by):
         asset = Asset.objects.select_for_update().get(pk=transfer.asset_id)
         if asset.status in NOT_TRANSFERABLE_STATUSES:
             raise LifecycleError(f"This asset is {asset.status} and cannot be transferred.")
+        if custody_type(asset) == "Temporary":
+            raise LifecycleError(
+                "This asset is in temporary Checkout. Record Check-in before Transfer approval.")
 
         transfer.status = "Approved"
         transfer.approved_by = approved_by

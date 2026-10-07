@@ -14,6 +14,11 @@ from .models import (ASSET_CONDITIONS, Asset, AssetAssignment, AssetCheckout,
 
 logger = logging.getLogger(__name__)
 
+TEMPORARY_HOLDER_ERROR = (
+    "This asset is being temporarily held by another employee. "
+    "IT must record Check-in before a new Checkout or Assign."
+)
+
 
 def custody_type(asset):
     """Describe the current record without changing legacy or disputed custody."""
@@ -38,6 +43,12 @@ def custody_type(asset):
     if asset.status == "Assigned" or (asset.custodian_id and asset.status != "Lost"):
         return "Conflicting"
     return "None"
+
+
+def confirmed_temporary_holder(asset, target):
+    """Only name temporary custody when the snapshot and sole open record agree."""
+    return (asset.status == "Assigned" and asset.custodian_id != target.pk and
+            custody_type(asset) == "Temporary")
 
 
 def _notify_assignee(user, asset):
@@ -65,6 +76,8 @@ def assign(asset, user, actor, *, remarks="", request=None):
         raise LifecycleError("You cannot assign assets.")
     with transaction.atomic():
         current = Asset.objects.select_for_update().get(pk=asset.pk)
+        if confirmed_temporary_holder(current, user):
+            raise LifecycleError(TEMPORARY_HOLDER_ERROR)
         if current.status != "Available" or current.custodian_id is not None:
             raise LifecycleError("This asset is not available for assignment.")
         if (AssetAssignment.objects.filter(asset=current, status="Open").exists() or

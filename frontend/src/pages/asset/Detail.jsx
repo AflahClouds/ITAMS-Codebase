@@ -435,12 +435,29 @@ const AssetDetail = () => {
             {history.checkouts.map((c) => (
               <Box key={c.id} sx={{ padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
                 <Typography variant="body2">
-                  {c.user_details?.user_name} — <Chip label={c.status} size="small" />
+                  {`${c.classification || 'Unclassified'} Checkout #${c.id}`}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {new Date(c.checkout_date).toLocaleDateString()}
-                  {c.return_date && ` → ${new Date(c.return_date).toLocaleDateString()}`}
+                <Typography variant="caption" display="block" color="text.secondary">
+                  {`${c.user_details?.user_name || 'Unknown holder'} · Issued ${new Date(c.checkout_date).toLocaleString()}`}
+                  {c.approved_by_details && ` by ${c.approved_by_details.user_name}`}
+                  {` · Purpose: ${c.purpose || 'Not recorded'}`}
+                  {c.expected_return_date && ` · Expected return: ${c.expected_return_date}`}
                 </Typography>
+                <Chip label={c.status} size="small" />
+                {c.status === 'Open' && c.classification === 'Temporary' &&
+                  can('asset_custody_manage') && (
+                  <Button size="small" href="/checkout">Check In</Button>
+                )}
+                {c.return_date && !c.closed_as_interrupted &&
+                  (!c.closure_reason || c.closure_reason === 'Returned') && (
+                  <Typography variant="caption" display="block">
+                    {`Check-in ${new Date(c.return_date).toLocaleString()} · Actual condition: ${c.return_condition}`}
+                    {c.return_remarks && ` · ${c.return_remarks}`}
+                  </Typography>
+                )}
+                {c.closed_as_interrupted && (
+                  <Typography variant="caption" display="block">Custody interrupted without Check-in.</Typography>
+                )}
               </Box>
             ))}
           </Paper>

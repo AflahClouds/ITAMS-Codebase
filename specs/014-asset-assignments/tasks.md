@@ -37,10 +37,10 @@
 
 **Independent test**: A new Checkout is visibly Temporary; Check-in alone physically returns it; Assign and Transfer to another employee fail while it is held.
 
-- [ ] T013 [US3] Add failing Checkout/Check-in, temporary-custody conflict and distinct list/reporting tests for AS-009–011/019 in `backend/assets/tests_custody.py` and `backend/assets/tests_b3_b5_conformance.py` (FR-007, FR-009, FR-013–014).
-- [ ] T014 [US3] Set new Checkout classification to Temporary; route Checkout/Check-in through the custody boundary and block Assign/Transfer with the confirmed temporary-holder error in `backend/assets/checkout.py`, `backend/assets/transfer.py` and `backend/assets/custody.py` (FR-003, FR-007, FR-009).
-- [ ] T015 [US3] Add failing UI test for temporary label, purpose, optional expected-return date and Check-in versus Take Back choices in `frontend/src/pages/checkout/Checkouts.test.jsx` (FR-001, FR-007, FR-013).
-- [ ] T016 [US3] Make the temporary path clear in `frontend/src/pages/checkout/Create.jsx`, `frontend/src/pages/checkout/Checkouts.jsx` and `frontend/src/pages/asset/Detail.jsx`; verify UI test turns green (FR-001, FR-007, FR-013–014).
+- [x] T013 [US3] Add failing Checkout/Check-in, temporary-custody conflict and distinct list/reporting tests for AS-009–011/019 in `backend/assets/tests_custody.py` and `backend/assets/tests_b3_b5_conformance.py` (FR-007, FR-009, FR-013–014).
+- [x] T014 [US3] Set new Checkout classification to Temporary; route Checkout/Check-in through the custody boundary and block Assign/Transfer with the confirmed temporary-holder error in `backend/assets/checkout.py`, `backend/assets/transfer.py` and `backend/assets/custody.py` (FR-003, FR-007, FR-009).
+- [x] T015 [US3] Add failing UI test for temporary label, purpose, optional expected-return date and Check-in versus Take Back choices in `frontend/src/pages/checkout/Checkouts.test.jsx` (FR-001, FR-007, FR-013).
+- [x] T016 [US3] Make the temporary path clear in `frontend/src/pages/checkout/Create.jsx`, `frontend/src/pages/checkout/Checkouts.jsx` and `frontend/src/pages/asset/Detail.jsx`; verify UI test turns green (FR-001, FR-007, FR-013–014).
 
 ## Phase 5: User Story 4 — Approval-gated ongoing Transfer (P1)
 

@@ -132,6 +132,22 @@ class CheckInRemarksTests(TestCase):
         checkout.refresh_from_db()
         self.assertEqual(checkout.status, "Returned")
 
+    def test_unclassified_legacy_checkout_requires_classification_before_checkin(self):
+        """Covers: feature 014 FR-007/011; legacy history is not assumed temporary."""
+        asset = _asset("REM-LEGACY", self.cat, condition="Good")
+        checkout = check_out(asset, self.holder, self.holder)
+        AssetCheckout.objects.filter(pk=checkout.pk).update(classification="Unclassified")
+
+        with self.assertRaisesMessage(LifecycleError,
+                                      "Classify this legacy Checkout before Check-in."):
+            check_in(checkout, "Good", performed_by=self.holder)
+
+        asset.refresh_from_db()
+        checkout.refresh_from_db()
+        self.assertEqual((asset.status, asset.custodian_id, checkout.status,
+                          checkout.return_date),
+                         ("Assigned", self.holder.pk, "Open", None))
+
 
 class SingleOpenCheckoutTests(TestCase):
     """B3 FR-001 and FR-007: one holder at a time, enforced by the database."""

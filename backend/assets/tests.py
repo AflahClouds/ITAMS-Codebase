@@ -263,7 +263,8 @@ class CheckoutLifecycleTests(TestCase):
     def test_check_out_notifies_the_new_custodian(self):
         """Covers: B3 FR-020."""
         from core.models import Notification
-        check_out(self.asset, self.user, self.user)
+        with self.captureOnCommitCallbacks(execute=True):
+            check_out(self.asset, self.user, self.user)
 
         self.assertTrue(Notification.objects.filter(user=self.user).exists())
 

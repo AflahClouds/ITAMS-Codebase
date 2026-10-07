@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { MaterialReactTable } from 'material-react-table';
 import {
   Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
-  IconButton, MenuItem, Select, TextField, Typography,
+  MenuItem, Select, TextField, Typography,
 } from '@mui/material';
 import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
 import LaptopChromebookIcon from '@mui/icons-material/LaptopChromebook';
@@ -11,6 +11,8 @@ import MyMessage from '../../components/forms/Message';
 import { useAuth } from '../../auth/useAuth';
 
 const CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required"];
+const physicallyCheckedIn = (row) => row.status === 'Returned' &&
+  !row.closed_as_interrupted && (!row.closure_reason || row.closure_reason === 'Returned');
 
 const Checkouts = () => {
   const [rows, setRows] = useState([]);
@@ -29,7 +31,7 @@ const Checkouts = () => {
   const doCheckin = async () => {
     try {
       await AxiosInstance.post(`/checkout/${checkinTarget.id}/checkin/`, { condition, remarks });
-      setMessage(<MyMessage messageText="Asset checked in. Usage session ended." messageColor="green" />);
+      setMessage(<MyMessage messageText="Temporary Checkout checked in." messageColor="green" />);
       setCheckinTarget(null);
       setRemarks('');
       load();
@@ -43,18 +45,22 @@ const Checkouts = () => {
   const columns = useMemo(() => [
     { accessorFn: (r) => r.asset_details?.asset_id, id: 'asset', header: 'Asset' },
     { accessorFn: (r) => r.user_details?.user_name, id: 'user', header: 'User' },
+    { accessorFn: (r) => r.classification || 'Unclassified', id: 'type', header: 'Custody Type' },
+    { accessorFn: (r) => r.approved_by_details?.user_name || '-', id: 'issuer', header: 'Issued By' },
     {
       accessorKey: 'checkout_date', header: 'Checkout Date',
       Cell: ({ cell }) => new Date(cell.getValue()).toLocaleDateString(),
     },
     { accessorKey: 'expected_return_date', header: 'Expected Return' },
-    {
-      accessorKey: 'return_date', header: 'Returned On',
-      Cell: ({ cell }) => cell.getValue() ? new Date(cell.getValue()).toLocaleDateString() : '-',
-    },
+    { accessorFn: (r) => physicallyCheckedIn(r) && r.return_date
+      ? new Date(r.return_date).toLocaleDateString() : '-',
+    id: 'checked_in', header: 'Physical Check-in' },
     { accessorKey: 'purpose', header: 'Purpose' },
+    { accessorFn: (r) => physicallyCheckedIn(r) ? r.return_condition : '-',
+      id: 'return_condition', header: 'Actual Return Condition' },
     {
-      accessorKey: 'status', header: 'Status',
+      accessorFn: (r) => r.closed_as_interrupted ? 'Interrupted' :
+        (r.closure_reason || r.status), id: 'outcome', header: 'Outcome',
       Cell: ({ cell }) => (
         <Chip label={cell.getValue()} size="small"
           color={cell.getValue() === 'Open' ? 'warning' : 'success'} />
@@ -72,7 +78,7 @@ const Checkouts = () => {
         {can('asset_custody_manage') && (
           <Button href="/checkout/create" variant="contained" size="small"
             sx={{ marginLeft: 'auto' }}>
-            New Checkout
+            New Temporary Checkout
           </Button>
         )}
       </Box>
@@ -85,11 +91,13 @@ const Checkouts = () => {
         enableRowActions
         renderRowActions={({ row }) => (
           <Box>
-            {row.original.status === 'Open' && can('asset_custody_manage') && (
-              <IconButton color="primary" title="Check in"
+            {row.original.status === 'Open' && row.original.classification === 'Temporary' &&
+              can('asset_custody_manage') && (
+              <Button size="small" startIcon={<AssignmentReturnIcon />}
+                aria-label={`Check In ${row.original.asset_details?.asset_id}`}
                 onClick={() => { setCheckinTarget(row.original); setCondition('Good'); }}>
-                <AssignmentReturnIcon />
-              </IconButton>
+                Check In
+              </Button>
             )}
           </Box>
         )}
@@ -97,7 +105,7 @@ const Checkouts = () => {
 
       <Dialog open={Boolean(checkinTarget)} onClose={() => setCheckinTarget(null)} fullWidth>
         <DialogTitle>
-          Check in {checkinTarget?.asset_details?.asset_id}
+          Check In temporary Checkout {checkinTarget?.asset_details?.asset_id}
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ marginBottom: '12px' }}>
