@@ -21,7 +21,9 @@ tasks_appended, letting the next native pass bind the next issue. No reviewer
 is dispatched while another implementation issue remains. Approval resumes
 retain the original issue inventory, task-progress baseline, and checkpoint
 start; a non-finding assignment reassessment remains in the digest-bound
-issue request.
+issue request. An approval pause during final review-evidence recording
+retains the reviewed issue inventory and reviewer child binding at the top
+level of the resumed native request.
 
 The final issue has one criterion that can only be verified by independent
 review. The builder may leave only its exact "Frozen candidate receives

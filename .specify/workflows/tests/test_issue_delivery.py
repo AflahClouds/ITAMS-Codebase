@@ -361,11 +361,120 @@ class NativeIssueDeliveryTests(unittest.TestCase):
         self.assertEqual(request["payload"]["issues_before"], original["payload"]["issues_before"])
         self.assertEqual(request["payload"]["approval_response"], "Continue within accepted scope.")
 
+    def test_native_findings_repair_approval_resume_keeps_findings(self):
+        context = self.native_dispatch_final_issue()
+        review_line = "Frozen candidate receives independent read-only review; the same builder repairs and the same reviewer re-reviews; commits stay local."
+        self.third.write_text(
+            f"# Third\n- [x] implementation\n- [ ] {review_line}\n",
+            encoding="utf-8",
+        )
+        self.tasks.write_text(
+            "- [x] T001\n- [x] T002\n- [x] T003\n", encoding="utf-8"
+        )
+        self.commit()
+        review = self.native_result(
+            context, 2, "builder", "completed", child_id="native-builder"
+        )
+        self.assertEqual(review.output["request"]["role"], "reviewer", review.error)
+        finding = {
+            "id": "REVIEW-001",
+            "finding": "The local evidence needs repair.",
+            "required_action": "Correct the evidence before re-review.",
+        }
+        returned = self.native_result(
+            context, 2, "reviewer", "tasks_appended",
+            child_id="native-reviewer", findings=[finding],
+        )
+        self.assertEqual(returned.output["status"], "tasks_appended", returned.error)
+        repair = self.native_pass(context, 3, "delivery-pass-02")
+        self.assertEqual(repair.output["request"]["payload"], [finding], repair.error)
+        paused = self.native_result(
+            context, 3, "builder", "approval_required", child_id="native-builder"
+        )
+        self.assertEqual(paused.output["status"], "approval_required", paused.error)
+        context.inputs["approval_action"] = "resume"
+        context.inputs["approval_response"] = "Continue the bounded repair."
+        resumed = self.native_pass(context, 3, "delivery-pass-02")
+        self.assertEqual(
+            resumed.output["request"]["payload"],
+            {"approval_response": "Continue the bounded repair.", "prior_payload": [finding]},
+            resumed.error,
+        )
+        completed = self.native_result(
+            context, 3, "builder", "completed", child_id="native-builder"
+        )
+        self.assertEqual(completed.output["request"]["role"], "reviewer", completed.error)
+        self.assertEqual(completed.output["request"]["phase"], "re-review", completed.error)
+
     def test_reassessment_remains_in_issue_request_payload(self):
         reassessment = {"reason": "same bounded builder purpose"}
         payload = self.step._issue_payload(self.root, self.identity, reassessment)
         self.assertEqual(payload["issue"], "02-second.md")
         self.assertEqual(payload["reassessment"], reassessment)
+
+    def native_pause_final_review_evidence(self):
+        context = self.native_dispatch_final_issue()
+        review_line = "Frozen candidate receives independent read-only review; the same builder repairs and the same reviewer re-reviews; commits stay local."
+        self.third.write_text(
+            f"# Third\n- [x] implementation\n- [ ] {review_line}\n",
+            encoding="utf-8",
+        )
+        self.tasks.write_text(
+            "- [x] T001\n- [x] T002\n- [x] T003\n", encoding="utf-8"
+        )
+        self.commit()
+        review = self.native_result(
+            context, 2, "builder", "completed", child_id="native-builder"
+        )
+        self.assertEqual(review.output["request"]["role"], "reviewer", review.error)
+        closure = self.native_result(
+            context, 2, "reviewer", "clean", child_id="native-reviewer"
+        )
+        self.assertEqual(closure.output["request"]["role"], "builder", closure.error)
+        original = closure.output["request"]["payload"]
+        paused = self.native_result(
+            context, 2, "builder", "approval_required", child_id="native-builder"
+        )
+        self.assertEqual(paused.output["status"], "approval_required", paused.error)
+        context.inputs["approval_action"] = "resume"
+        context.inputs["approval_response"] = "Record the completed review locally."
+        resumed = self.native_pass(context, 2, "delivery-pass-01")
+        self.assertEqual(resumed.output["status"], "dispatch_required", resumed.error)
+        return context, original, resumed.output["request"], review_line
+
+    def test_native_review_evidence_approval_resume_keeps_binding(self):
+        context, original, resumed, review_line = self.native_pause_final_review_evidence()
+        self.assertEqual(resumed["payload"]["review_completion_issue"], original["review_completion_issue"])
+        self.assertEqual(resumed["payload"]["issues_before"], original["issues_before"])
+        self.assertEqual(resumed["payload"]["review_child_id"], "native-reviewer")
+        self.assertEqual(resumed["payload"]["approval_response"], "Record the completed review locally.")
+        self.third.write_text(
+            f"# Third\n- [x] implementation\n- [x] {review_line}\n",
+            encoding="utf-8",
+        )
+        self.commit()
+        result = self.native_result(
+            context, 2, "builder", "completed", child_id="native-builder"
+        )
+        self.assertEqual(result.output["request"]["role"], "reviewer", result.error)
+        self.assertEqual(result.output["request"]["phase"], "re-review", result.error)
+        clean = self.native_result(
+            context, 2, "reviewer", "clean", child_id="native-reviewer"
+        )
+        self.assertEqual(clean.output["status"], "clean", clean.error)
+
+    def test_native_review_evidence_approval_resume_rejects_altered_criterion(self):
+        context, _, _, review_line = self.native_pause_final_review_evidence()
+        self.third.write_text(
+            f"# Third\n- [x] easier replacement\n- [x] {review_line}\n",
+            encoding="utf-8",
+        )
+        self.commit()
+        outcome = self.native_result(
+            context, 2, "builder", "completed", child_id="native-builder"
+        )
+        self.assertEqual(outcome.status, MODULE.StepStatus.FAILED)
+        self.assertIn("criterion", outcome.error)
 
     def test_native_final_review_closes_review_owned_criterion_truthfully(self):
         context, _ = self.native_start()

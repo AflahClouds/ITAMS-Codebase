@@ -211,10 +211,18 @@ class CloudsDeliveryPassStep(StepBase):
                     return self._finish_issue_pass(
                         context, config, root, identity, request, result["message"]
                     )
-                if isinstance(request["payload"], dict) and "review_completion_issue" in request["payload"]:
-                    return self._finish_review_evidence(
-                        context, config, root, identity, request, result["message"]
-                    )
+                if request["phase"] == "repair" and isinstance(request["payload"], dict):
+                    if "review_completion_issue" in request["payload"]:
+                        return self._finish_review_evidence(
+                            context, config, root, identity, request, result["message"]
+                        )
+                    wrapper = request["payload"]
+                    if (set(wrapper) != {"approval_response", "prior_payload"} or
+                            not isinstance(wrapper["approval_response"], str) or
+                            not wrapper["approval_response"].strip() or
+                            not isinstance(wrapper["prior_payload"], list) or
+                            not wrapper["prior_payload"]):
+                        raise DeliveryEvidenceError("Repair approval lost its bound review findings.")
                 return self._dispatch(context, config, root, identity, "reviewer", "re-review" if identity.get("review_generation") else "review", [], result["message"])
             identity["review_generation"] = int(identity.get("review_generation", 0)) + 1
             tasks_after = self._task_evidence(self._feature_file(root, identity, "tasks.md"))
@@ -272,6 +280,32 @@ class CloudsDeliveryPassStep(StepBase):
                 if transition_raw:
                     resumed["reassessment"] = payload
                 payload = resumed
+            elif (
+                prior_self["role"] == "builder"
+                and prior_self["phase"] == "repair"
+                and isinstance(prior_self.get("resume_payload"), dict)
+                and "review_completion_issue" in prior_self["resume_payload"]
+            ):
+                bound = prior_self["resume_payload"]
+                if set(bound) != {"review_completion_issue", "issues_before", "review_child_id"}:
+                    raise DeliveryEvidenceError("Approval resume lost its bound final review evidence.")
+                resumed = dict(bound)
+                resumed["approval_response"] = response
+                if transition_raw:
+                    resumed["reassessment"] = payload
+                payload = resumed
+            elif prior_self["role"] == "builder" and prior_self["phase"] == "repair":
+                bound = prior_self.get("resume_payload")
+                if isinstance(bound, dict):
+                    if set(bound) != {"approval_response", "prior_payload"}:
+                        raise DeliveryEvidenceError("Repair approval lost its bound review findings.")
+                    bound = bound["prior_payload"]
+                if not isinstance(bound, list) or not bound:
+                    raise DeliveryEvidenceError("Repair approval has no bound review findings.")
+                payload = {
+                    "approval_response": response,
+                    "prior_payload": payload if transition_raw else bound,
+                }
             else:
                 payload = {"approval_response": response, "prior_payload": payload if transition_raw else prior_self.get("resume_payload", payload)}
             return self._dispatch(context, config, root, identity, prior_self["role"], prior_self["phase"], payload, prior_self.get("implementation_message", ""))
@@ -375,7 +409,15 @@ class CloudsDeliveryPassStep(StepBase):
         self, context, config, root, identity, request, implementation_message
     ):
         payload = request["payload"]
-        if (set(payload) != {"review_completion_issue", "issues_before", "review_child_id"} or
+        required = {"review_completion_issue", "issues_before", "review_child_id"}
+        optional = {"approval_response", "reassessment"}
+        if (not isinstance(payload, dict) or not required <= set(payload) or
+                not set(payload) <= required | optional or
+                ("approval_response" in payload and
+                 (not isinstance(payload["approval_response"], str) or
+                  not payload["approval_response"].strip())) or
+                ("reassessment" in payload and
+                 payload["reassessment"] != identity.get("reassessment_payload")) or
                 not isinstance(payload["review_child_id"], str) or
                 payload["review_child_id"] != identity.get("child_bindings", {}).get(
                     identity["reviewer_assignment_id"]
