@@ -263,6 +263,12 @@ class AssetCheckout(models.Model):
                                       null=True, blank=True, related_name="classified_checkouts")
     superseded_by_transfer = models.ForeignKey('AssetTransfer', on_delete=models.SET_NULL,
                                                null=True, blank=True, related_name="superseded_checkouts")
+    source_checkout = models.ForeignKey('self', on_delete=models.SET_NULL,
+                                        null=True, blank=True, related_name="reconstructed_checkouts")
+    source_transfer = models.ForeignKey('AssetTransfer', on_delete=models.SET_NULL,
+                                        null=True, blank=True, related_name="target_checkouts")
+    provenance = models.CharField(max_length=32, blank=True, default="")
+    date_basis = models.CharField(max_length=64, blank=True, default="")
 
     class Meta:
         constraints = [

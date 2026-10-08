@@ -76,6 +76,21 @@ describe('Assign ongoing custody', () => {
       'href', '/transfer/assign');
     expect(screen.getByText('Ongoing Assignments')).toBeInTheDocument();
   });
+
+  it('labels a reconstructed Assignment date as an unverified legacy event', async () => {
+    AxiosInstance.get.mockImplementation((path) => Promise.resolve({ data:
+      path === '/assignment/' ? [{
+        id: 30, asset_details: held, user_details: employee, status: 'Open',
+        issued_at: '2026-09-10T10:00:00Z', issue_condition: '',
+        source_transfer: 22, provenance: 'Administrative reconstruction',
+        date_basis: 'Legacy Transfer event date (event type unverified)',
+      }] : [],
+    }));
+    render(<Transfers />);
+    expect(await screen.findByText('Legacy Transfer event date (event type unverified)'))
+      .toBeInTheDocument();
+    expect(screen.queryByText('Issued At')).not.toBeInTheDocument();
+  });
 });
 
 describe('Take Back ongoing custody', () => {

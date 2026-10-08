@@ -271,11 +271,7 @@ def _verified_approved_handoff_chain(asset, checkout, final_transfer):
 
 def reconcile_legacy_checkout(checkout, final_transfer, custody_choice, actor,
                               *, remarks="", request=None):
-    """Supersede a stale Checkout only when the approved chain and B record agree.
-
-    Reconstruction of a missing B record is deferred until the historical date
-    basis is resolved. This path can safely link an existing dated arrangement.
-    """
+    """Supersede A and record B only when approved handoffs prove current custody."""
     if (actor is None or actor.status != "Active" or not actor.account_id or
             not actor.account.is_active or not actor.can("asset_custody_manage")):
         raise LifecycleError("You cannot reconcile Checkout custody.")
@@ -297,23 +293,37 @@ def reconcile_legacy_checkout(checkout, final_transfer, custody_choice, actor,
 
         assignments = list(AssetAssignment.objects.select_for_update().filter(
             asset=current, status="Open"))
-        other_checkouts = AssetCheckout.objects.filter(
-            asset=current, status="Open").exclude(pk=record.pk)
-        if (custody_choice != "Ongoing" or len(assignments) != 1 or
-                assignments[0].user_id != current.custodian_id or
-                assignments[0].source_transfer_id not in (None, final.pk) or
-                assignments[0].source_checkout_id not in (None, record.pk) or
-                other_checkouts.exists()):
-            raise LifecycleError(
-                "Current holder has no matching active arrangement for this reconciliation.")
-        assignment = assignments[0]
-        if (record.status == "Returned" and record.closure_reason == "Superseded" and
-                record.superseded_by_transfer_id == final.pk and
-                record.classified_at and assignment.source_checkout_id == record.pk and
-                assignment.source_transfer_id == final.pk):
-            return record
+        other_checkouts = list(AssetCheckout.objects.select_for_update().filter(
+            asset=current, status="Open").exclude(pk=record.pk))
+        arrangement = None
+        if custody_choice == "Ongoing" and not other_checkouts and len(assignments) <= 1:
+            if assignments:
+                arrangement = assignments[0]
+                if (arrangement.user_id != current.custodian_id or
+                        arrangement.source_transfer_id not in (None, final.pk) or
+                        arrangement.source_checkout_id not in (None, record.pk)):
+                    raise LifecycleError("Current holder has a conflicting active arrangement.")
+        elif custody_choice == "Temporary" and not assignments and len(other_checkouts) <= 1:
+            if other_checkouts:
+                arrangement = other_checkouts[0]
+                if (arrangement.user_id != current.custodian_id or
+                        arrangement.classification != "Temporary" or
+                        arrangement.source_transfer_id != final.pk or
+                        arrangement.source_checkout_id != record.pk):
+                    raise LifecycleError("Current holder has a conflicting active arrangement.")
+        else:
+            raise LifecycleError("Current holder has a conflicting active arrangement.")
+        if record.status == "Returned" and record.closure_reason == "Superseded":
+            if (record.superseded_by_transfer_id == final.pk and record.classified_at and
+                    arrangement is not None and
+                    arrangement.source_checkout_id == record.pk and
+                    arrangement.source_transfer_id == final.pk):
+                return record
+            raise LifecycleError("This legacy Checkout was already reconciled differently.")
         if record.status != "Open" or record.classification != "Unclassified":
             raise LifecycleError("This legacy Checkout is no longer open and unclassified.")
+        if arrangement is not None and custody_choice == "Temporary":
+            raise LifecycleError("Current holder has a conflicting active arrangement.")
 
         now = timezone.now()
         changed = AssetCheckout.objects.filter(
@@ -323,17 +333,34 @@ def reconcile_legacy_checkout(checkout, final_transfer, custody_choice, actor,
             classified_at=now, classification_remarks=remarks)
         if changed != 1:
             raise LifecycleError("This legacy Checkout changed. Reload and try again.")
-        linked = AssetAssignment.objects.filter(pk=assignment.pk, status="Open").update(
-            source_checkout=record, source_transfer=final)
-        if linked != 1:
-            raise LifecycleError("The current Assignment changed. Reload and try again.")
+        date_basis = "Legacy Transfer event date (event type unverified)"
+        if custody_choice == "Ongoing":
+            if arrangement is None:
+                arrangement = AssetAssignment.objects.create(
+                    asset=current, user=current.custodian, issue_condition="",
+                    source_checkout=record, source_transfer=final,
+                    provenance="Administrative reconstruction", date_basis=date_basis)
+                AssetAssignment.objects.filter(pk=arrangement.pk).update(
+                    issued_at=final.transfer_date)
+            else:
+                linked = AssetAssignment.objects.filter(pk=arrangement.pk, status="Open").update(
+                    source_checkout=record, source_transfer=final)
+                if linked != 1:
+                    raise LifecycleError("The current Assignment changed. Reload and try again.")
+        else:
+            arrangement = AssetCheckout.objects.create(
+                asset=current, user=current.custodian, classification="Temporary",
+                source_checkout=record, source_transfer=final,
+                provenance="Administrative reconstruction", date_basis=date_basis)
+            AssetCheckout.objects.filter(pk=arrangement.pk).update(
+                checkout_date=final.transfer_date)
         log_action(
             request or SimpleNamespace(user=actor.account, META={}),
             "Reconcile Checkout", "Checkouts",
             old_value=(f"{current.asset_id} | Checkout {record.pk} Open | "
                        f"{record.user.user_name} | current holder {current.custodian_id}"),
             new_value=(f"{current.asset_id} | Checkout {record.pk} Superseded by "
-                       f"TRF-{final.pk:05d} | {custody_choice} Assignment {assignment.pk} "
+                       f"TRF-{final.pk:05d} | {custody_choice} arrangement {arrangement.pk} "
                        f"| actor {actor.user_name} | no physical Check-in | {remarks}"),
         )
     record.refresh_from_db()

@@ -18,6 +18,11 @@ const Checkouts = () => {
   const [rows, setRows] = useState([]);
   const [checkinTarget, setCheckinTarget] = useState(null);
   const [classifyTarget, setClassifyTarget] = useState(null);
+  const [reconcileTarget, setReconcileTarget] = useState(null);
+  const [approvedTransfers, setApprovedTransfers] = useState([]);
+  const [selectedTransfer, setSelectedTransfer] = useState('');
+  const [currentCustodyType, setCurrentCustodyType] = useState('');
+  const [reconciliationRemarks, setReconciliationRemarks] = useState('');
   const [classification, setClassification] = useState('');
   const [classificationRemarks, setClassificationRemarks] = useState('');
   const [condition, setCondition] = useState('Good');
@@ -58,6 +63,38 @@ const Checkouts = () => {
     } catch (err) {
       setMessage(<MyMessage messageText={err.response?.data?.detail ||
         'Classification failed.'} messageColor="red" />);
+    }
+  };
+
+  const openReconciliation = async (row) => {
+    setReconcileTarget(row);
+    setSelectedTransfer('');
+    setCurrentCustodyType('');
+    setReconciliationRemarks('');
+    try {
+      const response = await AxiosInstance.get('/transfer/');
+      setApprovedTransfers(response.data.filter((transfer) =>
+        transfer.status === 'Approved' && transfer.asset === row.asset_details?.id));
+    } catch {
+      setApprovedTransfers([]);
+      setMessage(<MyMessage messageText="Could not load approved Transfer evidence."
+        messageColor="red" />);
+    }
+  };
+
+  const doReconcile = async () => {
+    try {
+      await AxiosInstance.post(`/checkout/${reconcileTarget.id}/reconcile/`, {
+        approved_transfer: Number(selectedTransfer), custody_type: currentCustodyType,
+        remarks: reconciliationRemarks,
+      });
+      setMessage(<MyMessage messageText="Historical handoff reconciled administratively."
+        messageColor="green" />);
+      setReconcileTarget(null);
+      load();
+    } catch (err) {
+      setMessage(<MyMessage messageText={err.response?.data?.detail ||
+        'Reconciliation failed.'} messageColor="red" />);
     }
   };
 
@@ -130,7 +167,16 @@ const Checkouts = () => {
             )}
             {row.original.status === 'Open' && row.original.classification === 'Unclassified' &&
               row.original.current_custody_type === 'Conflicting' && (
-              <Typography variant="body2">Conflicting custody records — investigate</Typography>
+              <>
+                <Typography variant="body2">Conflicting custody records — investigate</Typography>
+                {can('asset_custody_manage') && (
+                  <Button size="small"
+                    aria-label={`Reconcile ${row.original.asset_details?.asset_id}`}
+                    onClick={() => openReconciliation(row.original)}>
+                    Reconcile
+                  </Button>
+                )}
+              </>
             )}
           </Box>
         )}
@@ -154,6 +200,46 @@ const Checkouts = () => {
         <DialogActions>
           <Button onClick={() => setCheckinTarget(null)}>Cancel</Button>
           <Button variant="contained" onClick={doCheckin}>Check In</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(reconcileTarget)} onClose={() => setReconcileTarget(null)} fullWidth>
+        <DialogTitle>Reconcile historical handoff {reconcileTarget?.asset_details?.asset_id}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ marginBottom: '12px' }}>
+            Verify the complete Approved Transfer chain and current holder before recording
+            administrative reconciliation. This records no physical Check-in.
+          </Typography>
+          <Box sx={{ marginBottom: '12px' }}>
+            <label htmlFor="reconcile-transfer">Approved Transfer</label>
+            <select id="reconcile-transfer" aria-label="Approved Transfer"
+              value={selectedTransfer} onChange={(event) => setSelectedTransfer(event.target.value)}>
+              <option value="">Choose final approved Transfer</option>
+              {approvedTransfers.map((transfer) => (
+                <option key={transfer.id} value={transfer.id}>
+                  {`${transfer.transfer_code} ${transfer.previous_owner_details?.user_name || 'Unknown'} → ${transfer.new_owner_details?.user_name || 'Unknown'}`}
+                </option>
+              ))}
+            </select>
+          </Box>
+          <Box sx={{ marginBottom: '12px' }}>
+            <label htmlFor="reconcile-type">Current custody type</label>
+            <select id="reconcile-type" aria-label="Current custody type"
+              value={currentCustodyType}
+              onChange={(event) => setCurrentCustodyType(event.target.value)}>
+              <option value="">Choose custody type</option>
+              <option value="Temporary">Temporary</option>
+              <option value="Ongoing">Ongoing</option>
+            </select>
+          </Box>
+          <TextField fullWidth size="small" label="Reconciliation remarks" multiline rows={2}
+            value={reconciliationRemarks}
+            onChange={(event) => setReconciliationRemarks(event.target.value)} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReconcileTarget(null)}>Cancel</Button>
+          <Button variant="contained" disabled={!selectedTransfer || !currentCustodyType}
+            onClick={doReconcile}>Record Reconciliation</Button>
         </DialogActions>
       </Dialog>
 

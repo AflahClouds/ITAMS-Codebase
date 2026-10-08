@@ -433,7 +433,8 @@ class CheckoutSerializer(serializers.ModelSerializer):
                             'return_condition', 'return_remarks', 'status',
                             'classification', 'closure_reason', 'closed_at',
                             'classified_at', 'classified_by', 'classification_remarks',
-                            'superseded_by_transfer')
+                            'superseded_by_transfer', 'source_checkout',
+                            'source_transfer', 'provenance', 'date_basis')
 
 
 class AssignmentSerializer(serializers.ModelSerializer):

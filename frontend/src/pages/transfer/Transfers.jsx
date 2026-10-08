@@ -121,7 +121,9 @@ const Transfers = () => {
     { accessorFn: (r) => r.asset_details?.asset_id, id: 'asset', header: 'Asset' },
     { accessorFn: (r) => r.user_details?.user_name, id: 'holder', header: 'Employee' },
     { accessorKey: 'issue_condition', header: 'Issue Condition' },
-    { accessorKey: 'issued_at', header: 'Issued At' },
+    { accessorKey: 'issued_at', header: 'Recorded Date' },
+    { accessorFn: (r) => r.date_basis || 'Recorded issue date',
+      id: 'date_basis', header: 'Date Basis' },
     { accessorKey: 'status', header: 'Status' },
     { accessorKey: 'return_condition', header: 'Actual Return Condition' },
     { accessorFn: (r) => r.closure_reason === 'Take Back' && r.closed_at

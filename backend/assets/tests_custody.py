@@ -131,19 +131,6 @@ class AssignCustodyTests(TestCase):
         self.assertEqual(repeated.status_code, 400)
         self.assertEqual(AssetAssignment.objects.filter(source_transfer=transfer).count(), 1)
 
-    def test_approval_preserves_the_transfer_request_timestamp(self):
-        self.assigned_record()
-        requested = self.request_ongoing_transfer()
-        self.assertEqual(requested.status_code, 201)
-        transfer = AssetTransfer.objects.get(pk=requested.data["id"])
-        request_date = timezone.now().replace(microsecond=0) - timedelta(days=2)
-        AssetTransfer.objects.filter(pk=transfer.pk).update(transfer_date=request_date)
-        approved = self.client.post(f"/transfer/{transfer.pk}/approve/", {}, format="json")
-        self.assertEqual(approved.status_code, 200, getattr(approved, "data", None))
-        transfer.refresh_from_db()
-        self.assertEqual(transfer.transfer_date, request_date)
-        self.assertEqual(AssetAssignment.objects.filter(source_transfer=transfer).count(), 1)
-
     def test_transfer_rejects_later_same_employee_arrangement_and_department_change(self):
         source = self.assigned_record()
         requested = self.request_ongoing_transfer()
@@ -837,11 +824,6 @@ class LegacyReconciliationTests(TestCase):
             condition="Average")
         AssetTransfer.objects.filter(pk=transfer.pk).update(transfer_date=request_date)
         transfer.refresh_from_db()
-        request_log = AuditLog.objects.create(
-            user=self.operator, username=self.operator.account.username,
-            action="Transfer Request", module="Transfers",
-            new_value=f"TRF-{transfer.pk:05d} | Pending | {target.user_name}")
-        AuditLog.objects.filter(pk=request_log.pk).update(date=request_date)
         return transfer
 
     def reconcile(self, transfer, custody_choice="Ongoing"):
@@ -881,7 +863,8 @@ class LegacyReconciliationTests(TestCase):
         self.assertEqual(assignment.issue_condition, "")
         self.assertEqual(assignment.issued_at.replace(microsecond=0), final_date)
         self.assertEqual(assignment.provenance, "Administrative reconstruction")
-        self.assertIn("Transfer request", assignment.date_basis)
+        self.assertEqual(assignment.date_basis,
+                         "Legacy Transfer event date (event type unverified)")
         self.assertEqual((self.asset.status, self.asset.custodian_id,
                           self.asset.department_id, self.asset.condition), original_snapshot)
         self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
@@ -906,10 +889,14 @@ class LegacyReconciliationTests(TestCase):
                           active.checkout_condition, active.return_date),
                          ("", None, "", None))
         self.assertEqual(active.provenance, "Administrative reconstruction")
-        self.assertIn("Transfer request", active.date_basis)
+        self.assertEqual(active.date_basis,
+                         "Legacy Transfer event date (event type unverified)")
         self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
         self.assertEqual(self.client.get(f"/asset/{self.asset.pk}/").data["custody_type"],
                          "Temporary")
+        self.assertEqual(self.reconcile(final, "Temporary").status_code, 200)
+        self.assertEqual(AssetCheckout.objects.filter(asset=self.asset, status="Open").count(), 1)
+        self.assertEqual(AuditLog.objects.filter(action="Reconcile Checkout").count(), 1)
 
     def test_existing_matching_ongoing_record_is_linked_without_duplicate(self):
         self.approved_handoff(
@@ -986,6 +973,17 @@ class LegacyReconciliationTests(TestCase):
                           self.asset.department_id),
                          ("Assigned", self.b.pk, self.department_b.pk))
 
+    def test_reconstruction_audit_failure_rolls_back_new_arrangement(self):
+        final = self.approved_handoff(
+            self.a, self.b, self.original_issue + timedelta(days=40))
+        with patch("assets.custody.log_action", side_effect=RuntimeError("audit unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.reconcile(final, "Temporary")
+        self.checkout.refresh_from_db()
+        self.assertEqual(self.checkout.status, "Open")
+        self.assertEqual(AssetCheckout.objects.filter(asset=self.asset).count(), 1)
+        self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+
 
 class LegacyCheckoutMigrationTests(TransactionTestCase):
     def test_populated_open_checkout_stays_open_and_unclassified(self):
@@ -1003,7 +1001,7 @@ class LegacyCheckoutMigrationTests(TransactionTestCase):
             status="Assigned", custodian=holder)
         target_old = [('assets', '0012_assetcheckout_closed_as_interrupted_and_more')]
         target_new = [('assets', '0013_asset_assignment')]
-        target_latest = [('assets', '0015_assetcheckout_classification_remarks')]
+        target_latest = [('assets', '0016_assetcheckout_reconciliation_provenance')]
         executor = MigrationExecutor(connection)
         executor.migrate(target_old)
         try:

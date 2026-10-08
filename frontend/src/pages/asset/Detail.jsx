@@ -407,10 +407,17 @@ const AssetDetail = () => {
                   {`Assignment #${assignment.id} · ${assignment.user_details?.user_name}`} — <Chip label={assignment.status} size="small" />
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Issued {new Date(assignment.issued_at).toLocaleString()}
+                  {assignment.provenance === 'Administrative reconstruction'
+                    ? `Recorded ${new Date(assignment.issued_at).toLocaleString()}`
+                    : `Issued ${new Date(assignment.issued_at).toLocaleString()}`}
                   {assignment.issued_by_details && ` by ${assignment.issued_by_details.user_name}`}
-                  {` · ${assignment.issue_condition}`}
+                  {` · ${assignment.issue_condition || 'Issue condition not recorded'}`}
                 </Typography>
+                {assignment.date_basis && (
+                  <Typography variant="caption" display="block">
+                    {assignment.date_basis}
+                  </Typography>
+                )}
                 {assignment.status === 'Open' && can('asset_custody_manage') && (
                   <Button size="small" href="/transfer">Take Back</Button>
                 )}
@@ -451,12 +458,20 @@ const AssetDetail = () => {
                   {`${c.classification || 'Unclassified'} Checkout #${c.id}`}
                 </Typography>
                 <Typography variant="caption" display="block" color="text.secondary">
-                  {`${c.user_details?.user_name || 'Unknown holder'} · Issued ${new Date(c.checkout_date).toLocaleString()}`}
+                  {`${c.user_details?.user_name || 'Unknown holder'} · ${c.provenance === 'Administrative reconstruction' ? 'Recorded' : 'Issued'} ${new Date(c.checkout_date).toLocaleString()}`}
                   {c.approved_by_details && ` by ${c.approved_by_details.user_name}`}
                   {` · Purpose: ${c.purpose || 'Not recorded'}`}
                   {c.expected_return_date && ` · Expected return: ${c.expected_return_date}`}
                 </Typography>
+                {c.date_basis && (
+                  <Typography variant="caption" display="block">{c.date_basis}</Typography>
+                )}
                 <Chip label={c.status} size="small" />
+                {c.closure_reason === 'Superseded' && c.superseded_by_transfer && (
+                  <Typography variant="caption" display="block">
+                    {`Superseded via TRF-${String(c.superseded_by_transfer).padStart(5, '0')} administratively; no physical Check-in`}
+                  </Typography>
+                )}
                 {c.status === 'Open' && c.classification === 'Temporary' &&
                   can('asset_custody_manage') && (
                   <Button size="small" href="/checkout">Check In</Button>

@@ -172,6 +172,14 @@ describe('verified legacy handoff reconciliation', () => {
     expect(screen.queryByRole('button', { name: 'Check In AST-004' })).not.toBeInTheDocument();
   });
 
+  it('hides reconciliation from readers without custody-management permission', async () => {
+    permissions.current = ['asset_view'];
+    render(<Checkouts />);
+    expect(await screen.findByText(/Conflicting custody records/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reconcile AST-004' }))
+      .not.toBeInTheDocument();
+  });
+
   it('shows Superseded history as administrative and labels reconstructed date basis', async () => {
     AxiosInstance.get.mockImplementation((path) => Promise.resolve({ data:
       path === '/asset/4/' ? { ...asset, custody_type: 'Ongoing',
@@ -180,7 +188,7 @@ describe('verified legacy handoff reconciliation', () => {
           assignments: [{ id: 30, status: 'Open', issued_at: '2026-09-10T10:00:00Z',
             user_details: { user_name: 'Bala' }, issue_condition: '',
             provenance: 'Administrative reconstruction',
-            date_basis: 'Earliest documented Transfer request', source_transfer: 22 }],
+            date_basis: 'Legacy Transfer event date (event type unverified)', source_transfer: 22 }],
           checkouts: [{ ...staleCheckout, status: 'Returned', closure_reason: 'Superseded',
             superseded_by_transfer: 22, return_date: null }],
           transfers: [approvedTransfer], condition_logs: [], services: [],
@@ -189,7 +197,7 @@ describe('verified legacy handoff reconciliation', () => {
     }));
     render(<AssetDetail />);
     expect(await screen.findByText(/Superseded via TRF-00022/)).toBeInTheDocument();
-    expect(screen.getByText(/Earliest documented Transfer request/)).toBeInTheDocument();
+    expect(screen.getByText(/Legacy Transfer event date \(event type unverified\)/)).toBeInTheDocument();
     expect(screen.queryByText(/Check-in.*2026-09-10/i)).not.toBeInTheDocument();
   });
 });
