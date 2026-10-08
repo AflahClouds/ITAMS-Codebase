@@ -46,10 +46,10 @@
 
 **Independent test**: Pending leaves A in custody; approval ends A's exact Assignment and opens B's atomically; rejection leaves custody unchanged.
 
-- [ ] T017 [US4] Add failing request/approval/rejection tests for AS-012–015, source-arrangement identity, same-holder and Pending restrictions, temporary/unclassified rejection, changed department and service/terminal stale approval in `backend/assets/tests_custody.py` (FR-008–009, FR-012, ALR-001–003).
-- [ ] T018 [US4] Capture exact source Assignment in new Transfer requests and make approval atomically close A/open B with audit and unchanged rejection semantics in `backend/assets/transfer.py`, `backend/assets/custody.py`, `backend/assets/models.py` and the additive migration (FR-003, FR-008–009).
-- [ ] T019 [US4] Add failing UI test for Pending/Approved/Rejected history and Transfer PDF reflecting a real employee handoff in `frontend/src/pages/transfer/Assignments.test.jsx` (FR-001, FR-008, FR-013).
-- [ ] T020 [US4] Show the three distinct actions and valid ongoing Transfer state in `frontend/src/pages/transfer/Transfers.jsx`, `frontend/src/pages/transfer/Create.jsx` and `frontend/src/pages/asset/Detail.jsx`; keep existing PDF handoff meaning and verify UI test turns green (FR-001, FR-008, FR-013).
+- [x] T017 [US4] Add failing request/approval/rejection tests for AS-012–015, source-arrangement identity, same-holder and Pending restrictions, temporary/unclassified rejection, changed department and service/terminal stale approval in `backend/assets/tests_custody.py` (FR-008–009, FR-012, ALR-001–003).
+- [x] T018 [US4] Capture exact source Assignment in new Transfer requests and make approval atomically close A/open B with audit and unchanged rejection semantics in `backend/assets/transfer.py`, `backend/assets/custody.py`, `backend/assets/models.py` and the additive migration (FR-003, FR-008–009).
+- [x] T019 [US4] Add failing UI test for Pending/Approved/Rejected history and Transfer PDF reflecting a real employee handoff in `frontend/src/pages/transfer/Assignments.test.jsx` (FR-001, FR-008, FR-013).
+- [x] T020 [US4] Show the three distinct actions and valid ongoing Transfer state in `frontend/src/pages/transfer/Transfers.jsx`, `frontend/src/pages/transfer/Create.jsx` and `frontend/src/pages/asset/Detail.jsx`; keep existing PDF handoff meaning and verify UI test turns green (FR-001, FR-008, FR-013).
 
 ## Phase 6: User Story 5 — Classify and reconcile legacy custody (P1)
 
