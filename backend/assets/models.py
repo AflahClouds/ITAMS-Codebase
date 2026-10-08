@@ -279,6 +279,8 @@ class AssetCheckout(models.Model):
 
 class AssetTransfer(models.Model):
     asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="transfers")
+    source_assignment = models.ForeignKey('AssetAssignment', on_delete=models.SET_NULL,
+                                          null=True, blank=True, related_name="requested_transfers")
     previous_owner = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name="transfers_out")
     new_owner = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name="transfers_in")
     previous_department = models.ForeignKey('accounts.Department', on_delete=models.SET_NULL, null=True, blank=True, related_name="+")

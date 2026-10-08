@@ -127,6 +127,11 @@ const Transfers = () => {
     { accessorFn: (r) => r.closure_reason === 'Take Back' && r.closed_at
       ? `${new Date(r.closed_at).toLocaleString()} by ${r.closed_by_details?.user_name || 'IT'}`
       : '-', id: 'returned', header: 'Taken Back' },
+    { accessorFn: (r) => r.superseded_by_transfer
+      ? `Transferred via TRF-${String(r.superseded_by_transfer).padStart(5, '0')} by ${r.closed_by_details?.user_name || 'IT'}`
+      : r.source_transfer
+        ? `Received via TRF-${String(r.source_transfer).padStart(5, '0')}` : '-',
+    id: 'transfer', header: 'Transfer Handoff' },
     { accessorKey: 'return_remarks', header: 'Inspection Remarks' },
   ], []);
 

@@ -3,9 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../api/client', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+const route = { current: '/transfer/assign' };
 vi.mock('react-router', () => ({
   useNavigate: () => vi.fn(),
-  useLocation: () => ({ pathname: '/transfer/assign' }),
+  useLocation: () => ({ pathname: route.current }),
 }));
 vi.mock('material-react-table', () => ({
   MaterialReactTable: ({ data, columns, renderRowActions }) => <table><tbody>{data.map((row) =>
@@ -29,6 +30,7 @@ const employee = { id: 7, user_name: 'Asha' };
 
 describe('Assign ongoing custody', () => {
   beforeEach(() => {
+    route.current = '/transfer/assign';
     permissions.current = ['asset_view', 'asset_custody_manage'];
     AxiosInstance.get.mockReset().mockImplementation((path) => {
       if (path.startsWith('/asset/')) return Promise.resolve({ data: [available, held] });
@@ -78,6 +80,7 @@ describe('Assign ongoing custody', () => {
 
 describe('Take Back ongoing custody', () => {
   beforeEach(() => {
+    route.current = '/transfer/assign';
     permissions.current = ['asset_view', 'asset_custody_manage'];
     AxiosInstance.get.mockReset().mockImplementation((path) => {
       if (path === '/assignment/') return Promise.resolve({ data: [
@@ -145,5 +148,65 @@ describe('Take Back ongoing custody', () => {
     expect(screen.getByText(`${new Date(closedAt).toLocaleString()} by IT operator`)).toBeInTheDocument();
     expect(screen.getByText('Damaged')).toBeInTheDocument();
     expect(screen.getByText('Screen cracked')).toBeInTheDocument();
+  });
+});
+
+describe('Transfer ongoing custody', () => {
+  beforeEach(() => {
+    route.current = '/transfer/create';
+    permissions.current = ['asset_view', 'asset_custody_manage', 'transfer_request'];
+    AxiosInstance.post.mockReset().mockResolvedValue({ data: {} });
+    AxiosInstance.get.mockReset().mockImplementation((path) => Promise.resolve({ data:
+      path === '/assignment/' ? [] : path === '/transfer/' ? [
+        { id: 21, transfer_code: 'TRF-00021', asset_details: held,
+          previous_owner_details: employee, new_owner_details: { user_name: 'Bela' },
+          status: 'Pending', source_assignment: 11 },
+        { id: 22, transfer_code: 'TRF-00022', asset_details: held,
+          previous_owner_details: employee, new_owner_details: { user_name: 'Bela' },
+          status: 'Approved', source_assignment: 11 },
+        { id: 23, transfer_code: 'TRF-00023', asset_details: held,
+          previous_owner_details: employee, new_owner_details: { user_name: 'Bela' },
+          status: 'Rejected', source_assignment: 11 },
+      ] : [],
+    }));
+  });
+
+  it('retains Pending, Approved and Rejected history and existing document access', async () => {
+    render(<Transfers />);
+    expect(await screen.findByText('TRF-00021')).toBeInTheDocument();
+    expect(screen.getByText('TRF-00022')).toBeInTheDocument();
+    expect(screen.getByText('TRF-00023')).toBeInTheDocument();
+    expect(screen.getAllByTitle('Download transfer document')).toHaveLength(3);
+    expect(screen.getAllByTitle('Approve')).toHaveLength(1);
+    expect(screen.getAllByTitle('Reject')).toHaveLength(1);
+  });
+
+  it('offers only confirmed ongoing custody as a new Transfer source', async () => {
+    const temporary = { id: 5, asset_id: 'AST-005', status: 'Assigned', custody_type: 'Temporary' };
+    const unclassified = { id: 6, asset_id: 'AST-006', status: 'Assigned', custody_type: 'Unclassified' };
+    AxiosInstance.get.mockImplementation((path) => Promise.resolve({ data:
+      path === '/asset/' ? [available, held, temporary, unclassified]
+        : path === '/user/directory/' ? [employee, { id: 8, user_name: 'Bela' }] : [],
+    }));
+    render(<TransferCreate />);
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Asset' }));
+    expect(screen.getByRole('option', { name: 'AST-004' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'AST-003' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'AST-005' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'AST-006' })).not.toBeInTheDocument();
+  });
+
+  it('identifies a transferred Assignment without calling it a physical Take Back', async () => {
+    AxiosInstance.get.mockImplementation((path) => Promise.resolve({ data:
+      path === '/assignment/' ? [{
+        id: 11, asset_details: held, user_details: employee, status: 'Closed',
+        issued_at: '2026-09-29T10:00:00Z', issue_condition: 'Good',
+        closure_reason: 'Transfer', superseded_by_transfer: 22,
+        closed_at: '2026-10-07T10:00:00Z', closed_by_details: { user_name: 'IT operator' },
+      }] : [],
+    }));
+    render(<Transfers />);
+    expect(await screen.findByText('Assignment #11')).toBeInTheDocument();
+    expect(screen.getByText(/Transferred via TRF-00022/)).toBeInTheDocument();
   });
 });

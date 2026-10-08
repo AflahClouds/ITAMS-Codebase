@@ -414,10 +414,23 @@ const AssetDetail = () => {
                 {assignment.status === 'Open' && can('asset_custody_manage') && (
                   <Button size="small" href="/transfer">Take Back</Button>
                 )}
+                {assignment.status === 'Open' && can('transfer_request') && (
+                  <Button size="small" href="/transfer/create">Request Transfer</Button>
+                )}
                 {assignment.closure_reason === 'Take Back' && (
                   <Typography variant="caption" display="block">
                     {`Take Back ${new Date(assignment.closed_at).toLocaleString()} by ${assignment.closed_by_details?.user_name || 'IT'} · Available · Actual condition: ${assignment.return_condition}`}
                     {assignment.return_remarks && ` · ${assignment.return_remarks}`}
+                  </Typography>
+                )}
+                {assignment.closure_reason === 'Transfer' && assignment.superseded_by_transfer && (
+                  <Typography variant="caption" display="block">
+                    {`Transferred via TRF-${String(assignment.superseded_by_transfer).padStart(5, '0')} ${new Date(assignment.closed_at).toLocaleString()} by ${assignment.closed_by_details?.user_name || 'IT'}`}
+                  </Typography>
+                )}
+                {assignment.source_transfer && (
+                  <Typography variant="caption" display="block">
+                    {`Received via TRF-${String(assignment.source_transfer).padStart(5, '0')}`}
                   </Typography>
                 )}
               </Box>

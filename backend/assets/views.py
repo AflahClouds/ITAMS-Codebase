@@ -545,34 +545,28 @@ class TransferViewSet(viewsets.ModelViewSet):
                 new_department=data.get('new_department'),
                 condition=data.get('condition'),
                 remarks=data.get('remarks', ""),
+                request=request,
             )
         except LifecycleError as exc:
             return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
-        log_action(request, "Transfer Request", "Transfers",
-                   new_value=f"{asset.asset_id} -> {new_owner.user_name}")
         return Response(self.get_serializer(transfer).data, status=http_status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         transfer = self.get_object()
         try:
-            transfer = approve_transfer(transfer, get_profile(request))
+            transfer = approve_transfer(transfer, get_profile(request), request=request)
         except LifecycleError as exc:
             return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
-        asset = transfer.asset
-        log_action(request, "Transfer Approved", "Transfers",
-                   new_value=f"{asset.asset_id} -> {transfer.new_owner.user_name}")
         return Response(self.get_serializer(transfer).data)
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
         transfer = self.get_object()
         try:
-            transfer = reject_transfer(transfer, get_profile(request))
+            transfer = reject_transfer(transfer, get_profile(request), request=request)
         except LifecycleError as exc:
             return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
-        log_action(request, "Transfer Rejected", "Transfers",
-                   old_value=f"TRF-{transfer.id:05d}")
         return Response(self.get_serializer(transfer).data)
 
     @action(detail=True, methods=['get'], url_path='document')

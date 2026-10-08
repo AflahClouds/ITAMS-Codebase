@@ -29,7 +29,7 @@ const TransferCreate = () => {
     AxiosInstance.get('/asset/').then((res) => setAssets(
       res.data.filter((a) => assigning
         ? a.status === 'Available' && (!a.custody_type || a.custody_type === 'None')
-        : ['Available', 'Assigned'].includes(a.status))))
+        : a.status === 'Assigned' && a.custody_type === 'Ongoing')))
     // The directory endpoint already returns active employees only and omits status.
     AxiosInstance.get('/user/directory/').then((res) => setUsers(res.data))
     if (!assigning) AxiosInstance.get('/department/').then((res) => setDepartments(res.data))

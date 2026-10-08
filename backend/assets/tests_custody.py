@@ -77,6 +77,173 @@ class AssignCustodyTests(TestCase):
             "expected_return_date": "2026-11-01",
         }, format="json")
 
+    def request_ongoing_transfer(self, *, target=None, department=None):
+        self.operator.role.permissions.add(Permission.objects.get_or_create(
+            code="transfer_request", defaults={"name": "Transfer request"})[0])
+        payload = {"asset": self.asset.pk, "new_owner": (target or self.other).pk}
+        if department is not None:
+            payload["new_department"] = department.pk
+        return self.client.post("/transfer/", payload, format="json")
+
+    def test_transfer_request_binds_exact_source_and_pending_or_rejected_leaves_custody(self):
+        source = self.assigned_record()
+        requested = self.request_ongoing_transfer()
+        self.assertEqual(requested.status_code, 201, getattr(requested, "data", None))
+        transfer = AssetTransfer.objects.get(pk=requested.data["id"])
+        self.assertEqual(transfer.source_assignment_id, source.pk)
+        self.asset.refresh_from_db()
+        source.refresh_from_db()
+        self.assertEqual((self.asset.custodian_id, source.status, transfer.status),
+                         (self.employee.pk, "Open", "Pending"))
+        rejected = self.client.post(f"/transfer/{transfer.pk}/reject/", {}, format="json")
+        self.assertEqual(rejected.status_code, 200, getattr(rejected, "data", None))
+        self.asset.refresh_from_db()
+        source.refresh_from_db()
+        self.assertEqual((self.asset.custodian_id, source.status), (self.employee.pk, "Open"))
+        self.assertFalse(AssetAssignment.objects.filter(source_transfer=transfer).exists())
+
+    def test_transfer_approval_atomically_ends_source_and_opens_target(self):
+        source = self.assigned_record()
+        target_department = Department.objects.create(name="Target department")
+        requested = self.request_ongoing_transfer(department=target_department)
+        self.assertEqual(requested.status_code, 201, getattr(requested, "data", None))
+        transfer = AssetTransfer.objects.get(pk=requested.data["id"])
+        with self.captureOnCommitCallbacks(execute=True):
+            approved = self.client.post(f"/transfer/{transfer.pk}/approve/", {}, format="json")
+        self.assertEqual(approved.status_code, 200, getattr(approved, "data", None))
+        source.refresh_from_db()
+        target = AssetAssignment.objects.get(source_transfer=transfer)
+        self.asset.refresh_from_db()
+        self.assertEqual((source.status, source.closure_reason, source.closed_by_id,
+                          source.superseded_by_transfer_id),
+                         ("Closed", "Transfer", self.operator.pk, transfer.pk))
+        self.assertIsNotNone(source.closed_at)
+        self.assertEqual((target.status, target.user_id, target.issued_by_id,
+                          target.issue_condition),
+                         ("Open", self.other.pk, self.operator.pk, self.asset.condition))
+        self.assertEqual((self.asset.status, self.asset.custodian_id,
+                          self.asset.department_id),
+                         ("Assigned", self.other.pk, target_department.pk))
+        self.assertEqual(AuditLog.objects.filter(action="Transfer Approved").count(), 1)
+        self.assertEqual(self.client.get(f"/asset/{self.asset.pk}/").data["custody_type"], "Ongoing")
+        repeated = self.client.post(f"/transfer/{transfer.pk}/approve/", {}, format="json")
+        self.assertEqual(repeated.status_code, 400)
+        self.assertEqual(AssetAssignment.objects.filter(source_transfer=transfer).count(), 1)
+
+    def test_transfer_rejects_later_same_employee_arrangement_and_department_change(self):
+        source = self.assigned_record()
+        requested = self.request_ongoing_transfer()
+        self.assertEqual(requested.status_code, 201)
+        transfer = AssetTransfer.objects.get(pk=requested.data["id"])
+        source.status = "Closed"
+        source.save(update_fields=["status"])
+        later = AssetAssignment.objects.create(asset=self.asset, user=self.employee,
+                                               issued_by=self.operator, issue_condition="Good")
+        stale = self.client.post(f"/transfer/{transfer.pk}/approve/", {}, format="json")
+        self.assertEqual(stale.status_code, 400)
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.custodian_id, self.employee.pk)
+        self.assertEqual(AssetAssignment.objects.get(pk=later.pk).status, "Open")
+        transfer.refresh_from_db()
+        self.assertEqual(transfer.status, "Pending")
+        later.status = "Closed"
+        later.save(update_fields=["status"])
+        source.status = "Open"
+        source.save(update_fields=["status"])
+        changed_department = Department.objects.create(name="Changed department")
+        self.asset.department = changed_department
+        self.asset.save(update_fields=["department"])
+        self.assertEqual(self.client.post(f"/transfer/{transfer.pk}/approve/", {},
+                                          format="json").status_code, 400)
+        self.assertFalse(AssetAssignment.objects.filter(source_transfer=transfer).exists())
+
+    def test_transfer_rejects_unclassified_conflicting_and_inactive_target(self):
+        self.assigned_record()
+        AssetCheckout.objects.create(asset=self.asset, user=self.employee,
+                                     classification="Unclassified")
+        self.assertEqual(self.request_ongoing_transfer().status_code, 400)
+        self.assertFalse(AssetTransfer.objects.filter(asset=self.asset).exists())
+        AssetCheckout.objects.filter(asset=self.asset).delete()
+        self.other.status = "Disabled"
+        self.other.save(update_fields=["status"])
+        self.assertEqual(self.request_ongoing_transfer().status_code, 400)
+        self.assertFalse(AssetTransfer.objects.filter(asset=self.asset).exists())
+
+    def test_transfer_approval_audit_failure_rolls_back_all_custody(self):
+        source = self.assigned_record()
+        requested = self.request_ongoing_transfer()
+        self.assertEqual(requested.status_code, 201)
+        transfer = AssetTransfer.objects.get(pk=requested.data["id"])
+        with patch("assets.transfer.log_action", side_effect=RuntimeError("audit unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.client.post(f"/transfer/{transfer.pk}/approve/", {}, format="json")
+        self.asset.refresh_from_db()
+        source.refresh_from_db()
+        transfer.refresh_from_db()
+        self.assertEqual((self.asset.custodian_id, source.status, transfer.status),
+                         (self.employee.pk, "Open", "Pending"))
+        self.assertFalse(AssetAssignment.objects.filter(source_transfer=transfer).exists())
+
+    def test_transfer_permission_denials_and_same_holder_do_not_create_requests(self):
+        source = self.assigned_record()
+        self.client.force_authenticate(self.reader.account)
+        denied = self.client.post("/transfer/", {
+            "asset": self.asset.pk, "new_owner": self.other.pk,
+        }, format="json")
+        self.assertEqual(denied.status_code, 403)
+        self.client.force_authenticate(self.operator.account)
+        self.assertEqual(self.request_ongoing_transfer(target=self.employee).status_code, 400)
+        self.assertFalse(AssetTransfer.objects.filter(asset=self.asset).exists())
+        self.assertEqual(source.status, "Open")
+        requested = self.request_ongoing_transfer()
+        self.assertEqual(requested.status_code, 201)
+        self.client.force_authenticate(self.reader.account)
+        self.assertEqual(self.client.post(f"/transfer/{requested.data['id']}/approve/",
+                                          {}, format="json").status_code, 403)
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.custodian_id, self.employee.pk)
+        self.assertEqual(AssetTransfer.objects.get(pk=requested.data["id"]).status, "Pending")
+
+    def test_transfer_duplicate_pending_and_disabled_target_at_approval_are_safe(self):
+        source = self.assigned_record()
+        requested = self.request_ongoing_transfer()
+        self.assertEqual(requested.status_code, 201)
+        self.assertEqual(self.request_ongoing_transfer().status_code, 400)
+        self.other.status = "Disabled"
+        self.other.save(update_fields=["status"])
+        rejected = self.client.post(f"/transfer/{requested.data['id']}/approve/",
+                                    {}, format="json")
+        self.assertEqual(rejected.status_code, 400)
+        self.asset.refresh_from_db()
+        source.refresh_from_db()
+        self.assertEqual((self.asset.custodian_id, source.status),
+                         (self.employee.pk, "Open"))
+        self.assertEqual(AssetTransfer.objects.get(pk=requested.data["id"]).status, "Pending")
+
+    def test_transfer_request_audit_failure_does_not_leave_pending_record(self):
+        self.assigned_record()
+        with patch("assets.transfer.log_action", side_effect=RuntimeError("audit unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.request_ongoing_transfer()
+        self.assertFalse(AssetTransfer.objects.filter(asset=self.asset).exists())
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.custodian_id, self.employee.pk)
+
+    def test_transfer_notification_failure_after_commit_preserves_handoff(self):
+        self.assigned_record()
+        requested = self.request_ongoing_transfer()
+        self.assertEqual(requested.status_code, 201)
+        transfer = AssetTransfer.objects.get(pk=requested.data["id"])
+        with patch("assets.transfer.notify", side_effect=RuntimeError("delivery unavailable")):
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(f"/transfer/{transfer.pk}/approve/",
+                                            {}, format="json")
+        self.assertEqual(response.status_code, 200, getattr(response, "data", None))
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.custodian_id, self.other.pk)
+        self.assertTrue(AssetAssignment.objects.filter(source_transfer=transfer,
+                                                       status="Open").exists())
+
     def test_take_back_requires_explicit_canonical_condition_and_custody_permission(self):
         record = self.assigned_record()
         self.assertEqual(self.take_back(record).status_code, 400)

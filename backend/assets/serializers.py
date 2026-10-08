@@ -461,7 +461,7 @@ class TransferSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssetTransfer
         fields = "__all__"
-        read_only_fields = ('previous_owner', 'previous_department', 'transfer_date',
+        read_only_fields = ('source_assignment', 'previous_owner', 'previous_department', 'transfer_date',
                             'requested_by', 'approved_by', 'status')
 
     def get_transfer_code(self, obj):
