@@ -76,3 +76,10 @@
 - Within each behavior slice, run the test task first and record its expected failure before implementation. Complete one local issue and a stable checkpoint before starting the next. One builder writes; no parallel implementation is planned. Independent read-only review begins only after candidate freeze.
 - MVP after T008 is a direct ongoing Assign. The authorized scope is all five stories and cross-cutting gates, so stop only at a real blocker or changed accepted decision, not at MVP.
 - After the builder completes T031 and freezes a revision, the native delivery workflow assigns a fresh read-only reviewer. Findings return to the same builder; that reviewer re-reviews the repaired revision. Review is a release gate rather than a builder checkbox.
+
+## Phase 8: Independent-review convergence repairs
+
+- [x] T032 Add public API fail-before regressions for direct Asset department input with active custody/Pending Transfer and for department-supplied creation; add UI fail-before coverage for Asset Create/Edit department controls and payloads (REV-001, FR-014, ALR-003).
+- [x] T033 Reject generic Asset department input while preserving operation-derived department and Lost accountability; remove direct department editing and payload fields from Asset Create/Edit (REV-001, FR-014, ALR-003).
+- [x] T034 Add authenticated Admin public API regressions for generic PATCH/DELETE of Checkout, Transfer and Service Record with unchanged Asset, history and links; record genuine PATCH red and isolated reconstructed pre-fix DELETE evidence separately (REV-002, ALR-003).
+- [x] T035 Remove generic mutation routes from the three lifecycle record viewsets while keeping their supported creation, reads and named decision/return/reconcile/close actions; run affected focused and complete gates (REV-002, ALR-003).

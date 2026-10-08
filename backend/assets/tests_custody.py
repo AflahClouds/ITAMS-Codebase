@@ -837,6 +837,119 @@ class AssignCustodyTests(TestCase):
         self.assertEqual(self.client.delete(f"/asset/{empty_asset.pk}/").status_code, 204)
         self.assertFalse(Asset.objects.filter(pk=empty_asset.pk).exists())
 
+    def test_generic_asset_department_cannot_diverge_from_active_holder(self):
+        self.operator.role.permissions.add(Permission.objects.get_or_create(
+            code="asset_edit", defaults={"name": "Asset edit"})[0])
+        source = self.assigned_record()
+        requested = self.request_ongoing_transfer()
+        self.assertEqual(requested.status_code, 201)
+        transfer = AssetTransfer.objects.get(pk=requested.data["id"])
+        changed = Department.objects.create(name="Unrelated department")
+        audit_count = AuditLog.objects.count()
+
+        response = self.client.patch(f"/asset/{self.asset.pk}/", {
+            "department": changed.pk,
+        }, format="json")
+        self.assertEqual(response.status_code, 400, getattr(response, "data", None))
+        self.assertIn("department", response.data)
+        self.asset.refresh_from_db()
+        source.refresh_from_db()
+        transfer.refresh_from_db()
+        self.assertEqual((self.asset.custodian_id, self.asset.department_id,
+                          source.status, transfer.status, transfer.source_assignment_id),
+                         (self.employee.pk, self.department.pk, "Open", "Pending", source.pk))
+        self.assertEqual(AuditLog.objects.count(), audit_count)
+
+    def test_generic_asset_create_cannot_set_department_without_holder(self):
+        self.operator.role.permissions.add(Permission.objects.get_or_create(
+            code="asset_create", defaults={"name": "Asset create"})[0])
+        audit_count = AuditLog.objects.count()
+        response = self.client.post("/asset/", {
+            "asset_id": "CUS-DEPT-CREATE", "tag_number": "CUS-DEPT-CREATE-tag",
+            "serial_number": "CUS-DEPT-CREATE-serial",
+            "category": self.catalog["category"].pk,
+            "brand": self.catalog["brand"].pk,
+            "model": self.catalog["model"].pk,
+            "status": "Available", "condition": "Good",
+            "department": self.department.pk,
+        }, format="json")
+        self.assertEqual(response.status_code, 400, getattr(response, "data", None))
+        self.assertIn("department", response.data)
+        self.assertFalse(Asset.objects.filter(asset_id="CUS-DEPT-CREATE").exists())
+        self.assertEqual(AuditLog.objects.count(), audit_count)
+
+    def test_admin_cannot_generically_mutate_checkout(self):
+        created = self.checkout()
+        self.assertEqual(created.status_code, 201, getattr(created, "data", None))
+        checkout = AssetCheckout.objects.get(pk=created.data["id"])
+        admin = self.profile("lifecycle-admin", set())
+        admin.role = Role.objects.get_or_create(name="Admin")[0]
+        admin.save(update_fields=["role"])
+        self.client.force_authenticate(admin.account)
+        audit_count = AuditLog.objects.count()
+        for method, data in ((self.client.patch, {"user": self.other.pk}),
+                             (self.client.delete, None)):
+            response = method(f"/checkout/{checkout.pk}/", data=data, format="json")
+            self.assertEqual(response.status_code, 405, getattr(response, "data", None))
+            self.asset.refresh_from_db()
+            checkout.refresh_from_db()
+            self.assertEqual((self.asset.status, self.asset.custodian_id,
+                              checkout.user_id, checkout.status, checkout.return_date),
+                             ("Assigned", self.employee.pk, self.employee.pk, "Open", None))
+        self.assertEqual(AuditLog.objects.count(), audit_count)
+
+    def test_admin_cannot_generically_mutate_approved_transfer(self):
+        source = self.assigned_record()
+        requested = self.request_ongoing_transfer()
+        self.assertEqual(requested.status_code, 201)
+        approved = self.client.post(f"/transfer/{requested.data['id']}/approve/", {}, format="json")
+        self.assertEqual(approved.status_code, 200, getattr(approved, "data", None))
+        transfer = AssetTransfer.objects.get(pk=requested.data["id"])
+        target = AssetAssignment.objects.get(source_transfer=transfer)
+        admin = self.profile("lifecycle-admin", set())
+        admin.role = Role.objects.get_or_create(name="Admin")[0]
+        admin.save(update_fields=["role"])
+        self.client.force_authenticate(admin.account)
+        audit_count = AuditLog.objects.count()
+        for method, data in ((self.client.patch, {"new_owner": self.employee.pk}),
+                             (self.client.delete, None)):
+            response = method(f"/transfer/{transfer.pk}/", data=data, format="json")
+            self.assertEqual(response.status_code, 405, getattr(response, "data", None))
+            self.asset.refresh_from_db()
+            source.refresh_from_db()
+            target.refresh_from_db()
+            transfer.refresh_from_db()
+            self.assertEqual((self.asset.custodian_id, source.status, target.status,
+                              target.source_transfer_id, transfer.new_owner_id, transfer.status,
+                              transfer.source_assignment_id),
+                             (self.other.pk, "Closed", "Open", transfer.pk, self.other.pk,
+                              "Approved", source.pk))
+        self.assertEqual(AuditLog.objects.count(), audit_count)
+
+    def test_admin_cannot_generically_mutate_open_service_record(self):
+        vendor = Vendor.objects.create(name="Protected repair vendor")
+        created = self.client.post("/service/", {
+            "asset": self.asset.pk, "vendor": vendor.pk, "reason": "Repair",
+        }, format="json")
+        self.assertEqual(created.status_code, 201, getattr(created, "data", None))
+        service = ServiceRecord.objects.get(pk=created.data["id"])
+        unrelated_asset = self.make_asset("CUS-SERVICE-UNRELATED")
+        admin = self.profile("lifecycle-admin", set())
+        admin.role = Role.objects.get_or_create(name="Admin")[0]
+        admin.save(update_fields=["role"])
+        self.client.force_authenticate(admin.account)
+        audit_count = AuditLog.objects.count()
+        for method, data in ((self.client.patch, {"asset": unrelated_asset.pk}),
+                             (self.client.delete, None)):
+            response = method(f"/service/{service.pk}/", data=data, format="json")
+            self.assertEqual(response.status_code, 405, getattr(response, "data", None))
+            self.asset.refresh_from_db()
+            service.refresh_from_db()
+            self.assertEqual((self.asset.status, self.asset.custodian_id,
+                              service.asset_id, service.status, service.returned_date),
+                             ("Under Repair", None, self.asset.pk, "Open", None))
+        self.assertEqual(AuditLog.objects.count(), audit_count)
+
 
 class LegacyClassificationTests(TestCase):
     def setUp(self):

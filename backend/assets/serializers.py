@@ -154,9 +154,20 @@ class AssetSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"custodian": "A new asset cannot be created with a Custodian; "
                                   "use Checkout or Transfer to assign custody."})
+            if attrs.get('department') is not None:
+                raise serializers.ValidationError(
+                    {"department": "Department follows the Custodian; use a custody "
+                                   "operation rather than setting it on a new Asset."})
         if self.instance is not None:
             current_status = self.instance.status
             new_status = attrs.get('status', current_status)
+            if ('department' in attrs and attrs['department'] != self.instance.department
+                    and (new_status not in TERMINAL_STATUSES or new_status == current_status)):
+                # Terminal clearing/retention below is owned by the lifecycle
+                # transition. Other edits cannot diverge Asset from its holder.
+                raise serializers.ValidationError(
+                    {"department": "Department follows the Custodian; use a custody "
+                                   "operation rather than editing it directly."})
             if ('custodian' in attrs and attrs['custodian'] != self.instance.custodian
                     and new_status not in TERMINAL_STATUSES):
                 # Otherwise the creation guard above is bypassable by saving the asset

@@ -301,7 +301,7 @@ class ProcurementViewSet(viewsets.ModelViewSet):
 
 # ---------- Service Records ----------
 
-class ServiceRecordViewSet(viewsets.ModelViewSet):
+class ServiceRecordViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "asset_custody_manage", "close": "asset_custody_manage",
@@ -500,7 +500,7 @@ class AssignmentViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
 
 # ---------- Checkouts ----------
 
-class CheckoutViewSet(viewsets.ModelViewSet):
+class CheckoutViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "asset_custody_manage", "checkin": "asset_custody_manage",
@@ -591,7 +591,7 @@ class CheckoutViewSet(viewsets.ModelViewSet):
 
 # ---------- Transfers ----------
 
-class TransferViewSet(viewsets.ModelViewSet):
+class TransferViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "transfer_request", "approve": "asset_custody_manage",
