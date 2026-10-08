@@ -96,3 +96,42 @@ describe('temporary Checkout and physical Check-in', () => {
     expect(screen.queryByRole('link', { name: 'Take Back' })).not.toBeInTheDocument();
   });
 });
+
+describe('legacy Checkout classification', () => {
+  beforeEach(() => {
+    permissions.current = ['asset_view', 'asset_custody_manage'];
+    AxiosInstance.post.mockReset().mockResolvedValue({ data: { classification: 'Ongoing' } });
+    AxiosInstance.get.mockReset().mockImplementation((path) => Promise.resolve({ data:
+      path === '/checkout/' ? [{ ...checkout, classification: 'Unclassified',
+        current_custody_type: 'Unclassified' }] : [],
+    }));
+  });
+
+  it('requires an explicit temporary or ongoing decision without offering physical Check-in', async () => {
+    render(<Checkouts />);
+    expect(await screen.findByText('Unclassified')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Check In AST-004' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Classify AST-004' }));
+    expect(screen.getByText(/administrative classification.*no physical Check-in/i)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Custody type' })).toHaveValue('');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Custody type' }), 'Ongoing');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Classification remarks' }),
+      'Everyday device verified by IT');
+    await userEvent.click(screen.getByRole('button', { name: 'Record Classification' }));
+    await waitFor(() => expect(AxiosInstance.post).toHaveBeenCalledWith(
+      '/checkout/15/classify/', {
+        custody_type: 'Ongoing', remarks: 'Everyday device verified by IT',
+      }));
+  });
+
+  it('shows a custody conflict without suggesting the old Checkout is temporary', async () => {
+    AxiosInstance.get.mockImplementation((path) => Promise.resolve({ data:
+      path === '/checkout/' ? [{ ...checkout, classification: 'Unclassified',
+        current_custody_type: 'Conflicting' }] : [],
+    }));
+    render(<Checkouts />);
+    expect(await screen.findByText(/Conflicting custody records/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Classify AST-004' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Check In AST-004' })).not.toBeInTheDocument();
+  });
+});

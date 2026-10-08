@@ -17,6 +17,9 @@ const physicallyCheckedIn = (row) => row.status === 'Returned' &&
 const Checkouts = () => {
   const [rows, setRows] = useState([]);
   const [checkinTarget, setCheckinTarget] = useState(null);
+  const [classifyTarget, setClassifyTarget] = useState(null);
+  const [classification, setClassification] = useState('');
+  const [classificationRemarks, setClassificationRemarks] = useState('');
   const [condition, setCondition] = useState('Good');
   const [remarks, setRemarks] = useState('');
   const [message, setMessage] = useState(null);
@@ -39,6 +42,22 @@ const Checkouts = () => {
       setMessage(<MyMessage
         messageText={err.response?.data?.detail || 'Check-in failed.'} messageColor="red" />);
       setCheckinTarget(null);
+    }
+  };
+
+  const doClassify = async () => {
+    try {
+      await AxiosInstance.post(`/checkout/${classifyTarget.id}/classify/`, {
+        custody_type: classification, remarks: classificationRemarks,
+      });
+      setMessage(<MyMessage messageText="Legacy Checkout classified." messageColor="green" />);
+      setClassifyTarget(null);
+      setClassification('');
+      setClassificationRemarks('');
+      load();
+    } catch (err) {
+      setMessage(<MyMessage messageText={err.response?.data?.detail ||
+        'Classification failed.'} messageColor="red" />);
     }
   };
 
@@ -99,6 +118,20 @@ const Checkouts = () => {
                 Check In
               </Button>
             )}
+            {row.original.status === 'Open' && row.original.classification === 'Unclassified' &&
+              row.original.current_custody_type === 'Unclassified' &&
+              can('asset_custody_manage') && (
+              <Button size="small"
+                aria-label={`Classify ${row.original.asset_details?.asset_id}`}
+                onClick={() => { setClassifyTarget(row.original); setClassification('');
+                  setClassificationRemarks(''); }}>
+                Classify
+              </Button>
+            )}
+            {row.original.status === 'Open' && row.original.classification === 'Unclassified' &&
+              row.original.current_custody_type === 'Conflicting' && (
+              <Typography variant="body2">Conflicting custody records — investigate</Typography>
+            )}
           </Box>
         )}
       />
@@ -121,6 +154,30 @@ const Checkouts = () => {
         <DialogActions>
           <Button onClick={() => setCheckinTarget(null)}>Cancel</Button>
           <Button variant="contained" onClick={doCheckin}>Check In</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(classifyTarget)} onClose={() => setClassifyTarget(null)} fullWidth>
+        <DialogTitle>Classify legacy Checkout {classifyTarget?.asset_details?.asset_id}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ marginBottom: '12px' }}>
+            This administrative classification records actual custody; no physical Check-in occurs.
+          </Typography>
+          <select aria-label="Custody type" value={classification}
+            onChange={(event) => setClassification(event.target.value)}>
+            <option value="">Choose custody type</option>
+            <option value="Temporary">Temporary</option>
+            <option value="Ongoing">Ongoing</option>
+          </select>
+          <TextField fullWidth size="small" label="Classification remarks" multiline rows={2}
+            value={classificationRemarks}
+            onChange={(event) => setClassificationRemarks(event.target.value)} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClassifyTarget(null)}>Cancel</Button>
+          <Button variant="contained" disabled={!classification} onClick={doClassify}>
+            Record Classification
+          </Button>
         </DialogActions>
       </Dialog>
     </div>

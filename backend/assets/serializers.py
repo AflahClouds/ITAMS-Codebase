@@ -419,6 +419,10 @@ class CheckoutSerializer(serializers.ModelSerializer):
     asset_details = AssetLiteSerializer(source='asset', read_only=True)
     user_details = UserLiteSerializer(source='user', read_only=True)
     approved_by_details = UserLiteSerializer(source='approved_by', read_only=True)
+    current_custody_type = serializers.SerializerMethodField()
+
+    def get_current_custody_type(self, obj):
+        return custody_type(obj.asset)
 
     class Meta:
         model = AssetCheckout
@@ -428,7 +432,8 @@ class CheckoutSerializer(serializers.ModelSerializer):
         read_only_fields = ('checkout_date', 'return_date', 'approved_by',
                             'return_condition', 'return_remarks', 'status',
                             'classification', 'closure_reason', 'closed_at',
-                            'classified_at', 'classified_by', 'superseded_by_transfer')
+                            'classified_at', 'classified_by', 'classification_remarks',
+                            'superseded_by_transfer')
 
 
 class AssignmentSerializer(serializers.ModelSerializer):

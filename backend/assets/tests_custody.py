@@ -1,4 +1,5 @@
-"""Observable tests for the ongoing custody slice (FR-001–003, ALR-001–005)."""
+"""Observable tests for ongoing and legacy custody."""
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth.models import User as AuthUser
@@ -610,6 +611,169 @@ class AssignCustodyTests(TestCase):
         self.assertEqual(result.data[0]["asset"], self.asset.pk)
 
 
+class LegacyClassificationTests(TestCase):
+    def setUp(self):
+        brand = Brand.objects.create(brand_name="Legacy classification brand")
+        category = Category.objects.create(category_name="Legacy classification category")
+        model = Model.objects.create(model_name="Legacy classification model", brand=brand)
+        self.department = Department.objects.create(name="Legacy classification department")
+        self.operator = self.profile("classify-operator", {"asset_custody_manage", "asset_view"})
+        self.reader = self.profile("classify-reader", {"asset_view"})
+        self.issuer = self.profile("classify-issuer", set())
+        self.holder = self.profile("classify-holder", set(), department=self.department)
+        self.other = self.profile("classify-other", {"asset_view"})
+        self.asset = Asset.objects.create(
+            asset_id="LEG-CLASS-001", tag_number="LEG-CLASS-tag",
+            serial_number="LEG-CLASS-serial", brand=brand, category=category,
+            model=model, status="Assigned", custodian=self.holder,
+            department=self.department, condition="Average")
+        self.checkout = AssetCheckout.objects.create(
+            asset=self.asset, user=self.holder, approved_by=self.issuer,
+            classification="Unclassified", checkout_condition="Good",
+            expected_return_date=date(2026, 11, 1), purpose="Everyday laptop",
+            remarks="Original issue notes")
+        self.original_issue = timezone.now().replace(microsecond=0) - timedelta(days=45)
+        AssetCheckout.objects.filter(pk=self.checkout.pk).update(
+            checkout_date=self.original_issue)
+        self.checkout.refresh_from_db()
+        self.client = APIClient()
+        self.client.force_authenticate(self.operator.account)
+
+    def profile(self, name, codes, department=None):
+        account = AuthUser.objects.create_user(username=name, password="test-password")
+        role = Role.objects.create(name=f"Legacy {name}")
+        role.permissions.set([
+            Permission.objects.get_or_create(code=code, defaults={"name": code})[0]
+            for code in codes
+        ])
+        return User.objects.create(
+            account=account, user_name=name, emp_id=f"LEG-{name}",
+            email_id=f"{name}@example.com", role=role, department=department)
+
+    def classify(self, custody_type="Temporary", remarks="Verified actual use"):
+        return self.client.post(f"/checkout/{self.checkout.pk}/classify/", {
+            "custody_type": custody_type, "remarks": remarks,
+        }, format="json")
+
+    def test_matching_legacy_temporary_classification_preserves_issue_and_is_idempotent(self):
+        self.assertEqual(self.client.get("/checkout/").data[0]["current_custody_type"],
+                         "Unclassified")
+        response = self.classify("Temporary")
+        self.assertEqual(response.status_code, 200, getattr(response, "data", None))
+        self.checkout.refresh_from_db()
+        self.asset.refresh_from_db()
+        self.assertEqual((self.checkout.status, self.checkout.classification,
+                          self.checkout.classified_by_id,
+                          self.checkout.classification_remarks),
+                         ("Open", "Temporary", self.operator.pk, "Verified actual use"))
+        self.assertIsNotNone(self.checkout.classified_at)
+        self.assertEqual(self.checkout.checkout_date.replace(microsecond=0), self.original_issue)
+        self.assertEqual(self.checkout.expected_return_date, date(2026, 11, 1))
+        self.assertEqual((self.checkout.approved_by_id, self.checkout.checkout_condition,
+                          self.checkout.purpose, self.checkout.remarks),
+                         (self.issuer.pk, "Good", "Everyday laptop", "Original issue notes"))
+        self.assertIsNone(self.checkout.return_date)
+        self.assertEqual(self.checkout.return_condition, "")
+        self.assertEqual((self.asset.status, self.asset.custodian_id,
+                          self.asset.department_id, self.asset.condition),
+                         ("Assigned", self.holder.pk, self.department.pk, "Average"))
+        self.assertEqual(self.client.get(f"/asset/{self.asset.pk}/").data["custody_type"],
+                         "Temporary")
+        self.assertEqual(self.client.get("/checkout/").data[0]["current_custody_type"],
+                         "Temporary")
+        self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+        self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
+        first_classified_at = self.checkout.classified_at
+        self.assertEqual(self.classify("Temporary").status_code, 200)
+        self.checkout.refresh_from_db()
+        self.assertEqual(self.checkout.classified_at, first_classified_at)
+        self.assertEqual(AuditLog.objects.filter(action="Classify Checkout").count(), 1)
+
+    def test_matching_legacy_ongoing_classification_preserves_original_issue_facts(self):
+        response = self.classify("Ongoing")
+        self.assertEqual(response.status_code, 200, getattr(response, "data", None))
+        self.checkout.refresh_from_db()
+        self.asset.refresh_from_db()
+        assignment = AssetAssignment.objects.get(source_checkout=self.checkout)
+        self.assertEqual((self.checkout.status, self.checkout.classification,
+                          self.checkout.closure_reason, self.checkout.classified_by_id,
+                          self.checkout.classification_remarks),
+                         ("Returned", "Ongoing", "Reclassified", self.operator.pk,
+                          "Verified actual use"))
+        self.assertIsNotNone(self.checkout.closed_at)
+        self.assertIsNotNone(self.checkout.classified_at)
+        self.assertEqual(self.checkout.checkout_date.replace(microsecond=0), self.original_issue)
+        self.assertEqual(self.checkout.expected_return_date, date(2026, 11, 1))
+        self.assertIsNone(self.checkout.return_date)
+        self.assertEqual((self.checkout.return_condition, self.checkout.return_remarks),
+                         ("", ""))
+        self.assertEqual((assignment.status, assignment.user_id, assignment.issued_by_id,
+                          assignment.issue_condition, assignment.remarks),
+                         ("Open", self.holder.pk, self.issuer.pk, "Good",
+                          "Original issue notes"))
+        self.assertEqual(assignment.issued_at.replace(microsecond=0), self.original_issue)
+        self.assertTrue(assignment.provenance)
+        self.assertTrue(assignment.date_basis)
+        self.assertEqual((self.asset.status, self.asset.custodian_id,
+                          self.asset.department_id, self.asset.condition),
+                         ("Assigned", self.holder.pk, self.department.pk, "Average"))
+        self.assertEqual(self.client.get(f"/asset/{self.asset.pk}/").data["custody_type"],
+                         "Ongoing")
+        self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
+        self.assertEqual(self.classify("Ongoing").status_code, 200)
+        self.assertEqual(AssetAssignment.objects.filter(source_checkout=self.checkout).count(), 1)
+        self.assertEqual(self.classify("Temporary").status_code, 400)
+        self.assertEqual(AuditLog.objects.filter(action="Classify Checkout").count(), 1)
+
+    def test_unknown_original_issue_condition_is_not_inferred_from_current_asset(self):
+        self.checkout.checkout_condition = ""
+        self.checkout.save(update_fields=["checkout_condition"])
+        self.assertEqual(self.classify("Ongoing").status_code, 200)
+        assignment = AssetAssignment.objects.get(source_checkout=self.checkout)
+        self.assertEqual(assignment.issue_condition, "")
+        self.assertEqual(self.asset.condition, "Average")
+
+    def test_mismatch_permission_and_conflict_cannot_classify_or_guess_temporary(self):
+        self.client.force_authenticate(self.reader.account)
+        self.assertEqual(self.classify("Temporary").status_code, 403)
+        self.client.force_authenticate(self.operator.account)
+        self.asset.custodian = self.other
+        self.asset.save(update_fields=["custodian"])
+        conflict = self.classify("Temporary")
+        self.assertEqual(conflict.status_code, 400)
+        self.assertIn("conflict", conflict.data["detail"].lower())
+        self.assertNotIn("temporarily held", conflict.data["detail"].lower())
+        self.checkout.refresh_from_db()
+        self.asset.refresh_from_db()
+        self.assertEqual(self.checkout.classification, "Unclassified")
+        self.assertIsNone(self.checkout.classified_at)
+        self.assertEqual(self.asset.custodian_id, self.other.pk)
+        self.assertEqual(self.client.get("/checkout/").data[0]["current_custody_type"],
+                         "Conflicting")
+        self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+        self.assertFalse(AuditLog.objects.filter(action="Classify Checkout").exists())
+
+    def test_unclassified_cannot_checkin_or_enter_transfer_and_audit_failure_rolls_back(self):
+        self.assertEqual(self.client.post(f"/checkout/{self.checkout.pk}/checkin/", {
+            "condition": "Good"}, format="json").status_code, 400)
+        requester = self.profile("classify-requester", {"transfer_request"})
+        self.client.force_authenticate(requester.account)
+        attempted = self.client.post("/transfer/", {
+            "asset": self.asset.pk, "new_owner": self.other.pk,
+        }, format="json")
+        self.assertEqual(attempted.status_code, 400)
+        self.assertIn("Classify", attempted.data["detail"])
+        self.assertFalse(AssetTransfer.objects.filter(asset=self.asset).exists())
+        self.client.force_authenticate(self.operator.account)
+        with patch("assets.custody.log_action", side_effect=RuntimeError("audit unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.classify("Ongoing")
+        self.checkout.refresh_from_db()
+        self.assertEqual((self.checkout.status, self.checkout.classification),
+                         ("Open", "Unclassified"))
+        self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+
+
 class LegacyCheckoutMigrationTests(TransactionTestCase):
     def test_populated_open_checkout_stays_open_and_unclassified(self):
         """T004: historical issue facts survive without a fabricated return."""
@@ -626,6 +790,7 @@ class LegacyCheckoutMigrationTests(TransactionTestCase):
             status="Assigned", custodian=holder)
         target_old = [('assets', '0012_assetcheckout_closed_as_interrupted_and_more')]
         target_new = [('assets', '0013_asset_assignment')]
+        target_latest = [('assets', '0015_assetcheckout_classification_remarks')]
         executor = MigrationExecutor(connection)
         executor.migrate(target_old)
         try:
@@ -639,22 +804,25 @@ class LegacyCheckoutMigrationTests(TransactionTestCase):
                 asset_id=asset.pk, user_id=holder.pk, status="Returned",
                 checkout_condition="Good", return_condition="Good",
                 return_date=original_date)
+            executor = MigrationExecutor(connection)
+            executor.migrate(target_new)
+            NewCheckout = executor.loader.project_state(target_new).apps.get_model(
+                'assets', 'AssetCheckout')
+            checkout = NewCheckout.objects.get(pk=checkout.pk)
+            asset.refresh_from_db()
+            self.assertEqual(checkout.classification, "Unclassified")
+            self.assertEqual(checkout.status, "Open")
+            self.assertEqual(checkout.checkout_date.replace(microsecond=0), original_date)
+            self.assertIsNone(checkout.return_date)
+            self.assertIsNone(checkout.closed_at)
+            self.assertEqual(asset.custodian_id, holder.pk)
+            self.assertEqual(asset.status, "Assigned")
+            self.assertFalse(AssetAssignment.objects.filter(asset=asset).exists())
+            historical = NewCheckout.objects.get(pk=historical.pk)
+            self.assertEqual(historical.classification, "Unknown")
+            self.assertEqual(historical.return_date.replace(microsecond=0), original_date)
+            fresh = NewCheckout.objects.create(asset_id=asset.pk, user_id=holder.pk,
+                                               status="Returned")
+            self.assertEqual(fresh.classification, "Temporary")
         finally:
-            MigrationExecutor(connection).migrate(target_new)
-
-        from .models import AssetAssignment
-        checkout = AssetCheckout.objects.get(pk=checkout.pk)
-        asset.refresh_from_db()
-        self.assertEqual(checkout.classification, "Unclassified")
-        self.assertEqual(checkout.status, "Open")
-        self.assertEqual(checkout.checkout_date.replace(microsecond=0), original_date)
-        self.assertIsNone(checkout.return_date)
-        self.assertIsNone(checkout.closed_at)
-        self.assertEqual(asset.custodian_id, holder.pk)
-        self.assertEqual(asset.status, "Assigned")
-        self.assertFalse(AssetAssignment.objects.filter(asset=asset).exists())
-        historical = AssetCheckout.objects.get(pk=historical.pk)
-        self.assertEqual(historical.classification, "Unknown")
-        self.assertEqual(historical.return_date.replace(microsecond=0), original_date)
-        fresh = AssetCheckout.objects.create(asset=asset, user=holder, status="Returned")
-        self.assertEqual(fresh.classification, "Temporary")
+            MigrationExecutor(connection).migrate(target_latest)

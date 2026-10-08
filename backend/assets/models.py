@@ -258,6 +258,7 @@ class AssetCheckout(models.Model):
     closure_reason = models.CharField(max_length=32, blank=True, default="")
     closed_at = models.DateTimeField(null=True, blank=True)
     classified_at = models.DateTimeField(null=True, blank=True)
+    classification_remarks = models.TextField(blank=True, default="")
     classified_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL,
                                       null=True, blank=True, related_name="classified_checkouts")
     superseded_by_transfer = models.ForeignKey('AssetTransfer', on_delete=models.SET_NULL,

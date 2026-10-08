@@ -171,3 +171,77 @@ def take_back(assignment, condition, actor, *, remarks="", request=None):
             transaction.on_commit(lambda: _notify_return(record.user, current))
     record.refresh_from_db()
     return record
+
+
+def classify_legacy_checkout(checkout, custody_choice, actor, *, remarks="", request=None):
+    """Classify one matching old Checkout without recording a physical return."""
+    if (actor is None or actor.status != "Active" or not actor.account_id
+            or not actor.account.is_active or not actor.can("asset_custody_manage")):
+        raise LifecycleError("You cannot classify Checkout custody.")
+    if custody_choice not in ("Temporary", "Ongoing"):
+        raise LifecycleError("Choose Temporary or Ongoing custody for this Checkout.")
+    remarks = (remarks or "").strip()
+
+    with transaction.atomic():
+        current = Asset.objects.select_for_update().get(pk=checkout.asset_id)
+        record = AssetCheckout.objects.select_for_update().select_related(
+            "user", "approved_by").get(pk=checkout.pk)
+        # A successful retry returns the same decision, never another arrangement.
+        if record.classification == custody_choice and record.classified_at:
+            if (custody_choice == "Temporary" and record.status == "Open" and
+                    custody_type(current) == "Temporary"):
+                return record
+            if (custody_choice == "Ongoing" and record.status == "Returned" and
+                    record.closure_reason == "Reclassified" and
+                    AssetAssignment.objects.filter(
+                        asset=current, source_checkout=record, status="Open",
+                        user_id=current.custodian_id).count() == 1 and
+                    custody_type(current) == "Ongoing"):
+                return record
+        if record.status != "Open" or record.classification != "Unclassified":
+            raise LifecycleError("This legacy Checkout has already been classified or closed.")
+        if (current.status != "Assigned" or current.custodian_id != record.user_id or
+                custody_type(current) != "Unclassified" or
+                AssetAssignment.objects.filter(asset=current, status="Open").exists() or
+                AssetCheckout.objects.filter(asset=current, status="Open").exclude(
+                    pk=record.pk).exists()):
+            raise LifecycleError(
+                "Conflicting custody records: Checkout and Asset must name the same "
+                "current holder. Investigate or use verified Transfer reconciliation.")
+
+        now = timezone.now()
+        updates = {
+            "classification": custody_choice,
+            "classified_at": now,
+            "classified_by": actor,
+            "classification_remarks": remarks,
+        }
+        if custody_choice == "Ongoing":
+            updates.update(status="Returned", closure_reason="Reclassified",
+                           closed_at=now)
+        changed = AssetCheckout.objects.filter(
+            pk=record.pk, status="Open", classification="Unclassified").update(**updates)
+        if changed != 1:
+            raise LifecycleError("This legacy Checkout changed. Reload and try again.")
+        if custody_choice == "Ongoing":
+            assignment = AssetAssignment.objects.create(
+                asset=current, user=record.user, issued_by=record.approved_by,
+                issue_condition=record.checkout_condition,
+                remarks=record.remarks, source_checkout=record,
+                provenance="Legacy Checkout classification",
+                date_basis="Original Checkout issue date",
+            )
+            AssetAssignment.objects.filter(pk=assignment.pk).update(
+                issued_at=record.checkout_date)
+        log_action(
+            request or SimpleNamespace(user=actor.account, META={}),
+            "Classify Checkout", "Checkouts",
+            old_value=(f"{current.asset_id} | Assigned | {record.user.user_name} | "
+                       f"Unclassified | Checkout {record.pk}"),
+            new_value=(f"{current.asset_id} | Assigned | {record.user.user_name} | "
+                       f"{custody_choice} | Checkout {record.pk} | "
+                       f"{('Reclassified, no physical return' if custody_choice == 'Ongoing' else 'Open')} "
+                       f"| by {actor.user_name} | {remarks}"),
+        )
+    record.refresh_from_db()
+    return record
