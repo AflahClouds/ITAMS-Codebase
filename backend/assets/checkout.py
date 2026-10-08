@@ -30,17 +30,12 @@ def _notify_checkin(user, asset):
 
 
 def close_all_open_checkouts(asset, note=""):
-    """Close out every Open checkout on asset — the same effect check_in() has, without
-    touching asset.status (the caller owns that). Used when something other than a normal
-    check-in pulls the asset out from under an active checkout, so no return_condition
-    input is available — unlike check_in(), it reuses the asset's current condition."""
+    """End displaced Checkout records without asserting a physical Check-in."""
     closed = []
     for checkout in asset.checkouts.filter(status="Open"):
-        checkout.return_date = timezone.now()
-        checkout.return_condition = asset.condition
-        checkout.return_remarks = (
-            f"{checkout.return_remarks} " if checkout.return_remarks else "") + note
         checkout.status = "Returned"
+        checkout.closure_reason = "Interrupted"
+        checkout.closed_at = timezone.now()
         # B3 FR-028: this closure was not a return. Marking it keeps an interrupted
         # Checkout distinguishable from one an operator actually checked back in.
         checkout.closed_as_interrupted = True

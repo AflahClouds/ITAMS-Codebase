@@ -455,7 +455,10 @@ class ServiceRecordLifecycleTests(TestCase):
 
         checkout.refresh_from_db()
         self.assertEqual(checkout.status, "Returned")
-        self.assertIsNotNone(checkout.return_date)
+        self.assertTrue(checkout.closed_as_interrupted)
+        self.assertEqual(checkout.closure_reason, "Interrupted")
+        self.assertIsNone(checkout.return_date)
+        self.assertEqual(checkout.return_condition, "")
         asset.refresh_from_db()
         self.assertEqual(asset.status, "Under Repair")
         self.assertIsNone(asset.custodian)
@@ -777,7 +780,7 @@ class AssetStatusTransitionTests(TestCase):
 
     def test_entering_sold_clears_custodian_even_if_payload_keeps_it(self):
         """Covers: B2 FR-009, B2 ALR-006."""
-        asset = self._asset("STATUS-ASSET-002", status="Assigned", custodian=self.holder)
+        asset = self._asset("STATUS-ASSET-002", status="Available")
 
         response = self.client.patch(
             f"/asset/{asset.pk}/", {"status": "Sold", "custodian": self.holder.pk})
@@ -874,16 +877,16 @@ class AssetStatusTransitionTests(TestCase):
         asset.refresh_from_db()
         self.assertEqual(asset.status, "Assigned")
 
-    def test_disposal_is_still_allowed_directly_from_assigned(self):
-        """Covers: B2 FR-014."""
+    def test_disposal_requires_available_or_in_storage(self):
+        """Covers: B2 AS-007: an active holder must be released first."""
         asset = self._asset("STATUS-ASSET-011", status="Assigned", custodian=self.holder)
 
         response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Sold"})
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
         asset.refresh_from_db()
-        self.assertEqual(asset.status, "Sold")
-        self.assertIsNone(asset.custodian)
+        self.assertEqual(asset.status, "Assigned")
+        self.assertEqual(asset.custodian_id, self.holder.pk)
 
     def test_lost_is_still_allowed_directly_from_under_repair(self):
         """Covers: B2 FR-014."""
@@ -900,14 +903,15 @@ class AssetStatusTransitionTests(TestCase):
         asset = self._asset("STATUS-ASSET-013")
         checkout = check_out(asset, self.holder, self.holder)
 
-        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Sold"})
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Lost"})
 
         self.assertEqual(response.status_code, 200)
         checkout.refresh_from_db()
         self.assertEqual(checkout.status, "Returned")
-        self.assertIsNotNone(checkout.return_date)
+        self.assertEqual(checkout.closure_reason, "Interrupted")
+        self.assertIsNone(checkout.return_date)
         asset.refresh_from_db()
-        self.assertEqual(asset.status, "Sold")
+        self.assertEqual(asset.status, "Lost")
 
     def test_entering_terminal_status_closes_the_open_service_record(self):
         """Covers: B2 ALR-006, B5 FR-016."""
@@ -915,13 +919,14 @@ class AssetStatusTransitionTests(TestCase):
         asset = self._asset("STATUS-ASSET-014")
         record = open_service(asset, vendor, self.holder)
 
-        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Scrapped"})
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Lost"})
 
         self.assertEqual(response.status_code, 200)
         record.refresh_from_db()
         self.assertEqual(record.status, "Closed")
+        self.assertIsNone(record.returned_date)
         asset.refresh_from_db()
-        self.assertEqual(asset.status, "Scrapped")
+        self.assertEqual(asset.status, "Lost")
 
 
 class ExpiryAlertTests(TestCase):
@@ -1313,7 +1318,9 @@ class BaselineConformanceTests(TestCase):
         record = asset.checkouts.get()
         self.assertEqual(record.status, "Returned")
         self.assertEqual(record.remarks, "Issued with dock")
-        self.assertIn("Auto-closed", record.return_remarks)
+        self.assertTrue(record.closed_as_interrupted)
+        self.assertEqual(record.closure_reason, "Interrupted")
+        self.assertEqual(record.return_remarks, "")
 
     # --- B4: a transfer needs two parties and one open request ---
 

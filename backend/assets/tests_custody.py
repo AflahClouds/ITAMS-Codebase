@@ -11,10 +11,11 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import Department, Permission, Role, User
-from catalog.models import Brand, Category, Model
+from catalog.models import Brand, Category, Model, Vendor
 from core.models import AuditLog, Notification
 
-from .models import Asset, AssetAssignment, AssetCheckout, AssetConditionLog, AssetTransfer
+from .models import (Asset, AssetAssignment, AssetCheckout, AssetConditionLog,
+                     AssetTransfer, ServiceRecord)
 
 
 class AssignCustodyTests(TestCase):
@@ -609,6 +610,232 @@ class AssignCustodyTests(TestCase):
         self.assertEqual(result.status_code, 200)
         self.assertEqual(len(result.data), 1)
         self.assertEqual(result.data[0]["asset"], self.asset.pk)
+
+    def test_service_interrupts_ongoing_without_return_and_close_requires_fresh_issue(self):
+        source = self.assigned_record()
+        pending = self.request_ongoing_transfer()
+        self.assertEqual(pending.status_code, 201)
+        vendor = Vendor.objects.create(name="Custody repair vendor")
+        opened = self.client.post("/service/", {
+            "asset": self.asset.pk, "vendor": vendor.pk,
+        }, format="json")
+        self.assertEqual(opened.status_code, 201, getattr(opened, "data", None))
+        source.refresh_from_db()
+        self.asset.refresh_from_db()
+        self.assertEqual((source.status, source.closure_reason,
+                          source.return_condition, source.return_remarks),
+                         ("Closed", "Service", "", ""))
+        self.assertIsNotNone(source.closed_at)
+        self.assertEqual((self.asset.status, self.asset.custodian_id,
+                          self.asset.department_id), ("Under Repair", None, None))
+        self.assertEqual(self.client.get(f"/asset/{self.asset.pk}/").data["custody_type"],
+                         "None")
+        self.assertEqual(self.take_back(source, condition="Good").status_code, 400)
+        self.assertEqual(self.client.post(
+            f"/transfer/{pending.data['id']}/approve/", {}, format="json").status_code, 400)
+        closed = self.client.post(f"/service/{opened.data['id']}/close/", {
+            "cost": "0"}, format="json")
+        self.assertEqual(closed.status_code, 200, getattr(closed, "data", None))
+        self.asset.refresh_from_db()
+        self.assertEqual((self.asset.status, self.asset.custodian_id),
+                         ("Available", None))
+        self.assertEqual(self.assign().status_code, 201)
+        self.assertEqual(AssetAssignment.objects.filter(asset=self.asset, status="Open").count(), 1)
+
+    def test_service_interrupts_temporary_without_physical_checkin(self):
+        self.assertEqual(self.checkout().status_code, 201)
+        checkout = AssetCheckout.objects.get(asset=self.asset, status="Open")
+        vendor = Vendor.objects.create(name="Temporary repair vendor")
+        opened = self.client.post("/service/", {
+            "asset": self.asset.pk, "vendor": vendor.pk,
+        }, format="json")
+        self.assertEqual(opened.status_code, 201, getattr(opened, "data", None))
+        checkout.refresh_from_db()
+        self.assertEqual((checkout.status, checkout.closure_reason,
+                          checkout.return_date, checkout.return_condition,
+                          checkout.return_remarks, checkout.closed_as_interrupted),
+                         ("Returned", "Interrupted", None, "", "", True))
+        self.assertIsNotNone(checkout.closed_at)
+        self.assertEqual(self.client.post(f"/checkout/{checkout.pk}/checkin/", {
+            "condition": "Good"}, format="json").status_code, 400)
+        self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
+        self.assertEqual(self.client.post(f"/service/{opened.data['id']}/close/", {
+            "cost": "0"}, format="json").status_code, 200)
+        self.assertEqual(self.checkout().status_code, 201)
+
+    def test_terminal_transition_ends_circulation_and_preserves_lost_accountability(self):
+        self.operator.role.permissions.add(Permission.objects.get_or_create(
+            code="asset_edit", defaults={"name": "Asset edit"})[0])
+        self.operator.role.permissions.add(Permission.objects.get_or_create(
+            code="report_access", defaults={"name": "Report access"})[0])
+        lost_asset = self.make_asset("CUS-Lost", condition="Damaged")
+        self.assertEqual(self.assign(asset=lost_asset).status_code, 201)
+        lost_assignment = AssetAssignment.objects.get(asset=lost_asset, status="Open")
+        self.assertEqual(self.client.patch(f"/asset/{lost_asset.pk}/", {
+            "status": "Lost", "custodian": None, "department": None,
+        }, format="json").status_code, 200)
+        lost_asset.refresh_from_db()
+        lost_assignment.refresh_from_db()
+        self.assertEqual((lost_asset.status, lost_asset.condition,
+                          lost_asset.custodian_id, lost_asset.department_id,
+                          lost_assignment.status, lost_assignment.closure_reason,
+                          lost_assignment.return_condition),
+                         ("Lost", "Damaged", self.employee.pk, self.department.pk,
+                          "Closed", "Lost", ""))
+        self.assertEqual(self.take_back(lost_assignment, condition="Damaged").status_code, 400)
+        self.assertEqual(self.client.get(f"/asset/{lost_asset.pk}/").data["custody_type"],
+                         "None")
+        listed = next(row for row in self.client.get("/asset/").data
+                      if row["id"] == lost_asset.pk)
+        self.assertEqual((listed["status"], listed["custody_type"],
+                          listed["custodian"], listed["department"]),
+                         ("Lost", "None", self.employee.pk, self.department.pk))
+        lost_register = next(row for row in self.client.get("/reports/register/").data["rows"]
+                             if row[0] == lost_asset.asset_id)
+        self.assertEqual((lost_register[5], lost_register[6], lost_register[8]),
+                         (self.employee.user_name, self.department.name, "Lost"))
+
+        for terminal in ("Sold", "Scrapped"):
+            asset = self.make_asset(f"CUS-{terminal}", condition="Damaged")
+            self.assertEqual(self.assign(asset=asset).status_code, 201)
+            assignment = AssetAssignment.objects.get(asset=asset, status="Open")
+            rejected = self.client.patch(f"/asset/{asset.pk}/", {
+                "status": terminal}, format="json")
+            self.assertEqual(rejected.status_code, 400, getattr(rejected, "data", None))
+            asset.refresh_from_db()
+            assignment.refresh_from_db()
+            self.assertEqual((asset.status, assignment.status), ("Assigned", "Open"))
+            self.assertEqual(self.take_back(assignment, condition="Damaged").status_code, 200)
+            self.assertEqual(self.client.patch(f"/asset/{asset.pk}/", {
+                "status": terminal}, format="json").status_code, 200)
+            asset.refresh_from_db()
+            self.assertEqual((asset.status, asset.condition,
+                              asset.custodian_id, asset.department_id),
+                             (terminal, "Damaged", None, None))
+            self.assertEqual(self.assign(asset=asset).status_code, 400)
+            row = next(row for row in self.client.get("/reports/register/").data["rows"]
+                       if row[0] == asset.asset_id)
+            self.assertEqual((row[5], row[6], row[8]), ("-", "-", terminal))
+        stored = self.make_asset("CUS-StorageScrap", status="In Storage")
+        self.assertEqual(self.client.patch(f"/asset/{stored.pk}/", {
+            "status": "Scrapped"}, format="json").status_code, 200)
+        lost = self.client.get("/reports/lost/").data["rows"]
+        self.assertIn(self.employee.user_name, lost[0])
+
+    def test_interruption_audit_failure_rolls_back_service_and_terminal_changes(self):
+        source = self.assigned_record()
+        vendor = Vendor.objects.create(name="Audit repair vendor")
+        with patch("assets.views.log_action", side_effect=RuntimeError("audit unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.client.post("/service/", {"asset": self.asset.pk,
+                                                "vendor": vendor.pk}, format="json")
+        self.asset.refresh_from_db()
+        source.refresh_from_db()
+        self.assertEqual((self.asset.status, self.asset.custodian_id,
+                          source.status, source.closed_at),
+                         ("Assigned", self.employee.pk, "Open", None))
+        self.assertFalse(ServiceRecord.objects.filter(asset=self.asset).exists())
+        self.operator.role.permissions.add(Permission.objects.get_or_create(
+            code="asset_edit", defaults={"name": "Asset edit"})[0])
+        with patch("assets.views.log_action", side_effect=RuntimeError("audit unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.client.patch(f"/asset/{self.asset.pk}/", {"status": "Lost"}, format="json")
+        self.asset.refresh_from_db()
+        source.refresh_from_db()
+        self.assertEqual((self.asset.status, self.asset.custodian_id,
+                          source.status, source.closed_at),
+                         ("Assigned", self.employee.pk, "Open", None))
+
+    def test_terminal_interruption_does_not_fabricate_vendor_return_or_checkin(self):
+        self.operator.role.permissions.add(Permission.objects.get_or_create(
+            code="asset_edit", defaults={"name": "Asset edit"})[0])
+        vendor = Vendor.objects.create(name="Terminal repair vendor")
+        opened = self.client.post("/service/", {
+            "asset": self.asset.pk, "vendor": vendor.pk,
+        }, format="json")
+        self.assertEqual(opened.status_code, 201)
+        for terminal in ("Sold", "Scrapped"):
+            self.assertEqual(self.client.patch(f"/asset/{self.asset.pk}/", {
+                "status": terminal}, format="json").status_code, 400)
+            self.asset.refresh_from_db()
+            self.assertEqual(self.asset.status, "Under Repair")
+        self.assertEqual(self.client.patch(f"/asset/{self.asset.pk}/", {
+            "status": "Lost"}, format="json").status_code, 200)
+        service = ServiceRecord.objects.get(pk=opened.data["id"])
+        self.assertEqual((service.status, service.closed_as_interrupted,
+                          service.returned_date, service.closed_by_id),
+                         ("Closed", True, None, None))
+
+        temporary = self.make_asset("CUS-TerminalTemporary")
+        self.assertEqual(self.checkout(asset=temporary).status_code, 201)
+        checkout = AssetCheckout.objects.get(asset=temporary, status="Open")
+        self.assertEqual(self.client.patch(f"/asset/{temporary.pk}/", {
+            "status": "Lost"}, format="json").status_code, 200)
+        checkout.refresh_from_db()
+        self.assertEqual((checkout.status, checkout.closure_reason,
+                          checkout.return_date, checkout.return_condition),
+                         ("Returned", "Interrupted", None, ""))
+
+    def test_service_and_terminal_audit_identify_interrupted_arrangements(self):
+        source = self.assigned_record()
+        vendor = Vendor.objects.create(name="Audit custody vendor")
+        opened = self.client.post("/service/", {
+            "asset": self.asset.pk, "vendor": vendor.pk,
+            "reason": "Repair assessment",
+        }, format="json")
+        self.assertEqual(opened.status_code, 201)
+        service_audit = AuditLog.objects.get(action="Service Opened")
+        self.assertEqual(service_audit.user_id, self.operator.pk)
+        self.assertIn(f"Assignment {source.pk}", service_audit.new_value)
+        self.assertIn(self.employee.user_name, service_audit.old_value)
+        self.assertIn("Under Repair", service_audit.new_value)
+
+        self.operator.role.permissions.add(Permission.objects.get_or_create(
+            code="asset_edit", defaults={"name": "Asset edit"})[0])
+        self.assertEqual(self.client.patch(f"/asset/{self.asset.pk}/", {
+            "status": "Lost"}, format="json").status_code, 200)
+        terminal_audit = AuditLog.objects.filter(action="Update", module="Assets").last()
+        self.assertIn(f"Service Record {opened.data['id']}", terminal_audit.new_value)
+        self.assertIn("Under Repair", terminal_audit.old_value)
+        self.assertIn("Lost", terminal_audit.new_value)
+
+    def test_generic_asset_delete_preserves_custody_history(self):
+        self.operator.role.permissions.add(Permission.objects.get_or_create(
+            code="asset_delete", defaults={"name": "Asset delete"})[0])
+        ongoing = self.assigned_record()
+        temporary_asset = self.make_asset("CUS-DELETE-TEMP")
+        self.assertEqual(self.checkout(asset=temporary_asset).status_code, 201)
+        temporary = AssetCheckout.objects.get(asset=temporary_asset, status="Open")
+
+        returned_asset = self.make_asset("CUS-DELETE-RETURNED")
+        self.assertEqual(self.assign(asset=returned_asset).status_code, 201)
+        returned = AssetAssignment.objects.get(asset=returned_asset)
+        self.assertEqual(self.take_back(returned, condition="Good").status_code, 200)
+
+        checked_in_asset = self.make_asset("CUS-DELETE-CHECKED-IN")
+        self.assertEqual(self.checkout(asset=checked_in_asset).status_code, 201)
+        checked_in = AssetCheckout.objects.get(asset=checked_in_asset)
+        self.assertEqual(self.client.post(f"/checkout/{checked_in.pk}/checkin/", {
+            "condition": "Good"}, format="json").status_code, 200)
+
+        transfer_asset = self.make_asset("CUS-DELETE-TRANSFER")
+        transfer = AssetTransfer.objects.create(
+            asset=transfer_asset, previous_owner=self.employee,
+            new_owner=self.other, status="Approved")
+
+        for asset, record in ((self.asset, ongoing), (temporary_asset, temporary),
+                              (returned_asset, returned), (checked_in_asset, checked_in),
+                              (transfer_asset, transfer)):
+            with self.subTest(asset=asset.asset_id):
+                response = self.client.delete(f"/asset/{asset.pk}/")
+                self.assertEqual(response.status_code, 400, getattr(response, "data", None))
+                self.assertTrue(Asset.objects.filter(pk=asset.pk).exists())
+                self.assertTrue(type(record).objects.filter(pk=record.pk).exists())
+        self.assertFalse(AuditLog.objects.filter(action="Delete", module="Assets").exists())
+
+        empty_asset = self.make_asset("CUS-DELETE-EMPTY")
+        self.assertEqual(self.client.delete(f"/asset/{empty_asset.pk}/").status_code, 204)
+        self.assertFalse(Asset.objects.filter(pk=empty_asset.pk).exists())
 
 
 class LegacyClassificationTests(TestCase):

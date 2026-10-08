@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from core.services import log_action, notify
 
-from .checkout import condition_worsened
+from .checkout import close_all_open_checkouts, condition_worsened
 from .models import (ASSET_CONDITIONS, Asset, AssetAssignment, AssetCheckout,
                      AssetConditionLog, AssetTransfer, LifecycleError)
 
@@ -18,6 +18,18 @@ TEMPORARY_HOLDER_ERROR = (
     "This asset is being temporarily held by another employee. "
     "IT must record Check-in before a new Checkout or Assign."
 )
+
+
+def interrupt_active_custody(asset, reason, actor=None):
+    """End active arrangements when service or a terminal state ends circulation.
+
+    The caller owns the Asset snapshot and transaction. No physical return or
+    condition inspection is implied by this administrative closure.
+    """
+    close_all_open_checkouts(asset)
+    AssetAssignment.objects.filter(asset=asset, status="Open").update(
+        status="Closed", closed_at=timezone.now(), closed_by=actor,
+        closure_reason=reason)
 
 
 def custody_type(asset):

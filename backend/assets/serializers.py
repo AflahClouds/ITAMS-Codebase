@@ -11,8 +11,7 @@ from catalog.serializers import (BrandSerializer, CategorySerializer,
                                  ModelSerializer, PurchaseModeSerializer,
                                  VendorSerializer)
 
-from .checkout import close_all_open_checkouts
-from .custody import custody_type
+from .custody import custody_type, interrupt_active_custody
 from .models import (ASSET_CONDITIONS, ASSET_STATUSES, LIFECYCLE_MANAGED_STATUSES,
                      TERMINAL_STATUSES, AmcContract, Asset, AssetAssignment, AssetCheckout,
                      AssetConditionLog, AssetDocument, AssetImage, AssetTransfer,
@@ -170,6 +169,10 @@ class AssetSerializer(serializers.ModelSerializer):
                 if current_status in TERMINAL_STATUSES:
                     raise serializers.ValidationError(
                         {"status": f"This asset is {current_status} and cannot change status further."})
+                if (new_status in ("Sold", "Scrapped") and
+                        current_status not in ("Available", "In Storage")):
+                    raise serializers.ValidationError(
+                        {"status": f"Move this asset out of {current_status} before marking it {new_status}."})
                 if new_status in LIFECYCLE_MANAGED_STATUSES:
                     action = "Checkout" if new_status == "Assigned" else "a Service Record"
                     raise serializers.ValidationError(
@@ -211,22 +214,24 @@ class AssetSerializer(serializers.ModelSerializer):
         if entering_status and new_status in ("Sold", "Scrapped"):
             # Terminal — the org no longer has custody-tracking obligations for this asset.
             validated_data['custodian'] = None
+            validated_data['department'] = None
         elif entering_status and new_status == "Lost":
-            # Custodian is retained for accountability (who had it when it went missing) —
-            # ignore any custodian value the client sent along with this transition.
+            # Keep both last holder and department for accountability, regardless
+            # of values supplied alongside the terminal transition.
             validated_data.pop('custodian', None)
+            validated_data.pop('department', None)
 
         with transaction.atomic():
             instance = super().update(instance, validated_data)
 
-            if entering_status and new_status in TERMINAL_STATUSES and old_status in LIFECYCLE_MANAGED_STATUSES:
-                # Going straight from Assigned/Under Repair to a terminal status is the
-                # one legitimate direct transition (you can't check in a lost or sold
-                # asset) — but whichever record was managing that status must still be
-                # closed out, or it's left dangling "Open" forever.
-                note = f"Auto-closed: asset marked {new_status}."
-                close_all_open_checkouts(instance, note=note)
-                close_all_open_service_records(instance, note=note)
+            if entering_status and new_status in TERMINAL_STATUSES:
+                # A terminal transition ends every active arrangement administratively;
+                # no physical return or condition inspection is inferred.
+                interrupt_active_custody(
+                    instance, new_status,
+                    get_profile(self.context['request']) if self.context.get('request') else None)
+                close_all_open_service_records(
+                    instance, note=f"Auto-closed: asset marked {new_status}.")
 
             # Initial AMC entry, or a correction to the still-open contract — not a
             # renewal. Renewals (closing the old contract, opening a new one) go through

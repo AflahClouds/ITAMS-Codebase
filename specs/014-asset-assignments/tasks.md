@@ -64,9 +64,9 @@
 
 ## Phase 7: Cross-cutting lifecycle, reporting and closeout
 
-- [ ] T027 Add failing integration tests for service interruption/close, Lost accountability, Sold/Scrapped eligibility, stale return/approval and exact current holder/type across detail/list/PDF/report output in `backend/assets/tests_custody.py` and `backend/assets/tests_b3_b5_conformance.py` (FR-012–014, ALR-002–005).
-- [ ] T028 Route service and terminal transitions through the custody boundary and update read serializers/report queries without changing existing availability rules in `backend/assets/service.py`, `backend/assets/views.py`, `backend/assets/serializers.py` and `backend/assets/custody.py` (FR-012–014).
-- [ ] T029 Update the accepted domain language and post-service deliberate reissue rule in `CONTEXT.md` and `docs/adr/0001-service-record-lifecycle.md`; add only reciprocal lineage metadata to accepted predecessor specs and retain `specs/014-asset-assignments/spec.md` (FR-001, FR-007–012).
+- [x] T027 Add failing integration tests for service interruption/close, Lost accountability, Sold/Scrapped eligibility, stale return/approval and exact current holder/type across detail/list/PDF/report output in `backend/assets/tests_custody.py` and `backend/assets/tests_b3_b5_conformance.py` (FR-012–014, ALR-002–005).
+- [x] T028 Route service and terminal transitions through the custody boundary and update read serializers/report queries without changing existing availability rules in `backend/assets/service.py`, `backend/assets/views.py`, `backend/assets/serializers.py` and `backend/assets/custody.py` (FR-012–014).
+- [x] T029 Update the accepted domain language and post-service deliberate reissue rule in `CONTEXT.md` and `docs/adr/0001-service-record-lifecycle.md`; add only reciprocal lineage metadata to accepted predecessor specs and retain `specs/014-asset-assignments/spec.md` (FR-001, FR-007–012).
 - [ ] T030 Run focused and complete Django tests with terminal exits, plus frontend Vitest, lint and build, following `specs/014-asset-assignments/quickstart.md`; record results and any unverified paths in the relevant `specs/014-asset-assignments/issues/*.md` (all FR and ALR).
 - [ ] T031 Run repository-wide self-description and stale-material inspection; converge remaining verified work, keep the durable feature directory and refresh the official managed context in `AGENTS.md` and `.specify/feature.json` without adopting `specs/living` (constitution III and closeout).
 

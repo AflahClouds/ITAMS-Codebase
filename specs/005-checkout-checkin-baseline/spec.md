@@ -64,6 +64,8 @@ boundaries. Use Checkout, never Assignment. Do not modify application code."
 
 **Supersedes**: None.
 
+**Extended by**: `specs/014-asset-assignments/spec.md` distinguishes temporary Checkout from ongoing Assignment and its separate Take Back action.
+
 **Reciprocal Links**: `ROADMAP.md` reserves
 `specs/005-checkout-checkin-baseline/` for B3 and already records that path in
 its B3 row. The roadmap is not edited by this specification run, matching the

@@ -16,7 +16,8 @@ from core.services import get_profile, log_action, notify_many
 
 from .barcodes import generate_asset_barcode
 from .checkout import check_in, check_out
-from .custody import assign, classify_legacy_checkout, reconcile_legacy_checkout, take_back
+from .custody import (assign, classify_legacy_checkout, custody_type,
+                      reconcile_legacy_checkout, take_back)
 from .models import (ASSET_CONDITIONS, TERMINAL_STATUSES, AmcContract, Asset,
                      AssetAssignment, AssetCheckout, AssetConditionLog, AssetDocument, AssetImage,
                      AssetTransfer, LifecycleError, Procurement, ServiceRecord)
@@ -53,6 +54,16 @@ def _notify_it_managers(message, link=""):
     """
     from accounts.models import users_with_permission
     notify_many(users_with_permission("asset_delete"), message, link=link)
+
+
+def _active_lifecycle_labels(asset):
+    labels = [f"Assignment {pk}" for pk in asset.assignments.filter(
+        status="Open").values_list("pk", flat=True)]
+    labels.extend(f"Checkout {pk}" for pk in asset.checkouts.filter(
+        status="Open").values_list("pk", flat=True))
+    labels.extend(f"Service Record {pk}" for pk in asset.service_records.filter(
+        status="Open").values_list("pk", flat=True))
+    return ", ".join(labels) or "none"
 
 
 class AssetViewSet(viewsets.ModelViewSet):
@@ -100,11 +111,40 @@ class AssetViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         old = serializer.instance
         old_desc = f"{old.asset_id} | {old.status} | {old.condition}"
+        entering_terminal = (serializer.validated_data.get('status') in TERMINAL_STATUSES and
+                             serializer.validated_data['status'] != old.status)
+        if entering_terminal:
+            interrupted = _active_lifecycle_labels(old)
+            old_desc += (f" | Custodian {old.custodian.user_name if old.custodian else '-'}"
+                         f" | Department {old.department.name if old.department else '-'}"
+                         f" | custody {custody_type(old)}")
         asset = serializer.save()
         asset.barcode_path = generate_asset_barcode(asset)
         asset.save(update_fields=['barcode_path'])
+        new_desc = f"{asset.asset_id} | {asset.status} | {asset.condition}"
+        if entering_terminal:
+            new_desc += (f" | Custodian {asset.custodian.user_name if asset.custodian else '-'}"
+                         f" | Department {asset.department.name if asset.department else '-'}"
+                         f" | custody {custody_type(asset)} | interrupted {interrupted}")
         log_action(self.request, "Update", "Assets", old_value=old_desc,
-                   new_value=f"{asset.asset_id} | {asset.status} | {asset.condition}")
+                   new_value=new_desc)
+
+    def destroy(self, request, *args, **kwargs):
+        with transaction.atomic():
+            instance = self.get_object()
+            # Issuance and return operations lock this same Asset row. Hold that
+            # lock through the history check and deletion so a new custody record
+            # cannot appear between them.
+            asset = Asset.objects.select_for_update().get(pk=instance.pk)
+            if (asset.custodian_id is not None or
+                    AssetAssignment.objects.filter(asset=asset).exists() or
+                    AssetCheckout.objects.filter(asset=asset).exists() or
+                    AssetTransfer.objects.filter(asset=asset).exists()):
+                return Response(
+                    {"detail": "This asset has custody history and cannot be deleted."},
+                    status=http_status.HTTP_400_BAD_REQUEST)
+            self.perform_destroy(asset)
+        return Response(status=http_status.HTTP_204_NO_CONTENT)
 
     def perform_destroy(self, instance):
         log_action(self.request, "Delete", "Assets",
@@ -288,6 +328,11 @@ class ServiceRecordViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         asset = data['asset']
         vendor = data['vendor']
+        old_value = (f"{asset.asset_id} | {asset.status} | "
+                     f"Custodian {asset.custodian.user_name if asset.custodian else '-'} | "
+                     f"Department {asset.department.name if asset.department else '-'} | "
+                     f"custody {custody_type(asset)}")
+        interrupted = _active_lifecycle_labels(asset)
         try:
             record = open_service(
                 asset, vendor, get_profile(request),
@@ -297,8 +342,10 @@ class ServiceRecordViewSet(viewsets.ModelViewSet):
             )
         except LifecycleError as exc:
             return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
-        log_action(request, "Service Opened", "Service Records",
-                   new_value=f"{asset.asset_id} -> {vendor.name}")
+        log_action(request, "Service Opened", "Service Records", old_value=old_value,
+                   new_value=(f"{asset.asset_id} | Under Repair | Custodian - | "
+                              f"Department - | custody None | interrupted {interrupted} | "
+                              f"Vendor {vendor.name} | reason {data.get('reason', '')}"))
         return Response(self.get_serializer(record).data, status=http_status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
