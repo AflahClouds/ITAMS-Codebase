@@ -131,6 +131,19 @@ class AssignCustodyTests(TestCase):
         self.assertEqual(repeated.status_code, 400)
         self.assertEqual(AssetAssignment.objects.filter(source_transfer=transfer).count(), 1)
 
+    def test_approval_preserves_the_transfer_request_timestamp(self):
+        self.assigned_record()
+        requested = self.request_ongoing_transfer()
+        self.assertEqual(requested.status_code, 201)
+        transfer = AssetTransfer.objects.get(pk=requested.data["id"])
+        request_date = timezone.now().replace(microsecond=0) - timedelta(days=2)
+        AssetTransfer.objects.filter(pk=transfer.pk).update(transfer_date=request_date)
+        approved = self.client.post(f"/transfer/{transfer.pk}/approve/", {}, format="json")
+        self.assertEqual(approved.status_code, 200, getattr(approved, "data", None))
+        transfer.refresh_from_db()
+        self.assertEqual(transfer.transfer_date, request_date)
+        self.assertEqual(AssetAssignment.objects.filter(source_transfer=transfer).count(), 1)
+
     def test_transfer_rejects_later_same_employee_arrangement_and_department_change(self):
         source = self.assigned_record()
         requested = self.request_ongoing_transfer()
@@ -772,6 +785,206 @@ class LegacyClassificationTests(TestCase):
         self.assertEqual((self.checkout.status, self.checkout.classification),
                          ("Open", "Unclassified"))
         self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+
+
+class LegacyReconciliationTests(TestCase):
+    def setUp(self):
+        brand = Brand.objects.create(brand_name="Reconciliation brand")
+        category = Category.objects.create(category_name="Reconciliation category")
+        model = Model.objects.create(model_name="Reconciliation model", brand=brand)
+        self.department_a = Department.objects.create(name="Reconciliation A")
+        self.department_middle = Department.objects.create(name="Reconciliation middle")
+        self.department_b = Department.objects.create(name="Reconciliation B")
+        self.operator = self.profile("reconcile-operator", {"asset_custody_manage", "asset_view"})
+        self.reader = self.profile("reconcile-reader", {"asset_view"})
+        self.a = self.profile("reconcile-a", set(), self.department_a)
+        self.middle = self.profile("reconcile-middle", set(), self.department_middle)
+        self.b = self.profile("reconcile-b", set(), self.department_b)
+        self.asset = Asset.objects.create(
+            asset_id="LEG-RECON-001", tag_number="LEG-RECON-tag",
+            serial_number="LEG-RECON-serial", brand=brand, category=category,
+            model=model, status="Assigned", condition="Average",
+            custodian=self.b, department=self.department_b)
+        self.checkout = AssetCheckout.objects.create(
+            asset=self.asset, user=self.a, approved_by=self.operator,
+            classification="Unclassified", checkout_condition="Good",
+            expected_return_date=date(2026, 12, 1), purpose="Original loan",
+            remarks="Original issue notes")
+        self.original_issue = timezone.now().replace(microsecond=0) - timedelta(days=90)
+        AssetCheckout.objects.filter(pk=self.checkout.pk).update(
+            checkout_date=self.original_issue)
+        self.checkout.refresh_from_db()
+        self.client = APIClient()
+        self.client.force_authenticate(self.operator.account)
+
+    def profile(self, name, codes, department=None):
+        account = AuthUser.objects.create_user(username=name, password="test-password")
+        role = Role.objects.create(name=f"Legacy {name}")
+        role.permissions.set([
+            Permission.objects.get_or_create(code=code, defaults={"name": code})[0]
+            for code in codes
+        ])
+        return User.objects.create(
+            account=account, user_name=name, emp_id=f"LEG-{name}",
+            email_id=f"{name}@example.com", role=role, department=department)
+
+    def approved_handoff(self, source, target, request_date):
+        transfer = AssetTransfer.objects.create(
+            asset=self.asset, previous_owner=source, new_owner=target,
+            previous_department=source.department,
+            new_department=target.department, status="Approved",
+            requested_by=self.operator, approved_by=self.operator,
+            condition="Average")
+        AssetTransfer.objects.filter(pk=transfer.pk).update(transfer_date=request_date)
+        transfer.refresh_from_db()
+        request_log = AuditLog.objects.create(
+            user=self.operator, username=self.operator.account.username,
+            action="Transfer Request", module="Transfers",
+            new_value=f"TRF-{transfer.pk:05d} | Pending | {target.user_name}")
+        AuditLog.objects.filter(pk=request_log.pk).update(date=request_date)
+        return transfer
+
+    def reconcile(self, transfer, custody_choice="Ongoing"):
+        return self.client.post(f"/checkout/{self.checkout.pk}/reconcile/", {
+            "approved_transfer": transfer.pk, "custody_type": custody_choice,
+            "remarks": "Verified historical handoff",
+        }, format="json")
+
+    def test_verified_chain_reconstructs_one_ongoing_arrangement_without_return(self):
+        first_date = self.original_issue + timedelta(days=30)
+        final_date = self.original_issue + timedelta(days=60)
+        self.approved_handoff(self.a, self.middle, first_date)
+        final = self.approved_handoff(self.middle, self.b, final_date)
+        original_snapshot = (self.asset.status, self.asset.custodian_id,
+                             self.asset.department_id, self.asset.condition)
+
+        response = self.reconcile(final)
+        self.assertEqual(response.status_code, 200, getattr(response, "data", None))
+        self.checkout.refresh_from_db()
+        self.asset.refresh_from_db()
+        assignment = AssetAssignment.objects.get(asset=self.asset, status="Open")
+        self.assertEqual((self.checkout.status, self.checkout.closure_reason,
+                          self.checkout.superseded_by_transfer_id,
+                          self.checkout.classified_by_id),
+                         ("Returned", "Superseded", final.pk, self.operator.pk))
+        self.assertIsNotNone(self.checkout.closed_at)
+        self.assertIsNotNone(self.checkout.classified_at)
+        self.assertEqual(self.checkout.checkout_date.replace(microsecond=0),
+                         self.original_issue)
+        self.assertEqual(self.checkout.expected_return_date, date(2026, 12, 1))
+        self.assertIsNone(self.checkout.return_date)
+        self.assertEqual((self.checkout.return_condition, self.checkout.return_remarks),
+                         ("", ""))
+        self.assertEqual((assignment.user_id, assignment.source_checkout_id,
+                          assignment.source_transfer_id),
+                         (self.b.pk, self.checkout.pk, final.pk))
+        self.assertEqual(assignment.issue_condition, "")
+        self.assertEqual(assignment.issued_at.replace(microsecond=0), final_date)
+        self.assertEqual(assignment.provenance, "Administrative reconstruction")
+        self.assertIn("Transfer request", assignment.date_basis)
+        self.assertEqual((self.asset.status, self.asset.custodian_id,
+                          self.asset.department_id, self.asset.condition), original_snapshot)
+        self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
+        self.assertEqual(AuditLog.objects.filter(action="Reconcile Checkout").count(), 1)
+        self.assertIn("Superseded", self.client.get(
+            f"/asset/{self.asset.pk}/history/").data["checkouts"][0]["closure_reason"])
+        self.assertEqual(self.reconcile(final).status_code, 200)
+        self.assertEqual(AssetAssignment.objects.filter(asset=self.asset).count(), 1)
+
+    def test_verified_handoff_reconstructs_temporary_without_purpose_or_due_date(self):
+        request_date = self.original_issue + timedelta(days=40)
+        final = self.approved_handoff(self.a, self.b, request_date)
+        response = self.reconcile(final, "Temporary")
+        self.assertEqual(response.status_code, 200, getattr(response, "data", None))
+        self.checkout.refresh_from_db()
+        active = AssetCheckout.objects.get(asset=self.asset, status="Open")
+        self.assertEqual((active.user_id, active.classification,
+                          active.source_checkout_id, active.source_transfer_id),
+                         (self.b.pk, "Temporary", self.checkout.pk, final.pk))
+        self.assertEqual(active.checkout_date.replace(microsecond=0), request_date)
+        self.assertEqual((active.purpose, active.expected_return_date,
+                          active.checkout_condition, active.return_date),
+                         ("", None, "", None))
+        self.assertEqual(active.provenance, "Administrative reconstruction")
+        self.assertIn("Transfer request", active.date_basis)
+        self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+        self.assertEqual(self.client.get(f"/asset/{self.asset.pk}/").data["custody_type"],
+                         "Temporary")
+
+    def test_existing_matching_ongoing_record_is_linked_without_duplicate(self):
+        self.approved_handoff(
+            self.a, self.middle, self.original_issue + timedelta(days=20))
+        final = self.approved_handoff(
+            self.middle, self.b, self.original_issue + timedelta(days=40))
+        existing = AssetAssignment.objects.create(
+            asset=self.asset, user=self.b, issue_condition="Average",
+            issued_by=self.operator, source_transfer=final)
+        response = self.reconcile(final)
+        self.assertEqual(response.status_code, 200, getattr(response, "data", None))
+        existing.refresh_from_db()
+        self.assertEqual(existing.source_checkout_id, self.checkout.pk)
+        self.assertEqual(AssetAssignment.objects.filter(asset=self.asset).count(), 1)
+        self.assertEqual(existing.provenance, "")
+        self.assertEqual(self.reconcile(final).status_code, 200)
+        self.assertEqual(AuditLog.objects.filter(action="Reconcile Checkout").count(), 1)
+
+    def test_broken_approved_chain_or_department_cannot_supersede_checkout(self):
+        self.approved_handoff(
+            self.a, self.middle, self.original_issue + timedelta(days=20))
+        final = self.approved_handoff(
+            self.a, self.b, self.original_issue + timedelta(days=40))
+        existing = AssetAssignment.objects.create(
+            asset=self.asset, user=self.b, issue_condition="Average",
+            issued_by=self.operator, source_transfer=final)
+        self.assertEqual(self.reconcile(final).status_code, 400)
+        final.previous_owner = self.middle
+        final.new_department = self.department_middle
+        final.save(update_fields=["previous_owner", "new_department"])
+        self.assertEqual(self.reconcile(final).status_code, 400)
+        self.checkout.refresh_from_db()
+        existing.refresh_from_db()
+        self.assertEqual(self.checkout.status, "Open")
+        self.assertIsNone(existing.source_checkout_id)
+        self.assertFalse(AuditLog.objects.filter(action="Reconcile Checkout").exists())
+
+    def test_unapproved_wrong_chain_and_unauthorized_reconciliation_do_not_mutate(self):
+        final = self.approved_handoff(
+            self.a, self.b, self.original_issue + timedelta(days=40))
+        self.client.force_authenticate(self.reader.account)
+        self.assertEqual(self.reconcile(final).status_code, 403)
+        self.client.force_authenticate(self.operator.account)
+        final.status = "Pending"
+        final.save(update_fields=["status"])
+        self.assertEqual(self.reconcile(final).status_code, 400)
+        final.status = "Approved"
+        final.previous_owner = self.middle
+        final.save(update_fields=["status", "previous_owner"])
+        self.assertEqual(self.reconcile(final).status_code, 400)
+        self.checkout.refresh_from_db()
+        self.assertEqual((self.checkout.status, self.checkout.classification),
+                         ("Open", "Unclassified"))
+        self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+        self.assertFalse(AuditLog.objects.filter(action="Reconcile Checkout").exists())
+
+    def test_reconciliation_audit_failure_rolls_back_all_custody_writes(self):
+        final = self.approved_handoff(
+            self.a, self.b, self.original_issue + timedelta(days=40))
+        existing = AssetAssignment.objects.create(
+            asset=self.asset, user=self.b, issue_condition="Average",
+            issued_by=self.operator, source_transfer=final)
+        with patch("assets.custody.log_action", side_effect=RuntimeError("audit unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.reconcile(final)
+        self.checkout.refresh_from_db()
+        self.assertEqual(self.checkout.status, "Open")
+        existing.refresh_from_db()
+        self.assertIsNone(existing.source_checkout_id)
+        self.assertEqual(AssetAssignment.objects.filter(asset=self.asset).count(), 1)
+        self.assertFalse(AssetConditionLog.objects.filter(asset=self.asset).exists())
+        self.asset.refresh_from_db()
+        self.assertEqual((self.asset.status, self.asset.custodian_id,
+                          self.asset.department_id),
+                         ("Assigned", self.b.pk, self.department_b.pk))
 
 
 class LegacyCheckoutMigrationTests(TransactionTestCase):

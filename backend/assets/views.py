@@ -16,7 +16,7 @@ from core.services import get_profile, log_action, notify_many
 
 from .barcodes import generate_asset_barcode
 from .checkout import check_in, check_out
-from .custody import assign, classify_legacy_checkout, take_back
+from .custody import assign, classify_legacy_checkout, reconcile_legacy_checkout, take_back
 from .models import (ASSET_CONDITIONS, TERMINAL_STATUSES, AmcContract, Asset,
                      AssetAssignment, AssetCheckout, AssetConditionLog, AssetDocument, AssetImage,
                      AssetTransfer, LifecycleError, Procurement, ServiceRecord)
@@ -457,7 +457,7 @@ class CheckoutViewSet(viewsets.ModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "asset_custody_manage", "checkin": "asset_custody_manage",
-                      "classify": "asset_custody_manage",
+                      "classify": "asset_custody_manage", "reconcile": "asset_custody_manage",
                       "*": "__admin__"}
     queryset = AssetCheckout.objects.all().select_related(
         'asset', 'user', 'approved_by').prefetch_related(
@@ -521,6 +521,22 @@ class CheckoutViewSet(viewsets.ModelViewSet):
             checkout = classify_legacy_checkout(
                 checkout, request.data.get('custody_type'), get_profile(request),
                 remarks=request.data.get('remarks', ''), request=request)
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(checkout).data)
+
+    @action(detail=True, methods=['post'])
+    def reconcile(self, request, pk=None):
+        checkout = self.get_object()
+        try:
+            transfer = AssetTransfer.objects.get(pk=request.data.get('approved_transfer'))
+            checkout = reconcile_legacy_checkout(
+                checkout, transfer, request.data.get('custody_type'),
+                get_profile(request), remarks=request.data.get('remarks', ''),
+                request=request)
+        except (AssetTransfer.DoesNotExist, ValueError, TypeError):
+            return Response({"detail": "Select a recorded approved Transfer."},
+                            status=http_status.HTTP_400_BAD_REQUEST)
         except LifecycleError as exc:
             return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(checkout).data)

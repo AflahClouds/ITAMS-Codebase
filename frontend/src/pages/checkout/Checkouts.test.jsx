@@ -135,3 +135,61 @@ describe('legacy Checkout classification', () => {
     expect(screen.queryByRole('button', { name: 'Check In AST-004' })).not.toBeInTheDocument();
   });
 });
+
+describe('verified legacy handoff reconciliation', () => {
+  const staleCheckout = { ...checkout, classification: 'Unclassified',
+    current_custody_type: 'Conflicting', user_details: { user_name: 'Asha' } };
+  const approvedTransfer = { id: 22, asset: 4, transfer_code: 'TRF-00022',
+    status: 'Approved', previous_owner_details: { user_name: 'Asha' },
+    new_owner_details: { user_name: 'Bala' },
+    transfer_date: '2026-09-10T10:00:00Z' };
+
+  beforeEach(() => {
+    permissions.current = ['asset_view', 'asset_custody_manage'];
+    AxiosInstance.post.mockReset().mockResolvedValue({ data: { closure_reason: 'Superseded' } });
+    AxiosInstance.get.mockReset().mockImplementation((path) => Promise.resolve({ data:
+      path === '/checkout/' ? [staleCheckout] :
+        path === '/transfer/' ? [approvedTransfer] : [],
+    }));
+  });
+
+  it('offers approved Transfer evidence and a distinct administrative reconciliation', async () => {
+    render(<Checkouts />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Reconcile AST-004' }));
+    expect(screen.getByText(/no physical Check-in/i)).toBeInTheDocument();
+    expect(screen.getByText(/TRF-00022.*Asha.*Bala/)).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Approved Transfer' }),
+      '22');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Current custody type' }),
+      'Ongoing');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Reconciliation remarks' }),
+      'Verified chain to Bala');
+    await userEvent.click(screen.getByRole('button', { name: 'Record Reconciliation' }));
+    await waitFor(() => expect(AxiosInstance.post).toHaveBeenCalledWith(
+      '/checkout/15/reconcile/', {
+        approved_transfer: 22, custody_type: 'Ongoing', remarks: 'Verified chain to Bala',
+      }));
+    expect(screen.queryByRole('button', { name: 'Check In AST-004' })).not.toBeInTheDocument();
+  });
+
+  it('shows Superseded history as administrative and labels reconstructed date basis', async () => {
+    AxiosInstance.get.mockImplementation((path) => Promise.resolve({ data:
+      path === '/asset/4/' ? { ...asset, custody_type: 'Ongoing',
+        custodian_details: { user_name: 'Bala' } } :
+        path === '/asset/4/history/' ? {
+          assignments: [{ id: 30, status: 'Open', issued_at: '2026-09-10T10:00:00Z',
+            user_details: { user_name: 'Bala' }, issue_condition: '',
+            provenance: 'Administrative reconstruction',
+            date_basis: 'Earliest documented Transfer request', source_transfer: 22 }],
+          checkouts: [{ ...staleCheckout, status: 'Returned', closure_reason: 'Superseded',
+            superseded_by_transfer: 22, return_date: null }],
+          transfers: [approvedTransfer], condition_logs: [], services: [],
+          amc_contracts: [],
+        } : [],
+    }));
+    render(<AssetDetail />);
+    expect(await screen.findByText(/Superseded via TRF-00022/)).toBeInTheDocument();
+    expect(screen.getByText(/Earliest documented Transfer request/)).toBeInTheDocument();
+    expect(screen.queryByText(/Check-in.*2026-09-10/i)).not.toBeInTheDocument();
+  });
+});

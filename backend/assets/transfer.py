@@ -140,8 +140,7 @@ def approve(transfer, approved_by, *, request=None):
             remarks=transfer.remarks, source_transfer=transfer)
         transfer.status = "Approved"
         transfer.approved_by = approved_by
-        transfer.transfer_date = now
-        transfer.save(update_fields=["status", "approved_by", "transfer_date"])
+        transfer.save(update_fields=["status", "approved_by"])
         log_action(
             _audit_request(approved_by, request), "Transfer Approved", "Transfers",
             old_value=f"{asset.asset_id} | Assigned | {source.user.user_name} | Ongoing | Assignment {source.pk}",

@@ -245,3 +245,96 @@ def classify_legacy_checkout(checkout, custody_choice, actor, *, remarks="", req
         )
     record.refresh_from_db()
     return record
+
+
+def _verified_approved_handoff_chain(asset, checkout, final_transfer):
+    """Verify every approved handoff after the old issue reaches the current holder."""
+    transfers = list(AssetTransfer.objects.filter(
+        asset=asset, status="Approved",
+        transfer_date__gte=checkout.checkout_date,
+    ).order_by("transfer_date", "pk"))
+    if not transfers or transfers[-1].pk != final_transfer.pk:
+        raise LifecycleError("Approved Transfer history does not establish current custody.")
+    holder_id = checkout.user_id
+    department_id = None
+    for transfer in transfers:
+        if (not transfer.approved_by_id or transfer.previous_owner_id != holder_id or
+                not transfer.new_owner_id or transfer.new_owner_id == holder_id or
+                (department_id is not None and
+                 transfer.previous_department_id != department_id)):
+            raise LifecycleError("Approved Transfer history has a conflicting handoff.")
+        holder_id = transfer.new_owner_id
+        department_id = transfer.new_department_id
+    if holder_id != asset.custodian_id or department_id != asset.department_id:
+        raise LifecycleError("Approved Transfer history does not match current custody.")
+
+
+def reconcile_legacy_checkout(checkout, final_transfer, custody_choice, actor,
+                              *, remarks="", request=None):
+    """Supersede a stale Checkout only when the approved chain and B record agree.
+
+    Reconstruction of a missing B record is deferred until the historical date
+    basis is resolved. This path can safely link an existing dated arrangement.
+    """
+    if (actor is None or actor.status != "Active" or not actor.account_id or
+            not actor.account.is_active or not actor.can("asset_custody_manage")):
+        raise LifecycleError("You cannot reconcile Checkout custody.")
+    if custody_choice not in ("Temporary", "Ongoing"):
+        raise LifecycleError("Choose Temporary or Ongoing custody for reconciliation.")
+    remarks = (remarks or "").strip()
+
+    with transaction.atomic():
+        current = Asset.objects.select_for_update().get(pk=checkout.asset_id)
+        record = AssetCheckout.objects.select_for_update().select_related("user").get(
+            pk=checkout.pk)
+        final = AssetTransfer.objects.select_for_update().get(pk=final_transfer.pk)
+        if (current.status != "Assigned" or not current.custodian_id or
+                current.custodian_id == record.user_id or
+                final.asset_id != current.pk or final.status != "Approved" or
+                record.return_date is not None or record.return_condition):
+            raise LifecycleError("Conflicting custody records lack a verified handoff.")
+        _verified_approved_handoff_chain(current, record, final)
+
+        assignments = list(AssetAssignment.objects.select_for_update().filter(
+            asset=current, status="Open"))
+        other_checkouts = AssetCheckout.objects.filter(
+            asset=current, status="Open").exclude(pk=record.pk)
+        if (custody_choice != "Ongoing" or len(assignments) != 1 or
+                assignments[0].user_id != current.custodian_id or
+                assignments[0].source_transfer_id not in (None, final.pk) or
+                assignments[0].source_checkout_id not in (None, record.pk) or
+                other_checkouts.exists()):
+            raise LifecycleError(
+                "Current holder has no matching active arrangement for this reconciliation.")
+        assignment = assignments[0]
+        if (record.status == "Returned" and record.closure_reason == "Superseded" and
+                record.superseded_by_transfer_id == final.pk and
+                record.classified_at and assignment.source_checkout_id == record.pk and
+                assignment.source_transfer_id == final.pk):
+            return record
+        if record.status != "Open" or record.classification != "Unclassified":
+            raise LifecycleError("This legacy Checkout is no longer open and unclassified.")
+
+        now = timezone.now()
+        changed = AssetCheckout.objects.filter(
+            pk=record.pk, status="Open", classification="Unclassified").update(
+            status="Returned", closure_reason="Superseded", closed_at=now,
+            superseded_by_transfer=final, classified_by=actor,
+            classified_at=now, classification_remarks=remarks)
+        if changed != 1:
+            raise LifecycleError("This legacy Checkout changed. Reload and try again.")
+        linked = AssetAssignment.objects.filter(pk=assignment.pk, status="Open").update(
+            source_checkout=record, source_transfer=final)
+        if linked != 1:
+            raise LifecycleError("The current Assignment changed. Reload and try again.")
+        log_action(
+            request or SimpleNamespace(user=actor.account, META={}),
+            "Reconcile Checkout", "Checkouts",
+            old_value=(f"{current.asset_id} | Checkout {record.pk} Open | "
+                       f"{record.user.user_name} | current holder {current.custodian_id}"),
+            new_value=(f"{current.asset_id} | Checkout {record.pk} Superseded by "
+                       f"TRF-{final.pk:05d} | {custody_choice} Assignment {assignment.pk} "
+                       f"| actor {actor.user_name} | no physical Check-in | {remarks}"),
+        )
+    record.refresh_from_db()
+    return record
