@@ -3,7 +3,7 @@ schema_version: "1.0"
 preset:
   id: "itams-policy"
   name: "ITAMS project policy"
-  version: "1.0.0"
+  version: "1.0.1"
   description: "Project-owned constitution propagation for durable local feature delivery."
   author: "ITAMS"
 

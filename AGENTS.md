@@ -91,8 +91,8 @@ Use native builder/reviewer subagents and completion-aware waits. Keep the root 
 ## Repository commands
 
 - Verified backend fast check in this worktree: from `backend/`, run `D:/AFLAH V K/ITAMS - Codebase/backend/Env/Scripts/python.exe manage.py check`; result was `System check identified no issues (0 silenced)`.
-- Backend `manage.py test assets` and `manage.py test` are required by the constitution but have not yet been run in this worktree.
-- Frontend package scripts discovered: `npm test -- --run`, `npm run lint`, and `npm run build`. Use `C:/Program Files/nodejs/npm.cmd` because the `npm.ps1` on PATH currently points to a missing user-global npm install. Their exit results are not yet verified in this worktree; its `frontend/node_modules` is absent.
+- Verified backend full check in this worktree: from `backend/`, `D:/AFLAH V K/ITAMS - Codebase/backend/Env/Scripts/python.exe manage.py test --noinput` passed 331 tests with terminal exit 0 on 2026-10-08. `manage.py makemigrations --check --dry-run` reported no changes. Focused custody and lifecycle test results are recorded in the feature 014 local issues.
+- Verified frontend package scripts in this worktree: from `frontend/`, `C:/Program Files/nodejs/npm.cmd test` passed 57 Vitest tests; `C:/Program Files/nodejs/npm.cmd run lint` exited 0 with 14 warnings and no errors; and `C:/Program Files/nodejs/npm.cmd run build` exited 0 on 2026-10-08. The local `node_modules` dependency directory remains ignored.
 - Setup, run and deployment commands beyond those sources are unverified. Do not claim a successful command until its terminal exit is observed.
 
 <!-- SPECKIT START -->

@@ -32,9 +32,9 @@
       "installed_at": "2026-10-07T03:52:50.036567+00:00"
     },
     "itams-policy": {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "source": "local",
-      "manifest_hash": "sha256:01d9d7cdb2568b061faa17af7f5dc2ba7a1db9beaefb02c65902e203824b32d6",
+      "manifest_hash": "sha256:7244a7dc7a0a09da06d21522c9e5e7b49758b88b46f547cee10f24fcd0288386",
       "enabled": true,
       "priority": 1,
       "registered_commands": {
@@ -59,7 +59,7 @@
           "speckit-converge"
         ]
       },
-      "installed_at": "2026-10-07T04:05:22.708120+00:00"
+      "installed_at": "2026-10-08T14:09:59.498527+00:00"
     }
   }
 }

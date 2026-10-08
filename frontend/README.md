@@ -1,18 +1,24 @@
-# React + Vite
+# ITAMS frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This React/Vite client presents the IT Asset Management System. Its route entry
+point is `src/App.jsx`; Asset details, temporary Checkout/Check-in, ongoing
+Assign/Take Back, approval-gated Transfer, Service Records, reports, and
+administration live under `src/pages/`. Route controls use permission codes;
+the Django API enforces the corresponding authorization.
 
-Currently, two official plugins are available:
+Read the repository's [`CONTEXT.md`](../CONTEXT.md) for domain terms and
+[`specs/README.md`](../specs/README.md) for durable feature specifications.
+Feature 014's accepted custody behavior is recorded in
+[`specs/014-asset-assignments/`](../specs/014-asset-assignments/).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+From this directory, with the dependencies in `package-lock.json` installed:
 
-## React Compiler
+```powershell
+npm test
+npm run lint
+npm run build
+```
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
-
-Note: This will impact Vite dev & build performances.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+`npm test` runs Vitest with jsdom and React Testing Library. The React Compiler
+plugin is configured for the client build and excluded from test transforms in
+`vite.config.js`.
