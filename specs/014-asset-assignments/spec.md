@@ -1,10 +1,10 @@
 # Feature Specification: Ongoing Asset Assignments and Temporary Checkout
 
-**Feature Branch**: `codex/014-asset-assignments`
+**Feature Branch**: `codex/014-asset-assignments` (initial design); local delivery and review occurred on `codex/014-asset-assignments-delivery`.
 
 **Created**: 2026-09-29
 
-**Status**: Accepted scope — implementation pending
+**Status**: Accepted scope — implemented and independently reviewed locally on 2026-10-08 (native run `95a02038` completed). Deployment, live operational use and manual acceptance remain unverified.
 
 **Input**: Keep Checkout for temporarily assigning an Asset to an employee. Extend the Transfer module with separate ongoing Assign and Take Back actions. Users with `asset_custody_manage` perform Assign and Take Back immediately; employee-to-employee Transfer retains its request-and-approval process.
 
@@ -49,8 +49,8 @@
 **Relevant Decisions**:
 - The stakeholder explicitly requested temporary Checkout and separate ongoing Assignment, and on 2026-09-29 confirmed immediate Assign/Take Back by `asset_custody_manage` while retaining Transfer approval.
 - The stakeholder confirmed that IT classifies each existing open Checkout, temporary custody is checked in before reissue to another employee, and Take Back always sets `status = Available` while recording the actual return condition, including `Damaged` or `Repair Required`.
-- This deliberately changes `CONTEXT.md`, which currently says to avoid Assignment and defines Checkout as all initial issuance. Draft B4's 2026-08-04 answer, “Store-to-User issuance ... Checkout,” changes only for ongoing issuance.
-- ADR-0001 still clears custody on Service Record opening and prohibits automatic reassignment on closing. Its phrase “fresh Checkout” must become a deliberate fresh Assign or Checkout according to the intended use. Scope acceptance must cover this narrow terminology/workflow amendment; the service rationale is retained.
+- At the initial 2026-09-29 design snapshot, `CONTEXT.md` said to avoid Assignment and defined Checkout as all initial issuance. The accepted narrow change has since been recorded there: Draft B4's 2026-08-04 “Store-to-User issuance ... Checkout” answer now applies only to temporary issuance, while ongoing issuance uses Assignment.
+- ADR-0001 retains custody clearing when a Service Record opens and prohibits automatic reassignment on closing. Its original “fresh Checkout” wording was amended to a deliberate fresh Assign or Checkout according to intended use under the accepted narrow scope; the service rationale is retained.
 - Status and condition remain independent. No new Asset status is proposed. Assigned Assets must visibly distinguish ongoing Assignment from temporary Checkout.
 
 **Lifecycle and Actors**:
@@ -202,9 +202,9 @@ IT continues managing Assets issued before the distinction existed without losin
 
 - This is a change to the existing ITAMS application and permission model; no technology or authentication change is proposed.
 - Existing accepted rules apply except where this change feature explicitly replaces them. Notification recipients are included in the accepted scope.
-- The user confirmed direct-action permissions, approved entry into Clarify and the final scope decision separately, accepted the final clarified scope, and authorized this update's local delivery. The Clarify coverage scan and three material answers are recorded above. This authority grants no push, merge, deployment or release.
-- Prior active pointer was `specs/013-procurement-invoice-attachment-change`; its files and unrelated working-tree changes are preserved. Initial revision: `5de8099386ea20c67be8612a3f608e1db244a3f6`. No native workflow run exists for this change.
-- Implementation review must reconcile the relevant CONTEXT and ADR terminology and predecessor lineage. This specification does not claim current software already provides Assignment/Take Back or that observed code gaps are intended behavior.
+- The user confirmed direct-action permissions, approved entry into Clarify and the final scope decision separately, accepted the final clarified scope, and authorized this update's local delivery. The initial 2026-09-29 Clarify coverage scan and three material answers, plus the approved 2026-10-08 historical Transfer date-basis clarification, are recorded above. This authority grants no push, merge, deployment or release.
+- At the initial design snapshot, the prior active pointer was `specs/013-procurement-invoice-attachment-change`; its files and unrelated working-tree changes were preserved. Initial revision: `5de8099386ea20c67be8612a3f608e1db244a3f6`. The “no native workflow run” observation applied only then; native run `95a02038` completed locally on 2026-10-08.
+- At initial drafting, implementation review still needed to reconcile CONTEXT and ADR terminology and predecessor lineage; those changes and reciprocal links are now recorded. Initial code observations were evidence of the pre-implementation state, not intended behavior. Current implementation and verification evidence is in `issues/08-verify-and-converge.md`.
 
 ## Out of Scope *(mandatory)*
 

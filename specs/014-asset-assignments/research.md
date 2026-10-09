@@ -1,9 +1,11 @@
 # Research: Asset Custody Separation
 
-## Existing behavior and evidence
+## Initial behavior and evidence (2026-09-29 pre-implementation snapshot)
+
+These observations describe the checked-in code before feature 014 implementation, not current software behavior. Current local implementation, test and review results are recorded in [issue 08](issues/08-verify-and-converge.md); the original research rationale remains below.
 
 - `backend/assets/checkout.py` issues from Available and closes a Checkout on Check-in; it does not distinguish temporary from ongoing use. The return operation clears Asset Custodian and department.
-- `backend/assets/transfer.py` approves a Transfer by changing Asset Custodian but does not close an old open Checkout. This can leave a historical Checkout naming A while the Asset and approved Transfer name B. Current code also accepts a no-Custodian Transfer despite Draft B4's intended restriction.
+- `backend/assets/transfer.py` approves a Transfer by changing Asset Custodian but does not close an old open Checkout. This can leave a historical Checkout naming A while the Asset and approved Transfer name B. At this pre-implementation snapshot, code also accepted a no-Custodian Transfer despite Draft B4's intended restriction.
 - `backend/assets/service.py` closes open Checkouts on service opening, clears Custodian and returns the Asset to Available on service closing. ADR-0001 forbids automatic restoration.
 - `backend/assets/models.py` has a unique open-Checkout constraint but no cross-record active-custody constraint. SQLite ignores `select_for_update`; write sequencing must be verified at the API seam as well as within the domain service.
 - The checked-in stack is Django REST Framework, SQLite for local development, React/Vite, Vitest, and the Django test runner. No new framework or material dependency is required.

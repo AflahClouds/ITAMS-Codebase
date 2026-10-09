@@ -4,7 +4,7 @@
 **Date**: 2026-09-29
 **Spec**: [spec.md](spec.md)
 
-**Input**: Accepted scope in `spec.md` and the user's three Clarify answers. Local sprint authority applies to this feature on the isolated `codex/014-asset-assignments-delivery` branch, derived from checkpoint `877ad2a`; it grants no push, merge, deployment, or release.
+**Input**: Accepted scope in `spec.md`, the user's three original 2026-09-29 Clarify answers, and the approved 2026-10-08 historical Transfer date-basis clarification already recorded in that specification. Local sprint authority applied to this feature on the isolated `codex/014-asset-assignments-delivery` branch, derived from checkpoint `877ad2a`; it granted no push, merge, deployment, or release.
 
 ## Summary
 
