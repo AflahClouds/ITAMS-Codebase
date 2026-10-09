@@ -25,7 +25,7 @@ const AssetDetail = () => {
   const { id } = useParams();
   const [asset, setAsset] = useState(null);
   const [history, setHistory] = useState({
-    checkouts: [], transfers: [], condition_logs: [], services: [], amc_contracts: [],
+    assignments: [], checkouts: [], transfers: [], condition_logs: [], services: [], amc_contracts: [],
   });
   const [condition, setCondition] = useState('Good');
   const [notes, setNotes] = useState('');
@@ -199,6 +199,7 @@ const AssetDetail = () => {
               Custody & Warranty
             </Typography>
             <Row label="Custodian" value={asset.custodian_details?.user_name} />
+            <Row label="Custody Type" value={asset.custody_type} />
             <Row label="Department" value={asset.department_details?.name} />
             <Row label="Location" value={asset.location_details?.name} />
             <Row label="Warranty Start" value={asset.warranty_start} />
@@ -425,6 +426,57 @@ const AssetDetail = () => {
         <Grid size={{ xs: 12, md: 3 }}>
           <Paper sx={{ padding: '16px' }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 'bold', marginBottom: '8px' }}>
+              Ongoing Assignments
+            </Typography>
+            {(history.assignments || []).length === 0 && (
+              <Typography variant="body2" color="text.secondary">No ongoing assignments.</Typography>)}
+            {(history.assignments || []).map((assignment) => (
+              <Box key={assignment.id} sx={{ padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <Typography variant="body2">
+                  {`Assignment #${assignment.id} · ${assignment.user_details?.user_name}`} — <Chip label={assignment.status} size="small" />
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {assignment.provenance === 'Administrative reconstruction'
+                    ? `Recorded ${new Date(assignment.issued_at).toLocaleString()}`
+                    : `Issued ${new Date(assignment.issued_at).toLocaleString()}`}
+                  {assignment.issued_by_details && ` by ${assignment.issued_by_details.user_name}`}
+                  {` · ${assignment.issue_condition || 'Issue condition not recorded'}`}
+                </Typography>
+                {assignment.date_basis && (
+                  <Typography variant="caption" display="block">
+                    {assignment.date_basis}
+                  </Typography>
+                )}
+                {assignment.status === 'Open' && can('asset_custody_manage') && (
+                  <Button size="small" href="/transfer">Take Back</Button>
+                )}
+                {assignment.status === 'Open' && can('transfer_request') && (
+                  <Button size="small" href="/transfer/create">Request Transfer</Button>
+                )}
+                {assignment.closure_reason === 'Take Back' && (
+                  <Typography variant="caption" display="block">
+                    {`Take Back ${new Date(assignment.closed_at).toLocaleString()} by ${assignment.closed_by_details?.user_name || 'IT'} · Available · Actual condition: ${assignment.return_condition}`}
+                    {assignment.return_remarks && ` · ${assignment.return_remarks}`}
+                  </Typography>
+                )}
+                {assignment.closure_reason === 'Transfer' && assignment.superseded_by_transfer && (
+                  <Typography variant="caption" display="block">
+                    {`Transferred via TRF-${String(assignment.superseded_by_transfer).padStart(5, '0')} ${new Date(assignment.closed_at).toLocaleString()} by ${assignment.closed_by_details?.user_name || 'IT'}`}
+                  </Typography>
+                )}
+                {assignment.source_transfer && (
+                  <Typography variant="caption" display="block">
+                    {`Received via TRF-${String(assignment.source_transfer).padStart(5, '0')}`}
+                  </Typography>
+                )}
+              </Box>
+            ))}
+          </Paper>
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 3 }}>
+          <Paper sx={{ padding: '16px' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', marginBottom: '8px' }}>
               Checkout History
             </Typography>
             {history.checkouts.length === 0 && (
@@ -432,12 +484,37 @@ const AssetDetail = () => {
             {history.checkouts.map((c) => (
               <Box key={c.id} sx={{ padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
                 <Typography variant="body2">
-                  {c.user_details?.user_name} — <Chip label={c.status} size="small" />
+                  {`${c.classification || 'Unclassified'} Checkout #${c.id}`}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {new Date(c.checkout_date).toLocaleDateString()}
-                  {c.return_date && ` → ${new Date(c.return_date).toLocaleDateString()}`}
+                <Typography variant="caption" display="block" color="text.secondary">
+                  {`${c.user_details?.user_name || 'Unknown holder'} · ${c.provenance === 'Administrative reconstruction' ? 'Recorded' : 'Issued'} ${new Date(c.checkout_date).toLocaleString()}`}
+                  {c.approved_by_details && ` by ${c.approved_by_details.user_name}`}
+                  {` · Purpose: ${c.purpose || 'Not recorded'}`}
+                  {c.expected_return_date && ` · Expected return: ${c.expected_return_date}`}
                 </Typography>
+                {c.date_basis && (
+                  <Typography variant="caption" display="block">{c.date_basis}</Typography>
+                )}
+                <Chip label={c.status} size="small" />
+                {c.closure_reason === 'Superseded' && c.superseded_by_transfer && (
+                  <Typography variant="caption" display="block">
+                    {`Superseded via TRF-${String(c.superseded_by_transfer).padStart(5, '0')} administratively; no physical Check-in`}
+                  </Typography>
+                )}
+                {c.status === 'Open' && c.classification === 'Temporary' &&
+                  can('asset_custody_manage') && (
+                  <Button size="small" href="/checkout">Check In</Button>
+                )}
+                {c.return_date && !c.closed_as_interrupted &&
+                  (!c.closure_reason || c.closure_reason === 'Returned') && (
+                  <Typography variant="caption" display="block">
+                    {`Check-in ${new Date(c.return_date).toLocaleString()} · Actual condition: ${c.return_condition}`}
+                    {c.return_remarks && ` · ${c.return_remarks}`}
+                  </Typography>
+                )}
+                {c.closed_as_interrupted && (
+                  <Typography variant="caption" display="block">Custody interrupted without Check-in.</Typography>
+                )}
               </Box>
             ))}
           </Paper>

@@ -52,7 +52,6 @@ const AssetEdit = () => {
   const [brands, setBrand] = useState([])
   const [models, setModel] = useState([])
   const [locations, setLocations] = useState([])
-  const [departments, setDepartments] = useState([])
   const [vendors, setVendors] = useState([])
   const [message, setMessage] = useState([])
   const [myData, setMyData] = useState({
@@ -71,7 +70,6 @@ const AssetEdit = () => {
     AxiosInstance.get('/brand/').then((res) => setBrand(res.data))
     AxiosInstance.get('/model/').then((res) => setModel(res.data))
     AxiosInstance.get('/location/').then((res) => setLocations(res.data))
-    AxiosInstance.get('/department/').then((res) => setDepartments(res.data))
     AxiosInstance.get('/vendor/').then((res) => setVendors(res.data))
     AxiosInstance.get(`/asset/${MyId}/`).then((res) => setMyData(res.data))
   }
@@ -126,7 +124,6 @@ const AssetEdit = () => {
       status: myData.status || 'Available',
       condition: myData.condition || 'New',
       location: myData.location ?? '',
-      department: myData.department ?? '',
       warranty_start: myData.warranty_start,
       warranty_end: myData.warranty_end,
       has_amc: myData.has_amc || false,
@@ -147,7 +144,6 @@ const AssetEdit = () => {
         depreciation_rate: toNumberOrNull(values.depreciation_rate),
         asset_life: toNumberOrNull(values.asset_life),
         location: toIdOrNull(values.location),
-        department: toIdOrNull(values.department),
         warranty_start: toDateOrNull(values.warranty_start),
         warranty_end: toDateOrNull(values.warranty_end),
         amc_start: values.has_amc ? toDateOrNull(values.amc_start) : null,
@@ -325,17 +321,9 @@ const AssetEdit = () => {
           </Box>
 
           <Box className={"FormArea"}>
-            <SelectForm
-              label={"Department"}
-              options={departments}
-              labelKey="name"
-              name="department"
-              value={formik.values.department}
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
-              error={formik.touched.department && Boolean(formik.errors.department)}
-              helperText={formik.touched.department && formik.errors.department}
-            />
+            <Typography variant="body2">
+              Department: {myData.department_details?.name || 'None'} (follows current Custodian)
+            </Typography>
           </Box>
 
           <Box className={"FormArea"}>

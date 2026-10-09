@@ -11,7 +11,7 @@ from catalog.models import Brand, Category, Model, PurchaseMode, Vendor
 
 from .alerts import check_expiring_dates
 from .checkout import check_in, check_out
-from .models import (AmcContract, Asset, AssetCheckout, AssetConditionLog,
+from .models import (AmcContract, Asset, AssetAssignment, AssetCheckout, AssetConditionLog,
                      AssetDocument, AssetImage, LifecycleError, Procurement,
                      ServiceRecord)
 from .service import close_service, open_service
@@ -263,7 +263,8 @@ class CheckoutLifecycleTests(TestCase):
     def test_check_out_notifies_the_new_custodian(self):
         """Covers: B3 FR-020."""
         from core.models import Notification
-        check_out(self.asset, self.user, self.user)
+        with self.captureOnCommitCallbacks(execute=True):
+            check_out(self.asset, self.user, self.user)
 
         self.assertTrue(Notification.objects.filter(user=self.user).exists())
 
@@ -312,17 +313,20 @@ class TransferLifecycleTests(TestCase):
         category, brand, model, procurement = _create_catalog("TRF-INV-001")
         self.dept_a = Department.objects.create(name="Engineering")
         self.dept_b = Department.objects.create(name="Sales")
-        _, self.previous_owner = _create_profile("transfer-previous-owner")
+        _, self.previous_owner = _create_profile("transfer-previous-owner", ("transfer_request",))
         _, self.new_owner = _create_profile("transfer-new-owner")
         _, self.approver = _create_profile("transfer-approver", ("asset_custody_manage",))
         self.asset = _create_asset(
             "TRF-ASSET-001", category, brand, model, procurement,
             status="Assigned", custodian=self.previous_owner, department=self.dept_a)
+        AssetAssignment.objects.create(
+            asset=self.asset, user=self.previous_owner, issue_condition=self.asset.condition)
 
     def test_request_transfer_notifies_users_with_approval_permission(self):
         """Covers: B4 FR-016, B4 FR-017."""
         from core.models import Notification
-        request_transfer(self.asset, self.new_owner, self.previous_owner)
+        with self.captureOnCommitCallbacks(execute=True):
+            request_transfer(self.asset, self.new_owner, self.previous_owner)
 
         self.assertTrue(Notification.objects.filter(user=self.approver).exists())
 
@@ -451,7 +455,10 @@ class ServiceRecordLifecycleTests(TestCase):
 
         checkout.refresh_from_db()
         self.assertEqual(checkout.status, "Returned")
-        self.assertIsNotNone(checkout.return_date)
+        self.assertTrue(checkout.closed_as_interrupted)
+        self.assertEqual(checkout.closure_reason, "Interrupted")
+        self.assertIsNone(checkout.return_date)
+        self.assertEqual(checkout.return_condition, "")
         asset.refresh_from_db()
         self.assertEqual(asset.status, "Under Repair")
         self.assertIsNone(asset.custodian)
@@ -773,7 +780,7 @@ class AssetStatusTransitionTests(TestCase):
 
     def test_entering_sold_clears_custodian_even_if_payload_keeps_it(self):
         """Covers: B2 FR-009, B2 ALR-006."""
-        asset = self._asset("STATUS-ASSET-002", status="Assigned", custodian=self.holder)
+        asset = self._asset("STATUS-ASSET-002", status="Available")
 
         response = self.client.patch(
             f"/asset/{asset.pk}/", {"status": "Sold", "custodian": self.holder.pk})
@@ -870,16 +877,16 @@ class AssetStatusTransitionTests(TestCase):
         asset.refresh_from_db()
         self.assertEqual(asset.status, "Assigned")
 
-    def test_disposal_is_still_allowed_directly_from_assigned(self):
-        """Covers: B2 FR-014."""
+    def test_disposal_requires_available_or_in_storage(self):
+        """Covers: B2 AS-007: an active holder must be released first."""
         asset = self._asset("STATUS-ASSET-011", status="Assigned", custodian=self.holder)
 
         response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Sold"})
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
         asset.refresh_from_db()
-        self.assertEqual(asset.status, "Sold")
-        self.assertIsNone(asset.custodian)
+        self.assertEqual(asset.status, "Assigned")
+        self.assertEqual(asset.custodian_id, self.holder.pk)
 
     def test_lost_is_still_allowed_directly_from_under_repair(self):
         """Covers: B2 FR-014."""
@@ -896,14 +903,15 @@ class AssetStatusTransitionTests(TestCase):
         asset = self._asset("STATUS-ASSET-013")
         checkout = check_out(asset, self.holder, self.holder)
 
-        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Sold"})
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Lost"})
 
         self.assertEqual(response.status_code, 200)
         checkout.refresh_from_db()
         self.assertEqual(checkout.status, "Returned")
-        self.assertIsNotNone(checkout.return_date)
+        self.assertEqual(checkout.closure_reason, "Interrupted")
+        self.assertIsNone(checkout.return_date)
         asset.refresh_from_db()
-        self.assertEqual(asset.status, "Sold")
+        self.assertEqual(asset.status, "Lost")
 
     def test_entering_terminal_status_closes_the_open_service_record(self):
         """Covers: B2 ALR-006, B5 FR-016."""
@@ -911,13 +919,14 @@ class AssetStatusTransitionTests(TestCase):
         asset = self._asset("STATUS-ASSET-014")
         record = open_service(asset, vendor, self.holder)
 
-        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Scrapped"})
+        response = self.client.patch(f"/asset/{asset.pk}/", {"status": "Lost"})
 
         self.assertEqual(response.status_code, 200)
         record.refresh_from_db()
         self.assertEqual(record.status, "Closed")
+        self.assertIsNone(record.returned_date)
         asset.refresh_from_db()
-        self.assertEqual(asset.status, "Scrapped")
+        self.assertEqual(asset.status, "Lost")
 
 
 class ExpiryAlertTests(TestCase):
@@ -987,6 +996,9 @@ class CheckoutTransferEndpointTests(TestCase):
         _, self.new_owner = _create_profile("endpoint-new-owner")
         self.transfer_asset.custodian = self.holder
         self.transfer_asset.save(update_fields=["custodian"])
+        AssetAssignment.objects.create(
+            asset=self.transfer_asset, user=self.holder,
+            issue_condition=self.transfer_asset.condition)
 
     def test_checkout_create_requires_asset_custody_manage_permission(self):
         """Covers: B3 ALR-001, B3 ALR-003, B1 FR-006."""
@@ -1078,6 +1090,13 @@ class BaselineConformanceTests(TestCase):
     def _asset(self, asset_id, **extra):
         return _create_asset(asset_id, self.category, self.brand, self.model,
                              self.procurement, **extra)
+
+    def _ongoing_asset(self, asset_id, **extra):
+        asset = self._asset(asset_id, **extra)
+        AssetAssignment.objects.create(
+            asset=asset, user=asset.custodian, issued_by=self.operator,
+            issue_condition=asset.condition)
+        return asset
 
     # --- C2: creation cannot short-circuit custody ---
 
@@ -1299,13 +1318,15 @@ class BaselineConformanceTests(TestCase):
         record = asset.checkouts.get()
         self.assertEqual(record.status, "Returned")
         self.assertEqual(record.remarks, "Issued with dock")
-        self.assertIn("Auto-closed", record.return_remarks)
+        self.assertTrue(record.closed_as_interrupted)
+        self.assertEqual(record.closure_reason, "Interrupted")
+        self.assertEqual(record.return_remarks, "")
 
     # --- B4: a transfer needs two parties and one open request ---
 
     def test_transfer_rejects_the_current_custodian_as_target(self):
         """Covers: B4 FR-001, B4 ALR-007."""
-        asset = self._asset("B4-SAME", status="Assigned", custodian=self.employee)
+        asset = self._ongoing_asset("B4-SAME", status="Assigned", custodian=self.employee)
 
         response = self.client_op.post(
             "/transfer/", {"asset": asset.pk, "new_owner": self.employee.pk}, format="json")
@@ -1314,7 +1335,7 @@ class BaselineConformanceTests(TestCase):
 
     def test_transfer_rejects_a_second_pending_request(self):
         """Covers: B4 FR-005, B4 ALR-007."""
-        asset = self._asset("B4-DUP", status="Assigned", custodian=self.employee)
+        asset = self._ongoing_asset("B4-DUP", status="Assigned", custodian=self.employee)
         first = self.client_op.post(
             "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
         self.assertEqual(first.status_code, 201)
@@ -1326,7 +1347,7 @@ class BaselineConformanceTests(TestCase):
 
     def test_a_new_request_is_allowed_once_the_previous_one_is_decided(self):
         """Covers: B4 ALR-007."""
-        asset = self._asset("B4-AFTER", status="Assigned", custodian=self.employee)
+        asset = self._ongoing_asset("B4-AFTER", status="Assigned", custodian=self.employee)
         first = self.client_op.post(
             "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
         self.client_op.post(f"/transfer/{first.data['id']}/reject/", format="json")
@@ -1340,7 +1361,7 @@ class BaselineConformanceTests(TestCase):
 
     def test_asset_view_holder_may_download_the_transfer_document(self):
         """Covers: B4 FR-015."""
-        asset = self._asset("C8-PDF", status="Assigned", custodian=self.employee)
+        asset = self._ongoing_asset("C8-PDF", status="Assigned", custodian=self.employee)
         transfer = self.client_op.post(
             "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
         client = APIClient()
@@ -1353,7 +1374,7 @@ class BaselineConformanceTests(TestCase):
 
     def test_employee_may_download_the_document_for_a_transfer_it_is_party_to(self):
         """Covers: B4 FR-015, B1 FR-012."""
-        asset = self._asset("C8-MINE", status="Assigned", custodian=self.employee)
+        asset = self._ongoing_asset("C8-MINE", status="Assigned", custodian=self.employee)
         transfer = self.client_op.post(
             "/transfer/", {"asset": asset.pk, "new_owner": self.colleague.pk}, format="json")
         client = APIClient()
@@ -1365,7 +1386,7 @@ class BaselineConformanceTests(TestCase):
 
     def test_employee_cannot_download_someone_elses_transfer_document(self):
         """Covers: B4 FR-015, B1 ALR-005."""
-        asset = self._asset("C8-THEIRS", status="Assigned", custodian=self.colleague)
+        asset = self._ongoing_asset("C8-THEIRS", status="Assigned", custodian=self.colleague)
         transfer = self.client_op.post(
             "/transfer/", {"asset": asset.pk, "new_owner": self.operator.pk}, format="json")
         client = APIClient()
@@ -1376,8 +1397,8 @@ class BaselineConformanceTests(TestCase):
 
     def test_employee_lists_only_transfers_it_is_party_to(self):
         """Covers: B4 FR-004, B1 FR-012."""
-        mine = self._asset("C8-LIST-MINE", status="Assigned", custodian=self.employee)
-        theirs = self._asset("C8-LIST-THEIRS", status="Assigned", custodian=self.colleague)
+        mine = self._ongoing_asset("C8-LIST-MINE", status="Assigned", custodian=self.employee)
+        theirs = self._ongoing_asset("C8-LIST-THEIRS", status="Assigned", custodian=self.colleague)
         self.client_op.post("/transfer/", {"asset": mine.pk, "new_owner": self.colleague.pk},
                             format="json")
         self.client_op.post("/transfer/", {"asset": theirs.pk, "new_owner": self.operator.pk},
@@ -1392,8 +1413,8 @@ class BaselineConformanceTests(TestCase):
 
     def test_a_non_employee_role_still_sees_every_transfer(self):
         """Covers: B4 FR-004."""
-        mine = self._asset("C8-ALL-A", status="Assigned", custodian=self.employee)
-        theirs = self._asset("C8-ALL-B", status="Assigned", custodian=self.colleague)
+        mine = self._ongoing_asset("C8-ALL-A", status="Assigned", custodian=self.employee)
+        theirs = self._ongoing_asset("C8-ALL-B", status="Assigned", custodian=self.colleague)
         self.client_op.post("/transfer/", {"asset": mine.pk, "new_owner": self.colleague.pk},
                             format="json")
         self.client_op.post("/transfer/", {"asset": theirs.pk, "new_owner": self.operator.pk},

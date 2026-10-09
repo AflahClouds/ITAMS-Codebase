@@ -102,7 +102,7 @@ export default function Menu() {
       {can('asset_view') && (
         <ListItemButton component={Link} to="/transfer" selected={path.startsWith("/transfer")}>
           <ListItemIcon><SwapHorizIcon /></ListItemIcon>
-          <ListItemText primary="Transfers" />
+          <ListItemText primary="Assignments & Transfers" />
         </ListItemButton>
       )}
 

@@ -12,9 +12,9 @@ from catalog.serializers import (BrandSerializer, CategorySerializer,
                                  ModelSerializer, PurchaseModeSerializer,
                                  VendorSerializer)
 
-from .checkout import close_all_open_checkouts
+from .custody import custody_type, interrupt_active_custody
 from .models import (ASSET_CONDITIONS, ASSET_STATUSES, LIFECYCLE_MANAGED_STATUSES,
-                     TERMINAL_STATUSES, AmcContract, Asset, AssetCheckout,
+                     TERMINAL_STATUSES, AmcContract, Asset, AssetAssignment, AssetCheckout,
                      AssetConditionLog, AssetDocument, AssetImage, AssetTransfer,
                      Procurement, ProcurementArrival, ProcurementAssetLink,
                      ServiceRecord)
@@ -59,6 +59,7 @@ class AssetSerializer(serializers.ModelSerializer):
     department_details = DepartmentSerializer(source='department', read_only=True)
     custodian_details = UserLiteSerializer(source='custodian', read_only=True)
     procurement_details = ProcurementLiteSerializer(source='procurement', read_only=True)
+    custody_type = serializers.SerializerMethodField()
     has_procurement = serializers.SerializerMethodField()
     warranty_days_left = serializers.ReadOnlyField()
     has_amc = serializers.BooleanField(required=False, default=False)
@@ -82,6 +83,9 @@ class AssetSerializer(serializers.ModelSerializer):
 
     def get_has_procurement(self, obj):
         return obj.procurement_id is not None
+
+    def get_custody_type(self, obj):
+        return custody_type(obj)
 
     def get_barcode_url(self, obj):
         if not obj.barcode_path:
@@ -163,9 +167,20 @@ class AssetSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"custodian": "A new asset cannot be created with a Custodian; "
                                   "use Checkout or Transfer to assign custody."})
+            if attrs.get('department') is not None:
+                raise serializers.ValidationError(
+                    {"department": "Department follows the Custodian; use a custody "
+                                   "operation rather than setting it on a new Asset."})
         if self.instance is not None:
             current_status = self.instance.status
             new_status = attrs.get('status', current_status)
+            if ('department' in attrs and attrs['department'] != self.instance.department
+                    and (new_status not in TERMINAL_STATUSES or new_status == current_status)):
+                # Terminal clearing/retention below is owned by the lifecycle
+                # transition. Other edits cannot diverge Asset from its holder.
+                raise serializers.ValidationError(
+                    {"department": "Department follows the Custodian; use a custody "
+                                   "operation rather than editing it directly."})
             if ('custodian' in attrs and attrs['custodian'] != self.instance.custodian
                     and new_status not in TERMINAL_STATUSES):
                 # Otherwise the creation guard above is bypassable by saving the asset
@@ -178,6 +193,10 @@ class AssetSerializer(serializers.ModelSerializer):
                 if current_status in TERMINAL_STATUSES:
                     raise serializers.ValidationError(
                         {"status": f"This asset is {current_status} and cannot change status further."})
+                if (new_status in ("Sold", "Scrapped") and
+                        current_status not in ("Available", "In Storage")):
+                    raise serializers.ValidationError(
+                        {"status": f"Move this asset out of {current_status} before marking it {new_status}."})
                 if new_status in LIFECYCLE_MANAGED_STATUSES:
                     action = "Checkout" if new_status == "Assigned" else "a Service Record"
                     raise serializers.ValidationError(
@@ -219,22 +238,24 @@ class AssetSerializer(serializers.ModelSerializer):
         if entering_status and new_status in ("Sold", "Scrapped"):
             # Terminal — the org no longer has custody-tracking obligations for this asset.
             validated_data['custodian'] = None
+            validated_data['department'] = None
         elif entering_status and new_status == "Lost":
-            # Custodian is retained for accountability (who had it when it went missing) —
-            # ignore any custodian value the client sent along with this transition.
+            # Keep both last holder and department for accountability, regardless
+            # of values supplied alongside the terminal transition.
             validated_data.pop('custodian', None)
+            validated_data.pop('department', None)
 
         with transaction.atomic():
             instance = super().update(instance, validated_data)
 
-            if entering_status and new_status in TERMINAL_STATUSES and old_status in LIFECYCLE_MANAGED_STATUSES:
-                # Going straight from Assigned/Under Repair to a terminal status is the
-                # one legitimate direct transition (you can't check in a lost or sold
-                # asset) — but whichever record was managing that status must still be
-                # closed out, or it's left dangling "Open" forever.
-                note = f"Auto-closed: asset marked {new_status}."
-                close_all_open_checkouts(instance, note=note)
-                close_all_open_service_records(instance, note=note)
+            if entering_status and new_status in TERMINAL_STATUSES:
+                # A terminal transition ends every active arrangement administratively;
+                # no physical return or condition inspection is inferred.
+                interrupt_active_custody(
+                    instance, new_status,
+                    get_profile(self.context['request']) if self.context.get('request') else None)
+                close_all_open_service_records(
+                    instance, note=f"Auto-closed: asset marked {new_status}.")
 
             # Initial AMC entry, or a correction to the still-open contract — not a
             # renewal. Renewals (closing the old contract, opening a new one) go through
@@ -467,6 +488,10 @@ class CheckoutSerializer(serializers.ModelSerializer):
     asset_details = AssetLiteSerializer(source='asset', read_only=True)
     user_details = UserLiteSerializer(source='user', read_only=True)
     approved_by_details = UserLiteSerializer(source='approved_by', read_only=True)
+    current_custody_type = serializers.SerializerMethodField()
+
+    def get_current_custody_type(self, obj):
+        return custody_type(obj.asset)
 
     class Meta:
         model = AssetCheckout
@@ -474,7 +499,28 @@ class CheckoutSerializer(serializers.ModelSerializer):
         # return_condition and return_remarks are written by check_in, not by a
         # client PATCH — the checkout record is created with intake data only.
         read_only_fields = ('checkout_date', 'return_date', 'approved_by',
-                            'return_condition', 'return_remarks', 'status')
+                            'return_condition', 'return_remarks', 'status',
+                            'classification', 'closure_reason', 'closed_at',
+                            'classified_at', 'classified_by', 'classification_remarks',
+                            'superseded_by_transfer', 'source_checkout',
+                            'source_transfer', 'provenance', 'date_basis')
+
+
+class AssignmentSerializer(serializers.ModelSerializer):
+    asset_details = AssetLiteSerializer(source='asset', read_only=True)
+    user_details = UserLiteSerializer(source='user', read_only=True)
+    issued_by_details = UserLiteSerializer(source='issued_by', read_only=True)
+    closed_by_details = UserLiteSerializer(source='closed_by', read_only=True)
+
+    class Meta:
+        model = AssetAssignment
+        fields = "__all__"
+        read_only_fields = (
+            'issued_at', 'issued_by', 'issue_condition', 'status', 'closed_at',
+            'closed_by', 'closure_reason', 'return_condition', 'return_remarks',
+            'source_transfer', 'source_checkout', 'superseded_by_transfer',
+            'provenance', 'date_basis',
+        )
 
 
 class TransferSerializer(serializers.ModelSerializer):
@@ -490,7 +536,7 @@ class TransferSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssetTransfer
         fields = "__all__"
-        read_only_fields = ('previous_owner', 'previous_department', 'transfer_date',
+        read_only_fields = ('source_assignment', 'previous_owner', 'previous_department', 'transfer_date',
                             'requested_by', 'approved_by', 'status')
 
     def get_transfer_code(self, obj):

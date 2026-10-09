@@ -304,6 +304,21 @@ class AssetCheckout(models.Model):
     # B3 FR-028: a Checkout ended because something else took the Asset away is not a
     # return. Without the marker, "Returned" covers both and the two read alike.
     closed_as_interrupted = models.BooleanField(default=False)
+    classification = models.CharField(max_length=16, default="Temporary")
+    closure_reason = models.CharField(max_length=32, blank=True, default="")
+    closed_at = models.DateTimeField(null=True, blank=True)
+    classified_at = models.DateTimeField(null=True, blank=True)
+    classification_remarks = models.TextField(blank=True, default="")
+    classified_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL,
+                                      null=True, blank=True, related_name="classified_checkouts")
+    superseded_by_transfer = models.ForeignKey('AssetTransfer', on_delete=models.SET_NULL,
+                                               null=True, blank=True, related_name="superseded_checkouts")
+    source_checkout = models.ForeignKey('self', on_delete=models.SET_NULL,
+                                        null=True, blank=True, related_name="reconstructed_checkouts")
+    source_transfer = models.ForeignKey('AssetTransfer', on_delete=models.SET_NULL,
+                                        null=True, blank=True, related_name="target_checkouts")
+    provenance = models.CharField(max_length=32, blank=True, default="")
+    date_basis = models.CharField(max_length=64, blank=True, default="")
 
     class Meta:
         constraints = [
@@ -321,6 +336,8 @@ class AssetCheckout(models.Model):
 
 class AssetTransfer(models.Model):
     asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="transfers")
+    source_assignment = models.ForeignKey('AssetAssignment', on_delete=models.SET_NULL,
+                                          null=True, blank=True, related_name="requested_transfers")
     previous_owner = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name="transfers_out")
     new_owner = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name="transfers_in")
     previous_department = models.ForeignKey('accounts.Department', on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
@@ -334,6 +351,43 @@ class AssetTransfer(models.Model):
 
     def __str__(self):
         return f"TRF-{self.id:05d}"
+
+
+class AssetAssignment(models.Model):
+    """One continuous period of ongoing employee custody."""
+
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="assignments")
+    user = models.ForeignKey('accounts.User', on_delete=models.PROTECT,
+                             related_name="asset_assignments")
+    issued_at = models.DateTimeField(auto_now_add=True)
+    issued_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL,
+                                  null=True, blank=True, related_name="issued_assignments")
+    issue_condition = models.CharField(max_length=32)
+    remarks = models.TextField(blank=True, default="")
+    status = models.CharField(max_length=16, default="Open")
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey('accounts.User', on_delete=models.SET_NULL,
+                                  null=True, blank=True, related_name="closed_assignments")
+    closure_reason = models.CharField(max_length=32, blank=True, default="")
+    return_condition = models.CharField(max_length=32, blank=True, default="")
+    return_remarks = models.TextField(blank=True, default="")
+    source_transfer = models.ForeignKey(AssetTransfer, on_delete=models.SET_NULL,
+                                        null=True, blank=True, related_name="target_assignments")
+    source_checkout = models.ForeignKey(AssetCheckout, on_delete=models.SET_NULL,
+                                        null=True, blank=True, related_name="classified_assignments")
+    superseded_by_transfer = models.ForeignKey(AssetTransfer, on_delete=models.SET_NULL,
+                                               null=True, blank=True, related_name="source_assignments")
+    provenance = models.CharField(max_length=32, blank=True, default="")
+    date_basis = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['asset'], condition=models.Q(status="Open"),
+                                    name='uniq_open_assignment_per_asset'),
+        ]
+
+    def __str__(self):
+        return f"{self.asset.asset_id} -> {self.user.user_name} (ongoing)"
 
 
 class AssetConditionLog(models.Model):

@@ -41,6 +41,8 @@ durable feature directory `specs/007-service-record-baseline/`.
 the prospective expected-return validation, derived overdue visibility, and
 overdue Notification behavior that the current system does not implement.
 
+**Extended by**: `specs/014-asset-assignments/spec.md` adds ongoing Assignment interruption and permits a deliberate fresh Assign or Checkout after service closes.
+
 **Reciprocal Links**: `ROADMAP.md` already reserves
 `specs/007-service-record-baseline/` for B5 and must link the created directory
 when the B5 row moves to `R3 — draft review`. After this Draft is accepted, any

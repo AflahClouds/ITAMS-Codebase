@@ -19,13 +19,16 @@ Terminal Asset status — the asset's whereabouts are unknown (stolen, misplaced
 _Deferred_: scheduled/periodic asset audits (per-department or per-location physical verification against system records) — planned for the next version, not v1.
 
 **Custodian**:
-The `User` currently holding an Asset — set by Checkout or Transfer, cleared on check-in or when a Service Record opens. An Asset with no custodian is implicitly unassigned, though `status` is the authoritative field for availability.
+The `User` currently holding an Asset — set by temporary Checkout, ongoing Assign, or approved Transfer; cleared by Check-in, Take Back, or when a Service Record opens. An Asset with no Custodian is implicitly unassigned, though `status` is the authoritative field for availability.
 _Exception_: on `status = Lost`, the Custodian is retained rather than cleared — it records who was accountable for the Asset at the time it went missing, deliberately breaking the "custodian = current holder" rule for the sake of accountability.
 
 **Checkout**:
-An Asset moves `Available → Assigned` to a user, and back to `Available` on check-in. No approval gate in the state machine — there's no separate Pending step like Transfer has. Distinct from Transfer, which moves custody *between* two different users and requires approval.
-_Avoid_: Assignment (used loosely elsewhere in the UI, but Checkout is the precise term for this state machine). Also avoid calling this "self-service" without qualification — the state machine has no approval step, but in practice only IT Manager/IT Staff hold the `asset_custody_manage` permission needed to create a Checkout; employees cannot check out an asset to themselves through the system. IT performs every Checkout on the employee's behalf, in person.
+Temporary lending of an Asset from `Available → Assigned` to a user, ending with physical Check-in to `Available`. Purpose and an optional expected-return date describe the loan. It has no Pending approval step. IT performs every Checkout on the employee's behalf, in person; employees cannot check out an asset to themselves through the system.
+_Avoid_: calling a temporary Checkout an ongoing Assignment, or describing IT-performed Checkout as employee self-service.
 _Deferred_: opening Checkout to employee self-service (e.g. for pooled/available items) is a possible future scope if IT's checkout admin load becomes a bottleneck.
+
+**Assignment**:
+Ongoing employee custody, distinct from a temporary Checkout. IT directly **Assigns** an Available Asset to an employee with `asset_custody_manage`; **Take Back** records its physical return and inspection. An approved employee-to-employee Transfer ends one Assignment and starts another. Service or terminal interruption ends active custody administratively without claiming a physical return. Ongoing custody does not transfer company ownership to the employee.
 
 **Transfer**:
 An approval-gated handoff of an Asset's custody from one user (and department) to another. Moves `Pending → Approved` (custody reassigned) or `Pending → Rejected` (Asset untouched). Distinct from Checkout: always involves two users, always requires an approver. Requested by HR or IT Manager on an employee's behalf (not self-service by the employee); approved by IT (IT Manager or IT Staff).
@@ -35,7 +38,7 @@ A record of a completed asset purchase (vendor, invoice, PO), created by IT only
 _Deferred_: an employee/team-lead-initiated procurement request stage is a possible future scope, intentionally left out for now.
 
 **Service Record**:
-One repair/maintenance event for an Asset — vendor, dates sent/returned, cost/bill, and outcome. Opening a Service Record clears the Asset's Custodian and moves `status → Under Repair`, mirroring Checkout's check-in (same pattern: one Asset, one clear state at a time). Closing a Service Record returns `status → Available` — the Asset is not auto-restored to its previous Custodian; IT must perform a fresh Checkout. Distinct from `condition` (a snapshot label) and `AssetConditionLog` (a log of condition changes) — a Service Record is the fuller event that a condition change is often evidence of.
+One repair/maintenance event for an Asset — vendor, dates sent/returned, cost/bill, and outcome. Opening a Service Record ends any active Checkout or Assignment administratively, clears the Asset's Custodian and department, and moves `status → Under Repair`; it does not record a physical Check-in or Take Back. Closing a Service Record returns `status → Available` without restoring the previous Custodian; IT must deliberately start a fresh Assign or Checkout to issue it again. Distinct from `condition` (a snapshot label) and `AssetConditionLog` (a log of condition changes) — a Service Record is the fuller event that a condition change is often evidence of.
 
 **Vendor**:
 A first-class, managed entity (not free text) representing a third party the organization deals with — used by both Procurement (who an Asset was bought from) and Service Record (who is servicing/repairing an Asset). Exists so vendor-grouped reporting (e.g. "which vendor has pending repairs") is reliable.

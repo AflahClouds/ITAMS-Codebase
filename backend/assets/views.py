@@ -5,9 +5,9 @@ import mimetypes
 from django.http import FileResponse, Http404
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Max, Q
+from django.db.models import Max, Prefetch, Q
 from rest_framework import status as http_status
-from rest_framework import viewsets
+from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -19,10 +19,12 @@ from core.services import get_profile, log_action, notify_many
 
 from .barcodes import generate_asset_barcode
 from .checkout import check_in, check_out
+from .custody import (assign, classify_legacy_checkout, custody_type,
+                      reconcile_legacy_checkout, take_back)
 from .models import (ASSET_CONDITIONS, TERMINAL_STATUSES, AmcContract, Asset,
-                     AssetCheckout, AssetConditionLog, AssetDocument, AssetImage,
+                     AssetAssignment, AssetCheckout, AssetConditionLog, AssetDocument, AssetImage,
                      AssetTransfer, LifecycleError, Procurement, ServiceRecord)
-from .serializers import (AmcContractSerializer, AssetDocumentSerializer,
+from .serializers import (AmcContractSerializer, AssignmentSerializer, AssetDocumentSerializer,
                           AssetImageSerializer, AssetSerializer,
                           CheckoutSerializer, ConditionLogSerializer,
                           ProcurementSerializer, ServiceRecordSerializer,
@@ -57,6 +59,16 @@ def _notify_it_managers(message, link=""):
     notify_many(users_with_permission("asset_delete"), message, link=link)
 
 
+def _active_lifecycle_labels(asset):
+    labels = [f"Assignment {pk}" for pk in asset.assignments.filter(
+        status="Open").values_list("pk", flat=True)]
+    labels.extend(f"Checkout {pk}" for pk in asset.checkouts.filter(
+        status="Open").values_list("pk", flat=True))
+    labels.extend(f"Service Record {pk}" for pk in asset.service_records.filter(
+        status="Open").values_list("pk", flat=True))
+    return ", ".join(labels) or "none"
+
+
 class AssetViewSet(viewsets.ModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
@@ -67,7 +79,13 @@ class AssetViewSet(viewsets.ModelViewSet):
                       "procurement_invoice": "asset_view"}
     queryset = Asset.objects.all().select_related(
         'category', 'brand', 'model', 'location', 'custodian', 'department',
-        'procurement').prefetch_related('procurement__invoice_versions').order_by('-id')
+        'procurement').prefetch_related(
+        'procurement__invoice_versions',
+        Prefetch('assignments', queryset=AssetAssignment.objects.filter(status="Open"),
+                 to_attr='active_assignments'),
+        Prefetch('checkouts', queryset=AssetCheckout.objects.filter(status="Open"),
+                 to_attr='active_checkouts'),
+    ).order_by('-id')
     serializer_class = AssetSerializer
 
     def get_queryset(self):
@@ -98,11 +116,40 @@ class AssetViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         old = serializer.instance
         old_desc = f"{old.asset_id} | {old.status} | {old.condition}"
+        entering_terminal = (serializer.validated_data.get('status') in TERMINAL_STATUSES and
+                             serializer.validated_data['status'] != old.status)
+        if entering_terminal:
+            interrupted = _active_lifecycle_labels(old)
+            old_desc += (f" | Custodian {old.custodian.user_name if old.custodian else '-'}"
+                         f" | Department {old.department.name if old.department else '-'}"
+                         f" | custody {custody_type(old)}")
         asset = serializer.save()
         asset.barcode_path = generate_asset_barcode(asset)
         asset.save(update_fields=['barcode_path'])
+        new_desc = f"{asset.asset_id} | {asset.status} | {asset.condition}"
+        if entering_terminal:
+            new_desc += (f" | Custodian {asset.custodian.user_name if asset.custodian else '-'}"
+                         f" | Department {asset.department.name if asset.department else '-'}"
+                         f" | custody {custody_type(asset)} | interrupted {interrupted}")
         log_action(self.request, "Update", "Assets", old_value=old_desc,
-                   new_value=f"{asset.asset_id} | {asset.status} | {asset.condition}")
+                   new_value=new_desc)
+
+    def destroy(self, request, *args, **kwargs):
+        with transaction.atomic():
+            instance = self.get_object()
+            # Issuance and return operations lock this same Asset row. Hold that
+            # lock through the history check and deletion so a new custody record
+            # cannot appear between them.
+            asset = Asset.objects.select_for_update().get(pk=instance.pk)
+            if (asset.custodian_id is not None or
+                    AssetAssignment.objects.filter(asset=asset).exists() or
+                    AssetCheckout.objects.filter(asset=asset).exists() or
+                    AssetTransfer.objects.filter(asset=asset).exists()):
+                return Response(
+                    {"detail": "This asset has custody history and cannot be deleted."},
+                    status=http_status.HTTP_400_BAD_REQUEST)
+            self.perform_destroy(asset)
+        return Response(status=http_status.HTTP_204_NO_CONTENT)
 
     def perform_destroy(self, instance):
         log_action(self.request, "Delete", "Assets",
@@ -201,6 +248,8 @@ class AssetViewSet(viewsets.ModelViewSet):
     def history(self, request, pk=None):
         asset = self.get_object()
         return Response({
+            "assignments": AssignmentSerializer(
+                asset.assignments.order_by('-issued_at'), many=True).data,
             "checkouts": CheckoutSerializer(
                 asset.checkouts.order_by('-checkout_date'), many=True).data,
             "transfers": TransferSerializer(
@@ -327,7 +376,7 @@ class ProcurementViewSet(viewsets.ModelViewSet):
 
 # ---------- Service Records ----------
 
-class ServiceRecordViewSet(viewsets.ModelViewSet):
+class ServiceRecordViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "asset_custody_manage", "close": "asset_custody_manage",
@@ -354,6 +403,11 @@ class ServiceRecordViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
         asset = data['asset']
         vendor = data['vendor']
+        old_value = (f"{asset.asset_id} | {asset.status} | "
+                     f"Custodian {asset.custodian.user_name if asset.custodian else '-'} | "
+                     f"Department {asset.department.name if asset.department else '-'} | "
+                     f"custody {custody_type(asset)}")
+        interrupted = _active_lifecycle_labels(asset)
         try:
             record = open_service(
                 asset, vendor, get_profile(request),
@@ -363,8 +417,10 @@ class ServiceRecordViewSet(viewsets.ModelViewSet):
             )
         except LifecycleError as exc:
             return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
-        log_action(request, "Service Opened", "Service Records",
-                   new_value=f"{asset.asset_id} -> {vendor.name}")
+        log_action(request, "Service Opened", "Service Records", old_value=old_value,
+                   new_value=(f"{asset.asset_id} | Under Repair | Custodian - | "
+                              f"Department - | custody None | interrupted {interrupted} | "
+                              f"Vendor {vendor.name} | reason {data.get('reason', '')}"))
         return Response(self.get_serializer(record).data, status=http_status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
@@ -471,15 +527,69 @@ class AssetDocumentViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
+# ---------- Ongoing Assignments ----------
+
+class AssignmentViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
+    permission_classes = [HasRolePermission]
+    permission_map = {"list": "asset_view", "retrieve": "asset_view",
+                      "create": "asset_custody_manage", "take_back": "asset_custody_manage"}
+    serializer_class = AssignmentSerializer
+    queryset = AssetAssignment.objects.all().select_related(
+        'asset', 'user', 'issued_by', 'closed_by').order_by('-issued_at', '-id')
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        profile = scoped_profile(self.request)
+        if profile is not None:
+            qs = qs.filter(user=profile)
+        asset_id = self.request.query_params.get('asset')
+        if asset_id:
+            qs = qs.filter(asset_id=asset_id)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            assignment = assign(
+                data['asset'], data['user'], get_profile(request),
+                remarks=data.get('remarks', ""), request=request,
+            )
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(assignment).data,
+                        status=http_status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='take-back')
+    def take_back(self, request, pk=None):
+        assignment = self.get_object()
+        try:
+            result = take_back(assignment, request.data.get('condition'),
+                               get_profile(request), remarks=request.data.get('remarks', ''),
+                               request=request)
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(result).data)
+
+
 # ---------- Checkouts ----------
 
-class CheckoutViewSet(viewsets.ModelViewSet):
+class CheckoutViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "asset_custody_manage", "checkin": "asset_custody_manage",
+                      "classify": "asset_custody_manage", "reconcile": "asset_custody_manage",
                       "*": "__admin__"}
     queryset = AssetCheckout.objects.all().select_related(
-        'asset', 'user', 'approved_by').order_by('-checkout_date')
+        'asset', 'user', 'approved_by').prefetch_related(
+        Prefetch('asset__assignments',
+                 queryset=AssetAssignment.objects.filter(status="Open"),
+                 to_attr='active_assignments'),
+        Prefetch('asset__checkouts',
+                 queryset=AssetCheckout.objects.filter(status="Open"),
+                 to_attr='active_checkouts'),
+    ).order_by('-checkout_date')
     serializer_class = CheckoutSerializer
 
     def get_queryset(self):
@@ -526,10 +636,37 @@ class CheckoutViewSet(viewsets.ModelViewSet):
                    new_value=f"{asset.asset_id} returned by {checkout.user.user_name} (usage session ended)")
         return Response(self.get_serializer(checkout).data)
 
+    @action(detail=True, methods=['post'])
+    def classify(self, request, pk=None):
+        checkout = self.get_object()
+        try:
+            checkout = classify_legacy_checkout(
+                checkout, request.data.get('custody_type'), get_profile(request),
+                remarks=request.data.get('remarks', ''), request=request)
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(checkout).data)
+
+    @action(detail=True, methods=['post'])
+    def reconcile(self, request, pk=None):
+        checkout = self.get_object()
+        try:
+            transfer = AssetTransfer.objects.get(pk=request.data.get('approved_transfer'))
+            checkout = reconcile_legacy_checkout(
+                checkout, transfer, request.data.get('custody_type'),
+                get_profile(request), remarks=request.data.get('remarks', ''),
+                request=request)
+        except (AssetTransfer.DoesNotExist, ValueError, TypeError):
+            return Response({"detail": "Select a recorded approved Transfer."},
+                            status=http_status.HTTP_400_BAD_REQUEST)
+        except LifecycleError as exc:
+            return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(checkout).data)
+
 
 # ---------- Transfers ----------
 
-class TransferViewSet(viewsets.ModelViewSet):
+class TransferViewSet(mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = [HasRolePermission]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "transfer_request", "approve": "asset_custody_manage",
@@ -565,34 +702,28 @@ class TransferViewSet(viewsets.ModelViewSet):
                 new_department=data.get('new_department'),
                 condition=data.get('condition'),
                 remarks=data.get('remarks', ""),
+                request=request,
             )
         except LifecycleError as exc:
             return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
-        log_action(request, "Transfer Request", "Transfers",
-                   new_value=f"{asset.asset_id} -> {new_owner.user_name}")
         return Response(self.get_serializer(transfer).data, status=http_status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         transfer = self.get_object()
         try:
-            transfer = approve_transfer(transfer, get_profile(request))
+            transfer = approve_transfer(transfer, get_profile(request), request=request)
         except LifecycleError as exc:
             return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
-        asset = transfer.asset
-        log_action(request, "Transfer Approved", "Transfers",
-                   new_value=f"{asset.asset_id} -> {transfer.new_owner.user_name}")
         return Response(self.get_serializer(transfer).data)
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
         transfer = self.get_object()
         try:
-            transfer = reject_transfer(transfer, get_profile(request))
+            transfer = reject_transfer(transfer, get_profile(request), request=request)
         except LifecycleError as exc:
             return Response({"detail": str(exc)}, status=http_status.HTTP_400_BAD_REQUEST)
-        log_action(request, "Transfer Rejected", "Transfers",
-                   old_value=f"TRF-{transfer.id:05d}")
         return Response(self.get_serializer(transfer).data)
 
     @action(detail=True, methods=['get'], url_path='document')

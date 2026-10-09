@@ -59,7 +59,7 @@ const CheckoutCreate = () => {
       try {
         await AxiosInstance.post('/checkout/', payload);
         setMessage(<MyMessage
-          messageText={"Asset checked out. Usage session started!"}
+          messageText={"Temporary Checkout recorded. Asset is on loan."}
           messageColor={"green"} />)
         setTimeout(() => { navigate('/checkout') }, 1500)
       } catch (error) {
@@ -79,7 +79,7 @@ const CheckoutCreate = () => {
         <Box className={"TopBar"}>
           <AddBoxIcon />
           <Typography sx={{marginLeft: "10px", fontWeight: "bold"}} variant="subtitle2">
-            New Checkout — start a usage session
+            New Temporary Checkout
           </Typography>
         </Box>
 
@@ -116,7 +116,7 @@ const CheckoutCreate = () => {
 
           <Box className={"FormArea"}>
             <DateForm
-              label="Expected Return Date"
+              label="Expected Return Date (optional)"
               name="expected_return_date"
               value={formik.values.expected_return_date}
               onChange={(newValue) => formik.setFieldValue("expected_return_date", newValue)}

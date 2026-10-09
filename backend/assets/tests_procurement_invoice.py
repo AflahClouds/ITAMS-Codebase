@@ -378,6 +378,34 @@ class ProcurementInvoiceApiTests(ProcurementInvoiceStorageTestCase):
         self.assertIsNone(detached.data["procurement_invoice"])
         self.assertEqual(missing_download.status_code, 404)
 
+    def test_assigned_asset_keeps_its_linked_invoice_and_custody_projection(self):
+        """D integration: an invoice-linked Asset remains readable after assignment."""
+        self.actor.role.permissions.add(Permission.objects.get(
+            code="asset_custody_manage"))
+        _account, holder = _client_profile("invoice-assignee")
+        procurement = _procurement(self.catalog, "CUSTODY-INV")
+        self.asset_a.procurement = procurement
+        self.asset_a.save(update_fields=["procurement"])
+        invoice = record_procurement_invoice(
+            procurement, _pdf("custody.pdf", b"%PDF custody invoice"), self.actor)
+
+        assigned = self.client.post(reverse("assignment-list"), {
+            "asset": self.asset_a.pk, "user": holder.pk,
+            "remarks": "Primary device",
+        }, format="json")
+        self.assertEqual(assigned.status_code, 201, assigned.data)
+
+        detail = self.client.get(reverse("asset-detail", args=[self.asset_a.pk]))
+        download = self.client.get(reverse(
+            "asset-procurement-invoice", args=[self.asset_a.pk]))
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.data["custody_type"], "Ongoing")
+        self.assertEqual(detail.data["custodian"], holder.pk)
+        self.assertEqual(detail.data["procurement_invoice"]["id"], invoice.pk)
+        self.assertEqual(download.status_code, 200)
+        self.assertEqual(b"".join(download.streaming_content), b"%PDF custody invoice")
+        download.close()
+
     def test_employee_scope_allows_own_asset_route_but_denies_procurement_and_other_asset(self):
         employee_account = AuthUser.objects.create_user(
             username="scoped-employee", password="test-password")

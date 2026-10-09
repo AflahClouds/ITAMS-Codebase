@@ -38,6 +38,8 @@ durable feature directory `specs/006-transfer-baseline/`.
 
 **Supersedes**: None.
 
+**Extended by**: `specs/014-asset-assignments/spec.md` adds Assign and Take Back alongside the existing approval-gated employee-to-employee Transfer.
+
 **Reciprocal Links**: `ROADMAP.md` already reserves
 `specs/006-transfer-baseline/` for B4. After this Draft is accepted, later
 changes must use a new feature directory and record reciprocal `Extends`,

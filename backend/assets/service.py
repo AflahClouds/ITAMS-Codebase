@@ -7,7 +7,7 @@ from django.utils import timezone
 from accounts.models import users_with_permission
 from core.services import notify, notify_many
 
-from .checkout import close_all_open_checkouts
+from .custody import interrupt_active_custody
 from .models import Asset, LifecycleError, ServiceRecord, TERMINAL_STATUSES
 
 TERMINAL_OR_ACTIVE_SERVICE_STATUSES = ("Under Repair",) + TERMINAL_STATUSES
@@ -21,9 +21,8 @@ def close_all_open_service_records(asset, note=""):
     closed = []
     for record in asset.service_records.filter(status="Open"):
         record.status = "Closed"
-        record.returned_date = timezone.now()
         # B5 FR-015: closed because something else took the Asset, not because the
-        # repair finished.
+        # repair finished. A vendor return date would claim a return not observed.
         record.closed_as_interrupted = True
         record.closing_remarks = (
             f"{record.closing_remarks} " if record.closing_remarks else "") + note
@@ -46,10 +45,7 @@ def open_service(asset, vendor, opened_by, *, expected_return_date=None, reason=
 
         previous_custodian = asset.custodian
 
-        # Sending a checked-out asset straight to service mirrors Checkout's check-in
-        # (ADR 0001) — so any open checkout it interrupts must be closed the same way
-        # check_in() would, or it's left dangling "Open" with no asset to check back in.
-        close_all_open_checkouts(asset, note="Auto-closed: asset sent for service.")
+        interrupt_active_custody(asset, "Service", opened_by)
 
         record = ServiceRecord.objects.create(
             asset=asset,
