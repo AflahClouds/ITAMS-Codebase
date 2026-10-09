@@ -6,15 +6,19 @@ backend/Env/
 # Django
 backend/db.sqlite3
 backend/media/
+backend/private_documents/
 
 # Node
 frontend/node_modules/
 frontend/dist/
 frontend/dist-ssr/
+frontend/coverage/
 *.local
+.env*
 
 # Logs
 *.log
+.clouds-install-source/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

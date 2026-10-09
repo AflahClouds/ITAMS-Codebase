@@ -12,7 +12,11 @@ export default defineConfig(({ mode }) => ({
     // is applied only outside test runs.
     ...(mode === 'test' ? [] : [babel({ presets: [reactCompilerPreset()] })]),
   ],
-  esbuild: { jsx: 'automatic' },
+  // Only under Vitest. Its transform pipeline honours this and needs it to give test
+  // files the automatic JSX runtime; the production build uses oxc, which ignores the
+  // option and prints a notice about it on every run. Scoping it keeps both quiet and
+  // correct.
+  ...(mode === 'test' ? { esbuild: { jsx: 'automatic' } } : {}),
   test: {
     // B9 and B1 both carry requirements about what a person sees. Without a runner
     // those were unverifiable in principle rather than merely untested — a third of the

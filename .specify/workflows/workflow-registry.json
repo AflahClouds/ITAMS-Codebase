@@ -4,18 +4,18 @@
     "speckit": {
       "name": "Full SDD Cycle",
       "version": "1.0.0",
-      "description": "Runs specify → plan → tasks → implement with review gates",
+      "description": "Runs specify \u2192 plan \u2192 tasks \u2192 implement with review gates",
       "source": "bundled",
       "installed_at": "2026-07-28T14:40:44.572835+05:30",
       "updated_at": "2026-07-28T14:40:44.572861+05:30"
     },
     "clouds-delivery": {
       "name": "Clouds AFK Delivery",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "description": "Runs upstream implementation and convergence until the active feature is complete.",
-      "source": "D:\\AFLAH V K\\ITAMS - Codebase\\.clouds-install-source\\components\\workflows\\clouds-delivery",
+      "source": "C:\\Users\\aflah.vk\\AppData\\Local\\Temp\\clouds-spec-kit-update-12def63a34104322b6a896fd8a0d22ac\\components\\workflows\\clouds-delivery",
       "installed_at": "2026-09-29T14:52:18.4464619+05:30",
-      "updated_at": "2026-09-29T09:25:20.7573558+00:00"
+      "updated_at": "2026-10-07T03:51:45.856150+00:00"
     }
   }
 }

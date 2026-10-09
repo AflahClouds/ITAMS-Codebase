@@ -1,0 +1,263 @@
+openapi: 3.1.0
+info:
+  title: ITAMS Procurement Purchase Invoice Change
+  version: 1.0.0
+  description: >-
+    Incremental contract for optional Procurement invoice uploads and protected
+    invoice reads. Existing Procurement fields remain as currently documented.
+paths:
+  /procurement/:
+    post:
+      summary: Create Procurement with an optional purchase invoice
+      operationId: createProcurement
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcurementWrite'
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ProcurementWrite'
+                - type: object
+                  properties:
+                    invoice_file:
+                      type: string
+                      format: binary
+                      description: Optional purchase invoice, maximum 25 MB.
+      responses:
+        '201':
+          description: Procurement created, with or without an invoice.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcurementRead'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /procurement/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    put:
+      summary: Replace Procurement data and optionally add or replace its invoice
+      operationId: updateProcurement
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcurementWrite'
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ProcurementWrite'
+                - type: object
+                  properties:
+                    invoice_file:
+                      type: string
+                      format: binary
+                      description: >-
+                        Optional new invoice. Omission preserves the current
+                        invoice or the valid no-invoice state.
+      responses:
+        '200':
+          description: Procurement updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcurementRead'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      summary: Partially edit Procurement and optionally add or replace its invoice
+      operationId: partialUpdateProcurement
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcurementWrite'
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ProcurementWrite'
+                - type: object
+                  properties:
+                    invoice_file:
+                      type: string
+                      format: binary
+      responses:
+        '200':
+          description: Procurement updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcurementRead'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /procurement/{id}/invoice/:
+    get:
+      summary: Download the current purchase invoice through Procurement access
+      operationId: downloadProcurementInvoice
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Current invoice content.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Procurement is not visible or has no current invoice.
+  /asset/{id}/procurement-invoice/:
+    get:
+      summary: Download the mapped invoice through Asset visibility
+      operationId: downloadAssetProcurementInvoice
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Current invoice content for the Asset's Procurement.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Asset is not visible, is unlinked, or has no current invoice.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+  schemas:
+    ProcurementWrite:
+      type: object
+      description: >-
+        Existing Procurement write fields. In multipart requests asset_ids may
+        be repeated and arrivals may be JSON-encoded for normalization before
+        the existing validation rules run.
+      properties:
+        mode_of_purchase:
+          type: integer
+        vendor:
+          type: integer
+        purchase_date:
+          type: string
+          format: date
+        invoice_date:
+          type: string
+          format: date
+        invoice_number:
+          type: string
+        po_number:
+          type: [string, 'null']
+        asset_ids:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+        arrivals:
+          type: array
+          items:
+            type: object
+            required: [asset, arrived_on, location]
+            properties:
+              asset:
+                type: integer
+              arrived_on:
+                type: string
+                format: date
+              location:
+                type: integer
+        attested:
+          type: boolean
+        link_reason:
+          type: string
+    InvoiceMetadata:
+      type: object
+      required: [id, file_name, version, uploaded_at, download_url]
+      properties:
+        id:
+          type: integer
+        file_name:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        uploaded_by_details:
+          type: [object, 'null']
+          additionalProperties: true
+        uploaded_at:
+          type: string
+          format: date-time
+        download_url:
+          type: string
+          description: Authorized application route, never a raw media URL.
+    ProcurementRead:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: integer
+        current_invoice:
+          oneOf:
+            - $ref: '#/components/schemas/InvoiceMetadata'
+            - type: 'null'
+    AssetInvoiceProjection:
+      type: object
+      properties:
+        procurement_invoice:
+          oneOf:
+            - $ref: '#/components/schemas/InvoiceMetadata'
+            - type: 'null'
+  responses:
+    ValidationError:
+      description: Validation failed; no partial Procurement, file, or mapping remains.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+    Forbidden:
+      description: The authenticated User lacks the required action or record visibility.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail:
+                type: string

@@ -6,24 +6,33 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
+
+# Parse help before importing the pinned engine; dispatch reads use its existing interpreter.
+if __name__ == "__main__":
+    import argparse
+    import importlib.metadata
+    parser = argparse.ArgumentParser(description="Read the exact paused native Clouds dispatch request.")
+    parser.add_argument("--project-root", type=Path, required=True)
+    parser.add_argument("--run-id", required=True)
+    args = parser.parse_args()
+    try:
+        if importlib.metadata.version("specify-cli") != "1.0.13":
+            parser.exit(1, "Use the existing Spec Kit v1.0.13 tool interpreter.\n")
+    except importlib.metadata.PackageNotFoundError:
+        parser.exit(1, "Use the existing Spec Kit v1.0.13 tool interpreter.\n")
 
 from specify_cli.workflows.base import StepBase, StepContext, StepResult, StepStatus
 
 
 _IMPLEMENT_STATUSES = frozenset({"completed", "approval_required", "blocked"})
+_RESULT_MAX_BYTES = 8192  # Leaves headroom for Windows quoting of the resume argument.
 _CONVERGE_STATUSES = frozenset(
     {"clean", "tasks_appended", "approval_required", "blocked"}
 )
 _UNCHECKED_TASK = re.compile(r"(?m)^\s*- \[ \]")
-_STATUS_LINE = re.compile(
-    r"^CLOUDS_(IMPLEMENTATION|CONVERGENCE): "
-    r"(completed|clean|tasks_appended|approval_required|blocked)$"
-)
-_FINDINGS_LINE = re.compile(r"^CLOUDS_FINDINGS_JSON: (.+)$")
 _TASK_CLASSES = frozenset(
     {
         "unknown",
@@ -88,11 +97,12 @@ class CloudsDeliveryPassStep(StepBase):
         try:
             return self._execute(config, context)
         except DeliveryEvidenceError as exc:
-            return StepResult(status=StepStatus.FAILED, error=str(exc))
-        except (OSError, ValueError, KeyError, UnicodeError, json.JSONDecodeError) as exc:
+            return StepResult(status=StepStatus.FAILED, error=str(exc), output=self._step_output(context, config.get("id")))
+        except (OSError, ValueError, KeyError, TypeError, UnicodeError, json.JSONDecodeError) as exc:
             return StepResult(
                 status=StepStatus.FAILED,
                 error=f"Clouds delivery evidence check failed: {exc}",
+                output=self._step_output(context, config.get("id")),
             )
 
     def _execute(self, config: dict[str, Any], context: StepContext) -> StepResult:
@@ -150,451 +160,228 @@ class CloudsDeliveryPassStep(StepBase):
                 output={"status": "identity_captured", "identity": identity},
             )
 
-        if prior_self.get("status") == "approval_required":
-            return self._resume_approval(
-                context,
-                root,
-                prior_self,
-                authorization_ref,
-                model,
-                reviewer_model,
-                astra_user_requested,
-                task_class,
-                oracle_evidence,
-            )
-
         identity = prior.get("identity")
         if not isinstance(identity, dict):
-            raise DeliveryEvidenceError(
-                "Delivery run has no persisted authorization identity. Start a new "
-                "authorized workflow run instead of resuming this legacy run."
-            )
-        transition_payload = self._resolve_transition_payload(
-            transition_raw,
-            str(context.inputs.get("reassessment_payload", "")),
-            prior.get("review_findings", []),
-        )
-        self._apply_assignment_transition(
-            identity,
-            transition_raw,
-            requested_model=model,
-            requested_reviewer_model=reviewer_model,
-            payload=transition_payload,
-        )
+            raise DeliveryEvidenceError("Delivery has no persisted identity; do not resume a legacy run.")
+        # A result may advance only the exact role request already saved by the engine.
+        result_raw = context.inputs.pop("dispatch_result", "")
+        context.inputs["dispatch_result"] = ""
+        if prior_self.get("status") == "dispatch_required":
+            request = self._verify_pending_request(prior_self.get("request"), identity)
+            if request["run_id"] != context.run_id or request["step_id"] != step_id:
+                raise DeliveryEvidenceError("Pending request belongs to another run or pass.")
+            role = request["role"]
+            if transition_raw or context.inputs.get("reassessment_payload"):
+                raise DeliveryEvidenceError("Cannot change an assignment while its child is pending.")
+            if not result_raw:
+                self._verify_identity(root, identity, model, reviewer_model, astra_user_requested, authorization_ref, task_class, oracle_evidence)
+                return StepResult(status=StepStatus.PAUSED, output=prior_self)
+            result = self._parse_result(result_raw, request)
+            if role == "reviewer":
+                after = self._review_snapshot(root, str(context.run_id))
+                if after != prior_self.get("review_snapshot"):
+                    return StepResult(status=StepStatus.FAILED, error="Read-only reviewer changed HEAD, index or worktree; preserve evidence and recover safely.", output={**prior_self, "review_after": after, "rejected_result": result})
+            bindings = identity.setdefault("child_bindings", {})
+            assignment = request["assignment_id"]
+            bound = bindings.get(assignment)
+            if bound and bound != result["child_id"]:
+                raise DeliveryEvidenceError("Result conflicts with the assignment's existing host child.")
+            if result["child_id"] in [child for key, child in bindings.items() if key != assignment]:
+                raise DeliveryEvidenceError("Builder and reviewer must be distinct host children.")
+            bindings[assignment] = result["child_id"]
+            self._advance_expected_head(identity, role=role, before=request["expected_head"], after=self._current_head(root))
+            self._verify_identity(root, identity, model, reviewer_model, astra_user_requested, authorization_ref, task_class, oracle_evidence)
+            identity.setdefault("consumed_requests", []).append(request["digest"])
+            if result["status"] == "blocked":
+                return StepResult(status=StepStatus.FAILED, error=result["message"], output={**prior_self, "terminal_result": result})
+            if result["status"] == "approval_required":
+                if not result["message"].strip():
+                    raise DeliveryEvidenceError("Approval requires a concrete question.")
+                return StepResult(status=StepStatus.PAUSED, output={"status": "approval_required", "identity": identity, "role": role, "phase": request["phase"], "question": result["message"], "review_findings": request["payload"] if isinstance(request["payload"], list) else [], "resume_payload": request["payload"], "tasks_before_phase": request["tasks"], "implementation_message": prior_self.get("implementation_message", "")})
+            if role == "builder":
+                return self._dispatch(context, config, root, identity, "reviewer", "re-review" if identity.get("review_generation") else "review", [], result["message"])
+            identity["review_generation"] = int(identity.get("review_generation", 0)) + 1
+            tasks_after = self._task_evidence(self._feature_file(root, identity, "tasks.md"))
+            if tasks_after != request["tasks"]:
+                raise DeliveryEvidenceError("Read-only reviewer changed tasks evidence.")
+            if result["status"] == "clean":
+                if tasks_after["unchecked"]:
+                    raise DeliveryEvidenceError("Clean result has unchecked tasks.")
+                self._verify_baseline_worktree(root, identity)
+            return StepResult(status=StepStatus.COMPLETED, output={"status": result["status"], "identity": identity, "review_findings": result["findings"], "tasks_after_phase": tasks_after, "clean_revision": self._current_head(root) if result["status"] == "clean" else "", "convergence_message": result["message"]})
+        if result_raw:
+            raise DeliveryEvidenceError("Stale or replayed result without a pending request.")
+        payload = self._resolve_transition_payload(transition_raw, str(context.inputs.get("reassessment_payload", "")), prior.get("review_findings", []))
+        self._apply_assignment_transition(identity, transition_raw, requested_model=model, requested_reviewer_model=reviewer_model, payload=payload)
         if transition_raw:
             context.inputs["assignment_transition"] = ""
             context.inputs["reassessment_payload"] = ""
-        self._verify_identity(
-            root, identity, model, reviewer_model, astra_user_requested,
-            authorization_ref, task_class, oracle_evidence
-        )
-
-        if not prior_self and prior.get("status") == "clean":
-            expected_tasks = prior.get("tasks_after_phase")
-            if not isinstance(expected_tasks, dict):
-                raise DeliveryEvidenceError(
-                    "Previously clean delivery state has no valid task evidence. "
-                    "Start a new authorized workflow run."
-                )
-            current_tasks = self._task_evidence(
-                self._feature_file(root, identity, "tasks.md")
-            )
-            if current_tasks != expected_tasks:
-                raise DeliveryEvidenceError(
-                    "Previously clean task evidence changed before delivery resumed."
-                )
-            clean_revision = prior.get("clean_revision")
-            if not isinstance(clean_revision, str) or not clean_revision:
-                raise DeliveryEvidenceError(
-                    "Previously clean delivery state has no final revision evidence. "
-                    "Start a new authorized workflow run."
-                )
-            if self._current_head(root) != clean_revision:
-                raise DeliveryEvidenceError(
-                    "Git revision changed after the prior clean delivery result."
-                )
+        self._verify_identity(root, identity, model, reviewer_model, astra_user_requested, authorization_ref, task_class, oracle_evidence)
+        if prior_self.get("status") == "approval_required":
+            action = context.inputs.pop("approval_action", "")
+            response = context.inputs.pop("approval_response", "")
+            context.inputs.update(approval_action="", approval_response="")
+            if not action:
+                return StepResult(status=StepStatus.PAUSED, output=prior_self)
+            if action == "abort":
+                return StepResult(status=StepStatus.FAILED, output={**prior_self, "aborted": True}, error="User aborted delivery.")
+            if action != "resume" or not isinstance(response, str) or not response.strip():
+                raise DeliveryEvidenceError("Resume requires approval_action=resume and a concrete user response.")
+            payload = {"approval_response": response, "prior_payload": payload if transition_raw else prior_self.get("resume_payload", payload)}
+            return self._dispatch(context, config, root, identity, prior_self["role"], prior_self["phase"], payload, prior_self.get("implementation_message", ""))
+        if prior.get("status") == "clean":
+            if self._task_evidence(self._feature_file(root, identity, "tasks.md")) != prior.get("tasks_after_phase") or self._current_head(root) != prior.get("clean_revision"):
+                raise DeliveryEvidenceError("Previously clean task or revision evidence changed.")
             self._verify_baseline_worktree(root, identity)
-            return StepResult(
-                status=StepStatus.SKIPPED,
-                output={**prior, "skipped": True, "reason": "already converged"},
-            )
+            return StepResult(status=StepStatus.SKIPPED, output={**prior, "skipped": True})
+        return self._dispatch(context, config, root, identity, "builder", "repair" if prior.get("review_findings") else "implementation", payload)
 
-        tasks_path = self._feature_file(root, identity, "tasks.md")
-        builder_head = self._require_expected_head(root, identity)
-        self._record_invocation_binding(
-            identity,
-            "builder",
-            "repair" if prior.get("review_findings") else "implementation",
-            transition_payload,
-        )
-        implementation = self._invoke(
-            "implementation",
-            "speckit.implement",
-            "Continue the active authorized feature. Complete all unchecked tasks, "
-            "including required verification, documentation, cleanup, and stable "
-            "local checkpoint commits. Do not push or perform remote operations."
-            + self._review_finding_context(prior),
-            root,
-            model,
-        )
-        self._advance_expected_head(
-            identity,
-            role="builder",
-            before=builder_head,
-            after=self._current_head(root),
-        )
-        if implementation["status"] == "approval_required":
-            return self._pause(
-                identity,
-                "implementation",
-                implementation,
-                self._task_evidence(tasks_path),
-            )
-        if implementation["status"] == "blocked":
-            raise DeliveryEvidenceError(
-                "Implementation reported a blocker: " + implementation["message"]
-            )
-
-        self._verify_identity(
-            root, identity, model, reviewer_model, astra_user_requested,
-            authorization_ref, task_class, oracle_evidence
-        )
-        return self._run_convergence(
-            root,
-            model,
-            reviewer_model,
-            astra_user_requested,
-            authorization_ref,
-            identity,
-            task_class,
-            oracle_evidence,
-            self._task_evidence(tasks_path),
-            implementation["message"],
-        )
-
-    def _resume_approval(
-        self,
-        context: StepContext,
-        root: Path,
-        paused: dict[str, Any],
-        authorization_ref: str,
-        model: str,
-        reviewer_model: str,
-        astra_user_requested: str,
-        task_class: str,
-        oracle_evidence: str,
-    ) -> StepResult:
-        action = str(context.inputs.get("approval_action", "")).strip().lower()
-        response = str(context.inputs.get("approval_response", "")).strip()
-        if not action:
-            return StepResult(status=StepStatus.PAUSED, output=paused)
-        if action == "abort":
-            return StepResult(
-                status=StepStatus.FAILED,
-                output={**paused, "aborted": True},
-                error="Clouds delivery was aborted by the user at an approval boundary.",
-            )
-        if action != "resume" or not response:
-            raise DeliveryEvidenceError(
-                "Resume requires approval_action=resume and a non-empty "
-                "approval_response containing the user's decision."
-            )
-
-        identity = paused.get("identity")
-        if not isinstance(identity, dict):
-            raise DeliveryEvidenceError("Paused delivery state has no valid run identity.")
-        transition_raw = str(context.inputs.get("assignment_transition", ""))
-        transition_payload = self._resolve_transition_payload(
-            transition_raw,
-            str(context.inputs.get("reassessment_payload", "")),
-            paused.get("review_findings", []),
-        )
-        self._apply_assignment_transition(
-            identity,
-            transition_raw,
-            requested_model=model,
-            requested_reviewer_model=reviewer_model,
-            payload=transition_payload,
-        )
-        if transition_raw:
-            context.inputs["assignment_transition"] = ""
-            context.inputs["reassessment_payload"] = ""
-        self._verify_identity(
-            root, identity, model, reviewer_model, astra_user_requested,
-            authorization_ref, task_class, oracle_evidence
-        )
-
-        context.inputs["approval_action"] = ""
-        context.inputs["approval_response"] = ""
-        phase = paused.get("phase")
-        prompt_suffix = (
-            " The user has now answered the approval question: "
-            + json.dumps(response, ensure_ascii=False)
-            + ". Apply only that authorized decision."
-        )
-        tasks_path = self._feature_file(root, identity, "tasks.md")
-
-        if phase == "implementation":
-            builder_head = self._require_expected_head(root, identity)
-            self._record_invocation_binding(
-                identity,
-                "builder",
-                "repair" if paused.get("review_findings") else "implementation",
-                transition_payload,
-            )
-            implementation = self._invoke(
-                "implementation",
-                "speckit.implement",
-                "Resume the paused active feature without changing its accepted scope."
-                + self._review_finding_context(paused)
-                + prompt_suffix,
-                root,
-                model,
-            )
-            self._advance_expected_head(
-                identity,
-                role="builder",
-                before=builder_head,
-                after=self._current_head(root),
-            )
-            if implementation["status"] == "approval_required":
-                return self._pause(
-                    identity,
-                    "implementation",
-                    implementation,
-                    self._task_evidence(tasks_path),
-                )
-            if implementation["status"] == "blocked":
-                raise DeliveryEvidenceError(
-                    "Implementation reported a blocker: "
-                    + implementation["message"]
-                )
-            self._verify_identity(
-                root, identity, model, reviewer_model, astra_user_requested,
-                authorization_ref, task_class, oracle_evidence
-            )
-            return self._run_convergence(
-                root,
-                model,
-                reviewer_model,
-                astra_user_requested,
-                authorization_ref,
-                identity,
-                task_class,
-                oracle_evidence,
-                self._task_evidence(tasks_path),
-                implementation["message"],
-            )
-
-        if phase == "convergence":
-            reviewer_head = self._require_expected_head(root, identity)
-            self._record_invocation_binding(
-                identity, "reviewer", "review", paused.get("review_findings", [])
-            )
-            convergence = self._invoke(
-                "convergence",
-                "speckit.converge",
-                "Resume the paused independent convergence review." + prompt_suffix,
-                root,
-                reviewer_model,
-            )
-            self._advance_expected_head(
-                identity,
-                role="reviewer",
-                before=reviewer_head,
-                after=self._current_head(root),
-            )
-            return self._finish_convergence(
-                root,
-                model,
-                reviewer_model,
-                astra_user_requested,
-                authorization_ref,
-                identity,
-                task_class,
-                oracle_evidence,
-                paused.get("tasks_before_phase", {}),
-                convergence,
-                paused.get("implementation_message", ""),
-            )
-
-        raise DeliveryEvidenceError(f"Unknown paused phase: {phase!r}")
-
-    def _run_convergence(
-        self,
-        root: Path,
-        model: str,
-        reviewer_model: str,
-        astra_user_requested: str,
-        authorization_ref: str,
-        identity: dict[str, Any],
-        task_class: str,
-        oracle_evidence: str,
-        tasks_before: dict[str, Any],
-        implementation_message: str,
-    ) -> StepResult:
-        reviewer_head = self._require_expected_head(root, identity)
-        phase = "re-review" if identity.get("review_generation", 0) else "review"
-        self._record_invocation_binding(identity, "reviewer", phase, [])
-        convergence = self._invoke(
-            "convergence",
-            "speckit.converge",
-            "Independently assess the active feature as a read-only reviewer. Do not "
-            "edit files, append tasks, or apply corrections. Report no findings as "
-            "CLOUDS_FINDINGS_JSON: []; otherwise report a JSON array of objects with "
-            "id, finding, and required_action before the terminal status. Do not trust "
-            "the delivery loop as evidence of its own correctness.",
-            root,
-            reviewer_model,
-        )
-        self._advance_expected_head(
-            identity,
-            role="reviewer",
-            before=reviewer_head,
-            after=self._current_head(root),
-        )
-        identity["review_generation"] = int(identity.get("review_generation", 0)) + 1
-        return self._finish_convergence(
-            root,
-            model,
-            reviewer_model,
-            astra_user_requested,
-            authorization_ref,
-            identity,
-            task_class,
-            oracle_evidence,
-            tasks_before,
-            convergence,
-            implementation_message,
-        )
-
-    def _finish_convergence(
-        self,
-        root: Path,
-        model: str,
-        reviewer_model: str,
-        astra_user_requested: str,
-        authorization_ref: str,
-        identity: dict[str, Any],
-        task_class: str,
-        oracle_evidence: str,
-        tasks_before: dict[str, Any],
-        convergence: dict[str, str],
-        implementation_message: str,
-    ) -> StepResult:
-        self._verify_identity(
-            root, identity, model, reviewer_model, astra_user_requested,
-            authorization_ref, task_class, oracle_evidence
-        )
-        tasks_path = self._feature_file(root, identity, "tasks.md")
-        tasks_after = self._task_evidence(tasks_path)
-        status = convergence["status"]
-        findings = convergence.get("findings", [])
-
-        if status == "approval_required":
-            if tasks_after != tasks_before:
-                raise DeliveryEvidenceError(
-                    "Convergence changed tasks while requesting approval."
-                )
-            return self._pause(
-                identity,
-                "convergence",
-                convergence,
-                tasks_before,
-                implementation_message,
-            )
-        if status == "blocked":
-            raise DeliveryEvidenceError(
-                "Convergence reported a blocker: " + convergence["message"]
-            )
-        clean_revision = ""
-        if status == "clean":
-            if tasks_after != tasks_before:
-                raise DeliveryEvidenceError(
-                    "Convergence reported clean but changed tasks.md."
-                )
-            if tasks_after["unchecked"] != 0:
-                raise DeliveryEvidenceError(
-                    "Convergence reported clean while tasks.md still has unchecked tasks."
-                )
-            self._verify_baseline_worktree(root, identity)
-            clean_revision = self._current_head(root)
-        elif status == "tasks_appended":
-            if tasks_after != tasks_before:
-                raise DeliveryEvidenceError(
-                    "Read-only convergence changed tasks.md; only the builder may apply corrections."
-                )
-            if not findings:
-                raise DeliveryEvidenceError(
-                    "Convergence reported tasks_appended without structured findings."
-                )
-        else:
-            raise DeliveryEvidenceError(f"Unsupported convergence status: {status!r}")
-
-        output = {
-            "status": status,
-            "identity": identity,
-            "tasks_before_phase": tasks_before,
-            "tasks_after_phase": tasks_after,
-            "implementation_message": implementation_message,
-            "convergence_message": convergence["message"],
-            "review_findings": findings,
+    def _dispatch(self, context, config, root, identity, role, phase, payload, implementation_message=""):
+        self._require_expected_head(root, identity)
+        binding = self._record_invocation_binding(identity, role, phase, payload)
+        request = {
+            "protocol_version": 1, "run_id": context.run_id, "step_id": config["id"],
+            "role": role, "phase": phase, "assignment_id": identity[f"{role}_assignment_id"],
+            "selected_model": identity["model" if role == "builder" else "reviewer_model"],
+            "purpose": identity[f"{role}_purpose"], "expected_head": identity["expected_head"],
+            "tasks": self._task_evidence(self._feature_file(root, identity, "tasks.md")),
+            "payload": payload, "invocation_binding_id": binding["invocation_binding_id"],
+            "sequence": len(identity.get("invocation_bindings", [])),
         }
-        if clean_revision:
-            output["clean_revision"] = clean_revision
-            output["pass_head"] = clean_revision
-        return StepResult(status=StepStatus.COMPLETED, output=output)
+        request["digest"] = self._canonical_sha256(request)
+        self._validate_request(request)
+        output = {"status": "dispatch_required", "identity": identity, "request": request, "implementation_message": implementation_message}
+        if role == "reviewer":
+            output["review_snapshot"] = self._review_snapshot(root, str(context.run_id))
+        return StepResult(status=StepStatus.PAUSED, output=output)
 
-    def _pause(
-        self,
-        identity: dict[str, Any],
-        phase: str,
-        result: dict[str, str],
-        tasks_before: dict[str, Any],
-        implementation_message: str = "",
-    ) -> StepResult:
-        question = self._message_body(result["message"])
-        if not question:
-            raise DeliveryEvidenceError(
-                f"{phase.title()} requested approval without a concrete question."
-            )
-        return StepResult(
-            status=StepStatus.PAUSED,
-            output={
-                "status": "approval_required",
-                "phase": phase,
-                "question": question,
-                "identity": identity,
-                "tasks_before_phase": tasks_before,
-                "implementation_message": implementation_message,
-                "pause_head": identity.get("expected_head", ""),
-            },
-        )
+    @staticmethod
+    def _strict_json(raw, limit=65536):
+        if not isinstance(raw, str) or len(raw.encode("utf-8")) > limit:
+            raise DeliveryEvidenceError("JSON input exceeds its byte limit or is not text.")
+        def pairs(items):
+            value = {}
+            for key, item in items:
+                if key in value:
+                    raise DeliveryEvidenceError("JSON contains duplicate keys.")
+                value[key] = item
+            return value
+        try:
+            return json.loads(raw, object_pairs_hook=pairs, parse_constant=lambda value: (_ for _ in ()).throw(DeliveryEvidenceError("Nonfinite JSON value.")))
+        except (ValueError, RecursionError) as exc:
+            raise DeliveryEvidenceError("Malformed or excessively nested JSON input.") from exc
 
-    def _invoke(
-        self,
-        kind: str,
-        command: str,
-        args: str,
-        root: Path,
-        model: str,
-        *,
-        permission: str | None = None,
-    ) -> dict[str, str]:
-        completed = (
-            self._run_codex(command, args, root, model)
-            if permission is None
-            else self._run_codex(
-                command, args, root, model, permission=permission
+    @classmethod
+    def _validate_request(cls, request):
+        keys = {"protocol_version", "run_id", "step_id", "role", "phase", "assignment_id", "selected_model", "purpose", "expected_head", "tasks", "payload", "invocation_binding_id", "sequence", "digest"}
+        if not isinstance(request, dict) or set(request) != keys or type(request["protocol_version"]) is not int or request["protocol_version"] != 1:
+            raise DeliveryEvidenceError("Invalid native request schema.")
+        if len(cls._canonical_json(request).encode("utf-8")) > 65536:
+            raise DeliveryEvidenceError("Native request exceeds byte limit.")
+        for key in keys - {"protocol_version", "tasks", "payload", "sequence"}:
+            if not isinstance(request[key], str) or not request[key].strip() or len(request[key]) > (16000 if key == "purpose" else 256):
+                raise DeliveryEvidenceError("Invalid native request field: " + key)
+        if request["role"] not in {"builder", "reviewer"} or request["phase"] not in ({"implementation", "repair"} if request["role"] == "builder" else {"review", "re-review"}):
+            raise DeliveryEvidenceError("Invalid native request role/phase.")
+        if not isinstance(request["payload"], (dict, list)) or not isinstance(request["tasks"], dict) or set(request["tasks"]) != {"sha256", "unchecked"} or type(request["tasks"]["unchecked"]) is not int or request["tasks"]["unchecked"] < 0:
+            raise DeliveryEvidenceError("Invalid request task/payload evidence.")
+        if type(request["sequence"]) is not int or request["sequence"] < 1 or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", request["run_id"]):
+            raise DeliveryEvidenceError("Invalid request sequence or run ID.")
+        for value in (request["assignment_id"], request["invocation_binding_id"], request["digest"], request["tasks"]["sha256"]):
+            if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+                raise DeliveryEvidenceError("Invalid request digest evidence.")
+        if request["digest"] != cls._canonical_sha256({k:v for k,v in request.items() if k != "digest"}):
+            raise DeliveryEvidenceError("Native request digest mismatch.")
+        return request
+
+    @classmethod
+    def _verify_pending_request(cls, request, identity):
+        request = cls._validate_request(request)
+        if not isinstance(identity, dict):
+            raise DeliveryEvidenceError("Pending request has no retained identity/binding.")
+        role, phase = request["role"], request["phase"]
+        bindings = identity.get("invocation_bindings")
+        contracts = identity.get("phase_contract_sha256")
+        if (not isinstance(bindings, list) or not bindings or
+                request["sequence"] != len(bindings) or
+                not isinstance(contracts, dict) or phase not in contracts):
+            raise DeliveryEvidenceError("Pending request sequence/phase conflicts with retained binding.")
+        binding = {
+            "assignment_id": request["assignment_id"],
+            "expected_head": request["expected_head"],
+            "payload_digest": cls._canonical_sha256(request["payload"]),
+            "phase": phase, "phase_contract_sha256": contracts[phase], "role": role,
+        }
+        binding["invocation_binding_id"] = cls._canonical_sha256(binding)
+        if (bindings[-1] != binding or request["invocation_binding_id"] != binding["invocation_binding_id"] or
+                request["assignment_id"] != identity.get(f"{role}_assignment_id") or
+                request["selected_model"] != identity.get("model" if role == "builder" else "reviewer_model") or
+                request["purpose"] != identity.get(f"{role}_purpose") or
+                request["expected_head"] != identity.get("expected_head") or
+                request["digest"] in identity.get("consumed_requests", [])):
+            raise DeliveryEvidenceError("Pending request conflicts with retained identity/binding or was consumed.")
+        return request
+
+    @classmethod
+    def _parse_result(cls, raw, request):
+        result = cls._strict_json(raw, _RESULT_MAX_BYTES)
+        keys = {"protocol_version", "request_digest", "child_id", "role", "status", "message", "findings"}
+        if not isinstance(result, dict) or set(result) != keys or type(result["protocol_version"]) is not int or result["protocol_version"] != 1:
+            raise DeliveryEvidenceError("Invalid native result schema or unknown field.")
+        if result["request_digest"] != request["digest"] or result["role"] != request["role"]:
+            raise DeliveryEvidenceError("Stale native result digest or wrong role.")
+        if not isinstance(result["child_id"], str) or not result["child_id"].strip() or len(result["child_id"]) > 256:
+            raise DeliveryEvidenceError("Missing bounded host child identity.")
+        allowed = _IMPLEMENT_STATUSES if result["role"] == "builder" else _CONVERGE_STATUSES
+        if result["status"] not in allowed or not isinstance(result["message"], str) or len(result["message"]) > 4000:
+            raise DeliveryEvidenceError("Invalid role status or message limit.")
+        findings = result["findings"]
+        if not isinstance(findings, list) or len(findings) > 100:
+            raise DeliveryEvidenceError("Findings exceed count limit.")
+        seen = set()
+        for item in findings:
+            if not isinstance(item, dict) or set(item) != {"id", "finding", "required_action"}:
+                raise DeliveryEvidenceError("Invalid finding fields.")
+            for key, value in item.items():
+                if not isinstance(value, str) or not value.strip() or len(value) > (128 if key == "id" else 4000):
+                    raise DeliveryEvidenceError("Invalid finding text limit.")
+            if item["id"] in seen:
+                raise DeliveryEvidenceError("Duplicate finding ID.")
+            seen.add(item["id"])
+        if (result["status"] == "tasks_appended") != bool(findings):
+            raise DeliveryEvidenceError("Status and findings disagree.")
+        return result
+
+    @classmethod
+    def _review_snapshot(cls, root, run_id):
+        # Only this engine run's bookkeeping can change around a paused dispatch.
+        prefix = f".specify/workflows/runs/{run_id}/"
+        def bookkeeping(path):
+            if not path.startswith(prefix):
+                return False
+            name = path[len(prefix):]
+            return name in {"state.json", "inputs.json", "log.jsonl"} or bool(
+                re.fullmatch(r"\.(state|inputs)\.json\.[^/]+\.tmp", name)
             )
-        )
-        if completed.returncode != 0:
-            detail = (completed.stderr or completed.stdout or "no diagnostic").strip()
-            raise DeliveryEvidenceError(
-                f"Codex {kind} command exited with {completed.returncode}: {detail}"
-            )
-        allowed = _IMPLEMENT_STATUSES if kind == "implementation" else _CONVERGE_STATUSES
-        return self._parse_jsonl(completed.stdout, kind, allowed)
+        paths = cls._git(root, "ls-files", "--cached", "--others", "--exclude-standard", "-z").split("\0")
+        inventory = sorted({p for p in paths if p and not bookkeeping(p)})
+        index = cls._git(root, "ls-files", "--stage", "-z")
+        # Engine bookkeeping never stages files, so every index entry is covered.
+        index_entries = sorted(p for p in index.split("\0") if p)
+        files = {}
+        for relative in inventory:
+            candidate = root / relative
+            if not candidate.resolve().is_relative_to(root) and not candidate.is_symlink():
+                raise DeliveryEvidenceError("Review path escapes the project.")
+            if candidate.is_symlink():
+                files[relative] = {"kind": "symlink", "target": os.readlink(candidate)}
+            elif not os.path.lexists(candidate):
+                files[relative] = {"kind": "missing"}
+            elif candidate.is_file():
+                files[relative] = {"kind": "file", "sha256": cls._sha256(candidate), "executable": bool(candidate.stat().st_mode & 0o111)}
+            else:
+                raise DeliveryEvidenceError("Review cannot fingerprint a gitlink/directory or special file: " + relative)
+        return {"head": cls._current_head(root), "index": index_entries, "files": files}
 
     @staticmethod
     def _require_selected_model(model: str, task_class: str, oracle_evidence: str) -> str:
@@ -623,196 +410,6 @@ class CloudsDeliveryPassStep(StepBase):
     @staticmethod
     def _oracle_evidence_sha256(oracle_evidence: str) -> str:
         return hashlib.sha256(oracle_evidence.encode("utf-8")).hexdigest()
-
-    @staticmethod
-    def _review_finding_context(prior: dict[str, Any]) -> str:
-        findings = prior.get("review_findings")
-        if not findings:
-            return ""
-        return (
-            " Apply the following read-only reviewer findings; the builder alone must "
-            "make any task or implementation changes: "
-            + json.dumps(findings, ensure_ascii=False, sort_keys=True)
-            + "."
-        )
-
-    @staticmethod
-    def _run_codex(
-        command: str,
-        args: str,
-        root: Path,
-        model: str,
-        *,
-        permission: str | None = None,
-    ) -> subprocess.CompletedProcess[str]:
-        from specify_cli.integrations import get_integration
-
-        integration = get_integration("codex")
-        if integration is None:
-            raise DeliveryEvidenceError("The official Codex integration is unavailable.")
-
-        extra_args = os.environ.get("SPECKIT_INTEGRATION_CODEX_EXTRA_ARGS", "").strip()
-        if extra_args:
-            raise DeliveryEvidenceError(
-                "SPECKIT_INTEGRATION_CODEX_EXTRA_ARGS is not allowed in the "
-                "Clouds autonomous delivery loop because it can change permissions."
-            )
-        executable = os.environ.get(
-            "SPECKIT_INTEGRATION_CODEX_EXECUTABLE", ""
-        ).strip() or shutil.which("codex")
-        if not executable:
-            raise DeliveryEvidenceError("Codex CLI was not found.")
-
-        child_env = os.environ.copy()
-        for name in (
-            "OPENAI_API_KEY",
-            "OPENAI_BASE_URL",
-            "AZURE_OPENAI_API_KEY",
-            "AZURE_OPENAI_ENDPOINT",
-        ):
-            child_env.pop(name, None)
-
-        try:
-            login = subprocess.run(
-                [executable, "login", "status"],
-                cwd=str(root),
-                env=child_env,
-                text=True,
-                capture_output=True,
-                timeout=30,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise DeliveryEvidenceError("Codex login status timed out.") from exc
-        login_text = (login.stdout + "\n" + login.stderr).lower()
-        if login.returncode != 0 or "chatgpt" not in login_text or "api key" in login_text:
-            raise DeliveryEvidenceError(
-                "Codex must be signed in through ChatGPT before autonomous delivery; "
-                "API-key or paid-API fallback is not allowed."
-            )
-
-        expected_permission = (
-            "read-only" if command == "speckit.converge" else "workspace-write"
-        )
-        selected_permission = expected_permission if permission is None else permission
-        if selected_permission not in {"read-only", "workspace-write"}:
-            raise DeliveryEvidenceError("Codex dispatch has an invalid sandbox permission.")
-        if command == "speckit.converge" and selected_permission != "read-only":
-            raise DeliveryEvidenceError("Reviewer dispatch must use the read-only sandbox.")
-        prompt = integration.build_command_invocation(command, args) if command else args
-        argv = [
-            executable,
-            "exec",
-            prompt,
-            "--model",
-            model,
-            "--sandbox",
-            selected_permission,
-            "--approve-for-me",
-            "--ephemeral",
-            "--json",
-        ]
-        try:
-            return subprocess.run(
-                argv,
-                cwd=str(root),
-                env=child_env,
-                text=True,
-                capture_output=True,
-                timeout=7200,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise DeliveryEvidenceError(
-                f"Codex {command} exceeded the two-hour execution limit."
-            ) from exc
-
-    @staticmethod
-    def _parse_jsonl(
-        output: str, kind: str, allowed: frozenset[str]
-    ) -> dict[str, str]:
-        messages: list[str] = []
-        for number, raw in enumerate(output.splitlines(), 1):
-            if not raw.strip():
-                continue
-            try:
-                event = json.loads(raw)
-            except json.JSONDecodeError as exc:
-                raise DeliveryEvidenceError(
-                    f"Codex {kind} output line {number} is not valid JSONL."
-                ) from exc
-            if not isinstance(event, dict):
-                raise DeliveryEvidenceError(
-                    f"Codex {kind} output line {number} is not a JSON object."
-                )
-            item = event.get("item")
-            if (
-                event.get("type") == "item.completed"
-                and isinstance(item, dict)
-                and item.get("type") == "agent_message"
-                and isinstance(item.get("text"), str)
-            ):
-                messages.append(item["text"])
-
-        if not messages:
-            raise DeliveryEvidenceError(
-                f"Codex {kind} output has no completed agent message."
-            )
-        message = messages[-1].strip()
-        exact = [
-            match
-            for line in message.splitlines()
-            if (match := _STATUS_LINE.fullmatch(line.strip()))
-        ]
-        if len(exact) != 1:
-            raise DeliveryEvidenceError(
-                f"Codex {kind} result must contain exactly one exact terminal status."
-            )
-        marker = exact[0]
-        expected_kind = "IMPLEMENTATION" if kind == "implementation" else "CONVERGENCE"
-        if marker.group(1) != expected_kind or marker.group(2) not in allowed:
-            raise DeliveryEvidenceError(
-                f"Codex {kind} returned an invalid terminal status."
-            )
-        if message.splitlines()[-1].strip() != marker.group(0):
-            raise DeliveryEvidenceError(
-                f"Codex {kind} terminal status is not the final non-empty line."
-            )
-        findings: list[dict[str, str]] = []
-        if kind == "convergence":
-            finding_lines = [
-                match.group(1)
-                for line in message.splitlines()
-                if (match := _FINDINGS_LINE.fullmatch(line.strip()))
-            ]
-            if len(finding_lines) != 1:
-                raise DeliveryEvidenceError(
-                    "Codex convergence result must contain exactly one CLOUDS_FINDINGS_JSON line."
-                )
-            try:
-                parsed_findings = json.loads(finding_lines[0])
-            except json.JSONDecodeError as exc:
-                raise DeliveryEvidenceError("Codex convergence findings are not valid JSON.") from exc
-            if not isinstance(parsed_findings, list) or not all(
-                isinstance(item, dict)
-                and set(item) == {"id", "finding", "required_action"}
-                and all(isinstance(item[key], str) and item[key].strip() for key in item)
-                for item in parsed_findings
-            ):
-                raise DeliveryEvidenceError(
-                    "Codex convergence findings must be a JSON array of id, finding, and required_action objects."
-                )
-            findings = parsed_findings
-            if marker.group(2) == "clean" and findings:
-                raise DeliveryEvidenceError("Clean convergence may not report unresolved findings.")
-            if marker.group(2) == "tasks_appended" and not findings:
-                raise DeliveryEvidenceError("tasks_appended convergence requires at least one finding.")
-        return {"status": marker.group(2), "message": message, "findings": findings}
-
-    @staticmethod
-    def _message_body(message: str) -> str:
-        lines = message.strip().splitlines()
-        return "\n".join(lines[:-1]).strip() if lines else ""
 
     @staticmethod
     def _step_output(context: StepContext, step_id: Any) -> dict[str, Any]:
@@ -1489,3 +1086,42 @@ class CloudsDeliveryPassStep(StepBase):
                 + (completed.stderr or completed.stdout).strip()
             )
         return completed.stdout
+
+
+def read_native_request(project_root: Path, run_id: str) -> dict[str, Any]:
+    """Read only one pinned v1.0.13 engine run, never an alternate state store."""
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", run_id):
+        raise DeliveryEvidenceError("Invalid run ID.")
+    root = project_root.resolve()
+    run = root / ".specify" / "workflows" / "runs" / run_id
+    for candidate in (run, run / "state.json", run / "workflow.yml"):
+        if not candidate.resolve().is_relative_to(root) or candidate.is_symlink():
+            raise DeliveryEvidenceError("Run path is linked or escapes the project.")
+    state = CloudsDeliveryPassStep._strict_json((run / "state.json").read_text(encoding="utf-8"), 16 * 1024 * 1024)
+    fields = {"run_id", "workflow_id", "installed_workflow_id", "installed_registry_root", "status", "current_step_index", "current_step_id", "step_results", "workflow_dir", "created_at", "updated_at", "error"}
+    if not isinstance(state, dict) or set(state) != fields or state["run_id"] != run_id or state["workflow_id"] != "clouds-delivery" or state["status"] != "paused" or type(state["current_step_index"]) is not int:
+        raise DeliveryEvidenceError("Not a pinned paused clouds-delivery run.")
+    from specify_cli.workflows.engine import RunState, WorkflowDefinition
+    RunState.load(run_id, root)  # Upstream owns persisted-state shape validation.
+    definition = WorkflowDefinition.from_yaml(run / "workflow.yml")
+    index = state["current_step_index"]
+    if definition.id != "clouds-delivery" or str(definition.schema_version) != "1.0" or index < 0 or index >= len(definition.steps) or definition.steps[index].get("id") != state["current_step_id"] or definition.steps[index].get("type") != "clouds-delivery-pass":
+        raise DeliveryEvidenceError("Pinned workflow/pass identity mismatch.")
+    entry = state["step_results"].get(state["current_step_id"], {})
+    output = entry.get("output", {})
+    if entry.get("status") != "paused" or output.get("status") != "dispatch_required":
+        raise DeliveryEvidenceError("Paused run does not require native dispatch.")
+    request = CloudsDeliveryPassStep._verify_pending_request(output.get("request"), output.get("identity"))
+    if request["run_id"] != run_id or request["step_id"] != state["current_step_id"]:
+        raise DeliveryEvidenceError("Request does not match the pinned run/pass.")
+    feature = output.get("identity", {}).get("feature_directory")
+    if not isinstance(feature, str) or not (root / feature).resolve().is_relative_to(root):
+        raise DeliveryEvidenceError("Feature path escapes the project.")
+    return request
+
+
+if __name__ == "__main__":
+    try:
+        print(CloudsDeliveryPassStep._canonical_json(read_native_request(args.project_root, args.run_id)))
+    except (DeliveryEvidenceError, OSError, ValueError, KeyError, TypeError) as exc:
+        parser.exit(1, str(exc) + "\n")

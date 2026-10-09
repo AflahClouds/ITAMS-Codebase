@@ -3,14 +3,14 @@ schema_version: "1.0"
 preset:
   id: "clouds-core"
   name: "Clouds Core"
-  version: "1.4.0"
+  version: "1.5.0"
   description: "Business-first Codex guidance, governance, continuity, checkpoints, and repository closeout layered on upstream Spec Kit."
   author: "Clouds Team"
   repository: "https://github.com/Cloud-Shoes-LLP/clouds-spec-kit"
   license: "Proprietary"
 
 requires:
-  speckit_version: ">=1.0.6,<1.0.7"
+  speckit_version: ">=1.0.13,<1.0.14"
   extensions:
     - id: "agent-context"
       version: ">=1.0.0"

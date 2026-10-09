@@ -5,7 +5,9 @@ import { Link } from "react-router";
 import CalendarViewMonth from '@mui/icons-material/CalendarViewMonth';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DownloadIcon from '@mui/icons-material/Download';
 import AxiosInstance from '../../api/client'
+import { downloadProtectedFile } from '../../api/downloadProtectedFile';
 import { useAuth } from '../../auth/useAuth';
 
 const Procurement = () => {
@@ -21,6 +23,14 @@ const Procurement = () => {
     AxiosInstance.get('/procurement/').then((res) => {
       setMyData(res.data)
     })
+  }
+
+  const downloadInvoice = async (invoice) => {
+    try {
+      await downloadProtectedFile(invoice.download_url, invoice.file_name);
+    } catch {
+      window.alert('The purchase invoice could not be downloaded.');
+    }
   }
 
   useEffect(() => {
@@ -54,7 +64,8 @@ const Procurement = () => {
         accessorKey: 'po_number',
         header: 'PO Number',
       },
-    ]
+    ],
+    []
   )
 
   return (
@@ -70,9 +81,17 @@ const Procurement = () => {
       <MaterialReactTable
         columns={columns}
         data={myData}
-        enableRowActions={can('asset_edit') || can('asset_delete')}
+        enableRowActions={can('asset_edit') || can('asset_delete') ||
+                          myData.some((procurement) => procurement.current_invoice)}
         renderRowActions={({row}) => (
           <Box sx={{ display: 'flex', flexWrap: 'nowrap', gap: '8px' }}>
+            {row.original.current_invoice && (
+              <IconButton color="primary" aria-label="Download purchase invoice"
+                          onClick={() => downloadInvoice(row.original.current_invoice)}>
+                <DownloadIcon/>
+              </IconButton>
+            )}
+
             {can('asset_edit') && (
               <IconButton color="primary" aria-label="Edit procurement"
                           component={Link} to={`/procurement/edit/${row.original.id}`}>

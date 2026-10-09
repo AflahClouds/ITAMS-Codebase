@@ -149,6 +149,12 @@ Create an internal model (do not echo raw artifacts):
 
 ### 4. Assess the Codebase and Classify Findings
 
+Include every existing task in the intent inventory, regardless of checkbox state or
+Convergence phase: completion claims are not evidence. Verify current behavior against
+the spec, plan, tasks, and constitution; for corrective task chains, assess the resulting
+behavior, not superseded implementation details. Check both unmet obligations and
+implementation that contradicts, exceeds, or falls outside the stated intent.
+
 For each item in the intent inventory, inspect the current code in scope and produce a
 `Finding` only where there is a gap. Classify every finding by **gap type**:
 
@@ -291,17 +297,17 @@ Extend the upstream intent inventory with the predecessor list and the final pre
 - repository context is sufficient for a fresh competent person or agent to understand the system, modify and test it safely, operate affected production behavior when applicable, and resume unfinished work without chat history;
 - no confirmed stale or superseded code, tests, dependency, configuration, flag, documentation, example, generated artifact, or duplicate execution path remains.
 
-For normal/manual upstream `$speckit-converge`, append traceable pre-closeout context, implementation cleanup, checkpoint, or verification tasks using the upstream append-only contract; never edit implementation or documentation during converge. A separate `STATUS.md` is not required when the existing feature artifacts, tasks, native workflow state, Git history, and agent-context block make resumption unambiguous. If a potential implementation deletion is uncertain or its intent cannot be established, append a user-approval task rather than assuming.
+For normal/manual upstream `$speckit-converge`, append traceable pre-closeout context, implementation cleanup, checkpoint, or verification tasks using the upstream append-only contract; never edit implementation or documentation during converge. A separate `STATUS.md` is not required when the existing feature artifacts, tasks, native workflow state, Git history, and agent-context block make resumption unambiguous. For confirmed superseded material with a proven successor, established removal intent/scope/ownership and verified exact-content recovery, do not append a deletion-only approval task. GitHub history is sufficient recovery proof, not intent; already-authorized verified local history remains valid despite pending pushes. If intent, scope, ownership, exact recovery or a project restriction is unresolved, append the actual clarification/authority task and preserve affected work. An older copy does not cover unique later changes, and explicit retention rules remain binding.
 
-When the existing `clouds-delivery` workflow invokes this command as its automated reviewer, that invocation is read-only: do not edit files, append tasks, or apply corrections. Return `CLOUDS_FINDINGS_JSON: []` when clean; otherwise return a JSON array of finding objects with `id`, `finding`, and `required_action`. In this automated-reviewer mode, `CLOUDS_CONVERGENCE: tasks_appended` means findings were returned for the builder to apply, not that the reviewer mutated `tasks.md`.
+When the guide dispatches a native subagent for the existing `clouds-delivery` workflow as its automated reviewer, that invocation is read-only: do not edit files, append tasks, or apply corrections. Return bounded structured findings: an empty array when clean, otherwise objects with exactly `id`, `finding`, and `required_action`. The root verifies host child identity and HEAD/index/full relevant worktree snapshots before resuming. Native subagent tools are shared; read-only is an assignment checked by this comparison, not a per-child sandbox. In this automated-reviewer mode, `CLOUDS_CONVERGENCE: tasks_appended` means findings were returned for the builder to apply, not that the reviewer mutated `tasks.md`.
 
 Temporary change directories are disposable working artifacts, not intentional completed flow-forward history. Do not delete them during convergence; after clean convergence, require the guide-owned canonical review and checklist/reference validation before deletion.
 
-Convergence assesses local development work, not push or promotion to `main`. Awaiting affirmative push or merge approval is not an implementation gap: do not append a publication task solely to obtain a converged result, perform a push or merge, or enable automatic merging. Changes reach `main` only through a separately, explicitly user-approved promotion.
+Convergence assesses verified local development. Every authorized checkpoint commit follows the guide's automatic connected development-push policy. A failed, unavailable or uncertain push is remote publication pending, not an implementation gap, even after the final checkpoint; do not append publication-only tasks, block local closeout or introduce a retry gate. Report local completion and remote pending status distinctly. Promotion to main remains separately and explicitly user-approved; do not merge or enable automatic merging.
 
 Before declaring convergence, check the active tree's tracked project files as appropriate, including dependency manifests, references to removed paths or names, project documentation, repository commands, deterministic test coverage, Git checkpoint coverage, and the latest verification results. Missing pre-closeout context, implementation cleanup, checkpoint, or verification work means the result is `tasks_appended`; guide-owned post-convergence work is not a convergence blocker.
 
-End the response with exactly one machine-readable line after all other output:
+For native delivery, return the bounded status/message/findings to the guide for the strict result protocol. For manual upstream convergence, end the response with exactly one machine-readable line after all other output:
 
 - `CLOUDS_CONVERGENCE: tasks_appended` for normal/manual upstream converge when one or more tasks were appended; for the automated `clouds-delivery` reviewer when non-empty structured findings were returned and `tasks.md` is unchanged.
 - `CLOUDS_CONVERGENCE: clean` only when `tasks.md` is byte-for-byte unchanged and all Clouds checks are clean.

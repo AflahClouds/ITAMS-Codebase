@@ -1,5 +1,8 @@
 from datetime import date as date_cls
+import json
+import mimetypes
 
+from django.http import FileResponse, Http404
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Max, Q
@@ -60,10 +63,11 @@ class AssetViewSet(viewsets.ModelViewSet):
                       "create": "asset_create", "update": "asset_edit",
                       "partial_update": "asset_edit", "destroy": "asset_delete",
                       "add_condition": "asset_edit", "history": "asset_view",
-                      "renew_amc": "asset_edit", "end_amc_support": "asset_edit"}
+                      "renew_amc": "asset_edit", "end_amc_support": "asset_edit",
+                      "procurement_invoice": "asset_view"}
     queryset = Asset.objects.all().select_related(
         'category', 'brand', 'model', 'location', 'custodian', 'department',
-        'procurement').order_by('-id')
+        'procurement').prefetch_related('procurement__invoice_versions').order_by('-id')
     serializer_class = AssetSerializer
 
     def get_queryset(self):
@@ -209,14 +213,66 @@ class AssetViewSet(viewsets.ModelViewSet):
                 asset.amc_contracts.order_by('-id'), many=True).data,
         })
 
+    @action(detail=True, methods=['get'], url_path='procurement-invoice')
+    def procurement_invoice(self, request, pk=None):
+        asset = self.get_object()
+        invoice = (asset.procurement.get_current_invoice()
+                   if asset.procurement_id else None)
+        if invoice is None:
+            raise Http404("This Asset has no current Procurement invoice.")
+        content_type = (mimetypes.guess_type(invoice.file_name)[0]
+                        or 'application/octet-stream')
+        return FileResponse(
+            invoice.file.open('rb'), as_attachment=True,
+            filename=invoice.file_name, content_type=content_type)
+
 
 class ProcurementViewSet(viewsets.ModelViewSet):
     permission_classes = [HasRolePermission, NotOwnRecordsScope]
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "asset_create", "update": "asset_edit",
-                      "partial_update": "asset_edit", "destroy": "asset_delete"}
-    queryset = Procurement.objects.all().select_related('mode_of_purchase', 'vendor').order_by('-id')
+                      "partial_update": "asset_edit", "destroy": "asset_delete",
+                      "invoice": "asset_view"}
+    queryset = (Procurement.objects.all().select_related('mode_of_purchase', 'vendor')
+                .prefetch_related('invoice_versions').order_by('-id'))
     serializer_class = ProcurementSerializer
+
+    def get_serializer(self, *args, **kwargs):
+        """Normalize JSON-shaped fields carried by browser multipart requests."""
+        data = kwargs.get('data')
+        if data is not None and hasattr(data, 'getlist'):
+            normalized = {key: data.get(key) for key in data.keys()}
+            if 'asset_ids' in data:
+                normalized['asset_ids'] = data.getlist('asset_ids')
+            arrivals = data.get('arrivals')
+            if isinstance(arrivals, str):
+                try:
+                    normalized['arrivals'] = json.loads(arrivals)
+                except json.JSONDecodeError:
+                    normalized['arrivals'] = arrivals
+            kwargs['data'] = normalized
+        return super().get_serializer(*args, **kwargs)
+
+    def _cleanup_pending_invoice(self):
+        invoice = getattr(self, '_pending_invoice', None)
+        if invoice and invoice.file.name:
+            invoice.file.storage.delete(invoice.file.name)
+
+    def create(self, request, *args, **kwargs):
+        self._pending_invoice = None
+        try:
+            return super().create(request, *args, **kwargs)
+        except Exception:
+            self._cleanup_pending_invoice()
+            raise
+
+    def update(self, request, *args, **kwargs):
+        self._pending_invoice = None
+        try:
+            return super().update(request, *args, **kwargs)
+        except Exception:
+            self._cleanup_pending_invoice()
+            raise
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -228,11 +284,17 @@ class ProcurementViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         proc = serializer.save()
+        self._pending_invoice = getattr(serializer, 'saved_invoice', None)
         log_action(self.request, "Create", "Procurement", new_value=proc.invoice_number)
 
     def perform_update(self, serializer):
         proc = serializer.save()
+        self._pending_invoice = getattr(serializer, 'saved_invoice', None)
         log_action(self.request, "Update", "Procurement", new_value=proc.invoice_number)
+        if getattr(serializer, 'replaced_invoice', False):
+            message = f"Purchase invoice replaced for Procurement {proc.invoice_number}."
+            transaction.on_commit(lambda: _notify_it_managers(
+                message, link=f"/procurement/edit/{proc.pk}"))
 
     def perform_destroy(self, instance):
         """Archive rather than delete.
@@ -249,6 +311,18 @@ class ProcurementViewSet(viewsets.ModelViewSet):
         log_action(self.request, "Archive", "Procurement",
                    old_value=instance.invoice_number,
                    new_value=instance.archive_reason or "no reason given")
+
+    @action(detail=True, methods=['get'])
+    def invoice(self, request, pk=None):
+        procurement = self.get_object()
+        invoice = procurement.get_current_invoice()
+        if invoice is None:
+            raise Http404("This Procurement has no current invoice.")
+        content_type = (mimetypes.guess_type(invoice.file_name)[0]
+                        or 'application/octet-stream')
+        return FileResponse(
+            invoice.file.open('rb'), as_attachment=True,
+            filename=invoice.file_name, content_type=content_type)
 
 
 # ---------- Service Records ----------

@@ -1,4 +1,9 @@
+from pathlib import Path
+from uuid import uuid4
+
 from django.db import models
+
+from .storage import private_invoice_storage
 
 ASSET_STATUSES = ["Available", "Assigned", "Under Repair", "In Storage", "Sold", "Scrapped", "Lost"]
 ASSET_CONDITIONS = ["New", "Good", "Average", "Damaged", "Repair Required"]
@@ -42,6 +47,51 @@ class Procurement(models.Model):
 
     def __str__(self):
         return self.invoice_number
+
+    def get_current_invoice(self):
+        """Return the one current invoice, using prefetched versions when available."""
+        prefetched = getattr(self, '_prefetched_objects_cache', {}).get('invoice_versions')
+        if prefetched is not None:
+            return next((version for version in prefetched if version.is_current), None)
+        return self.invoice_versions.filter(is_current=True).first()
+
+
+def procurement_invoice_path(instance, filename):
+    """Use an unguessable server-controlled path under the private storage root."""
+    safe_name = Path(filename).name
+    nonce = uuid4().hex
+    return (f"procurements/{instance.procurement_id}/invoices/"
+            f"v{instance.version}/{nonce}-{safe_name}")
+
+
+class ProcurementInvoiceVersion(models.Model):
+    procurement = models.ForeignKey(
+        Procurement, on_delete=models.CASCADE, related_name='invoice_versions')
+    file = models.FileField(
+        upload_to=procurement_invoice_path, storage=private_invoice_storage)
+    file_name = models.CharField(max_length=255)
+    version = models.PositiveIntegerField()
+    is_current = models.BooleanField(default=True)
+    uploaded_by = models.ForeignKey(
+        'accounts.User', on_delete=models.SET_NULL, null=True, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-version']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['procurement', 'version'],
+                name='uniq_procurement_invoice_version'),
+            models.UniqueConstraint(
+                fields=['procurement'], condition=models.Q(is_current=True),
+                name='uniq_current_invoice_per_procurement'),
+            models.CheckConstraint(
+                condition=models.Q(version__gte=1),
+                name='procurement_invoice_version_positive'),
+        ]
+
+    def __str__(self):
+        return f"{self.procurement.invoice_number} invoice v{self.version}"
 
 
 class ProcurementAssetLink(models.Model):

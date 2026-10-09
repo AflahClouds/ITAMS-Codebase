@@ -182,9 +182,15 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Procurement invoices contain purchase evidence and are never served through the
+# unauthenticated development MEDIA_URL route. Authorized API actions stream them from
+# this private root instead (CHG-B6-01 ALR-003).
+PRIVATE_DOCUMENT_ROOT = BASE_DIR / 'private_documents'
+
 # Upload limits (25 MB, matching the reference system)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
+MAX_DOCUMENT_UPLOAD_SIZE = 25 * 1024 * 1024
 
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp'}
 ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx', 'xls', 'xlsx',

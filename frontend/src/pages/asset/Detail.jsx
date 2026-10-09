@@ -6,6 +6,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import AxiosInstance from '../../api/client';
+import { downloadProtectedFile } from '../../api/downloadProtectedFile';
 import MyMessage from '../../components/forms/Message';
 import { useAuth } from '../../auth/useAuth';
 
@@ -147,6 +148,18 @@ const AssetDetail = () => {
     }
   };
 
+  const downloadProcurementInvoice = async () => {
+    try {
+      await downloadProtectedFile(
+        asset.procurement_invoice.download_url,
+        asset.procurement_invoice.file_name,
+      );
+    } catch {
+      setMessage(<MyMessage messageText="The purchase invoice could not be downloaded."
+        messageColor="red" />);
+    }
+  };
+
   if (!asset) return <Typography sx={{ padding: '20px' }}>Loading...</Typography>;
 
   return (
@@ -194,7 +207,23 @@ const AssetDetail = () => {
             <Row label="Purchase Cost" value={asset.purchase_cost} />
             <Row label="Depreciation Rate" value={asset.depreciation_rate} />
             <Row label="Asset Life (years)" value={asset.asset_life} />
-            <Row label="Procurement Invoice" value={asset.procurement_details?.invoice_number} />
+            <Row label="Procurement Invoice Number" value={asset.procurement_details?.invoice_number} />
+            {asset.procurement_invoice ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', paddingTop: '8px' }}>
+                <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                  {asset.procurement_invoice.file_name} (v{asset.procurement_invoice.version})
+                </Typography>
+                <Button size="small" startIcon={<DownloadIcon />}
+                  aria-label="Download mapped purchase invoice"
+                  onClick={downloadProcurementInvoice}>
+                  Download invoice
+                </Button>
+              </Box>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ paddingTop: '8px' }}>
+                No purchase invoice attached.
+              </Typography>
+            )}
             {asset.barcode_url && (
               <Box sx={{ marginTop: '12px', textAlign: 'center' }}>
                 <img src={asset.barcode_url} alt={`Barcode ${asset.tag_number}`}

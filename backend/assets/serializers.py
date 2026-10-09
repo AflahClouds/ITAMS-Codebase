@@ -2,6 +2,7 @@ from datetime import date as date_cls
 
 from django.db import transaction
 from rest_framework import serializers
+from rest_framework.reverse import reverse
 
 from core.services import get_profile
 
@@ -17,6 +18,9 @@ from .models import (ASSET_CONDITIONS, ASSET_STATUSES, LIFECYCLE_MANAGED_STATUSE
                      AssetConditionLog, AssetDocument, AssetImage, AssetTransfer,
                      Procurement, ProcurementArrival, ProcurementAssetLink,
                      ServiceRecord)
+from .procurement_invoices import (InvoiceValidationError,
+                                   record_procurement_invoice,
+                                   validate_invoice_upload)
 from .service import close_all_open_service_records
 
 
@@ -69,6 +73,7 @@ class AssetSerializer(serializers.ModelSerializer):
     barcode_url = serializers.SerializerMethodField()
     images = AssetImageSerializer(many=True, read_only=True)
     documents = AssetDocumentSerializer(many=True, read_only=True)
+    procurement_invoice = serializers.SerializerMethodField()
 
     class Meta:
         model = Asset
@@ -85,6 +90,14 @@ class AssetSerializer(serializers.ModelSerializer):
         url = f"{settings.MEDIA_URL}{obj.barcode_path}"
         request = self.context.get('request')
         return request.build_absolute_uri(url) if request else url
+
+    def get_procurement_invoice(self, obj):
+        if obj.procurement_id is None:
+            return None
+        invoice = obj.procurement.get_current_invoice()
+        return _invoice_metadata(
+            invoice, self.context.get('request'),
+            'asset-procurement-invoice', obj.pk)
 
     def validate_status(self, value):
         if value not in ASSET_STATUSES:
@@ -271,6 +284,22 @@ class ProcurementLinkHistorySerializer(serializers.ModelSerializer):
                   'actor_name', 'previous_procurement', 'created')
 
 
+def _invoice_metadata(invoice, request, route_name, object_id):
+    """Project private invoice state without exposing a storage URL."""
+    if invoice is None:
+        return None
+    download_url = reverse(route_name, args=[object_id], request=request)
+    return {
+        'id': invoice.pk,
+        'file_name': invoice.file_name,
+        'version': invoice.version,
+        'uploaded_by_details': (
+            UserLiteSerializer(invoice.uploaded_by).data if invoice.uploaded_by else None),
+        'uploaded_at': invoice.uploaded_at,
+        'download_url': download_url,
+    }
+
+
 class ProcurementSerializer(serializers.ModelSerializer):
     mode_of_purchase_details = PurchaseModeSerializer(source='mode_of_purchase', read_only=True)
     vendor_details = VendorSerializer(source='vendor', read_only=True)
@@ -287,6 +316,8 @@ class ProcurementSerializer(serializers.ModelSerializer):
     link_reason = serializers.CharField(write_only=True, required=False,
                                         allow_blank=True, default="")
     link_history = ProcurementLinkHistorySerializer(many=True, read_only=True)
+    invoice_file = serializers.FileField(write_only=True, required=False)
+    current_invoice = serializers.SerializerMethodField()
 
     class Meta:
         model = Procurement
@@ -310,6 +341,18 @@ class ProcurementSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "A procurement must keep at least one asset linked to it.")
         return assets
+
+    def validate_invoice_file(self, upload):
+        try:
+            validate_invoice_upload(upload)
+        except InvoiceValidationError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+        return upload
+
+    def get_current_invoice(self, obj):
+        return _invoice_metadata(
+            obj.get_current_invoice(), self.context.get('request'),
+            'procurement-invoice', obj.pk)
 
     def validate(self, attrs):
         purchase = attrs.get('purchase_date') or getattr(self.instance, 'purchase_date', None)
@@ -376,6 +419,7 @@ class ProcurementSerializer(serializers.ModelSerializer):
                           "attested_by": actor})
 
     def create(self, validated_data):
+        invoice_file = validated_data.pop('invoice_file', None)
         assets = validated_data.pop('asset_ids', [])
         arrivals = validated_data.pop('arrivals', [])
         reason = validated_data.pop('link_reason', "") or "Recorded with the purchase"
@@ -385,9 +429,13 @@ class ProcurementSerializer(serializers.ModelSerializer):
             Asset.objects.filter(id__in=[a.id for a in assets]).update(procurement=procurement)
             self._record_arrivals(procurement, arrivals)
             self._record_links(procurement, assets, set(), reason)
+            self.saved_invoice = (record_procurement_invoice(
+                procurement, invoice_file, self._actor()) if invoice_file else None)
+            self.replaced_invoice = False
         return procurement
 
     def update(self, instance, validated_data):
+        invoice_file = validated_data.pop('invoice_file', None)
         assets = validated_data.pop('asset_ids', None)
         arrivals = validated_data.pop('arrivals', [])
         reason = validated_data.pop('link_reason', "") or "Purchase record edited"
@@ -406,6 +454,11 @@ class ProcurementSerializer(serializers.ModelSerializer):
                 Asset.objects.filter(id__in=asset_ids).update(procurement=instance)
                 self._record_arrivals(instance, arrivals)
                 self._record_links(instance, assets, previous, reason)
+
+            self.replaced_invoice = bool(
+                invoice_file and instance.invoice_versions.filter(is_current=True).exists())
+            self.saved_invoice = (record_procurement_invoice(
+                instance, invoice_file, self._actor()) if invoice_file else None)
 
         return instance
 

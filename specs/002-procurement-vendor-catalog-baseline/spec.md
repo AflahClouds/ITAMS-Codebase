@@ -72,6 +72,14 @@ catalog masters.
 
 **Supersedes**: None.
 
+**Superseded in part by**:
+`specs/013-procurement-invoice-attachment-change/spec.md` supersedes only the
+purchase-invoice-file requiredness in FR-018, AS-016, NC-010, SC-013, and the
+corresponding accepted-intent text. The later stakeholder decision makes the
+invoice file optional at Procurement creation and permits it to be added or
+replaced through Procurement edit; Procurement ownership, single storage,
+linked-Asset exposure, and retained versions remain unchanged.
+
 **Reciprocal Links**: `ROADMAP.md` entry B6 links to this Draft. Future changes
 after acceptance must be recorded in a new specification and linked here with
 `Extends`, `Supersedes`, or `Superseded by` metadata.

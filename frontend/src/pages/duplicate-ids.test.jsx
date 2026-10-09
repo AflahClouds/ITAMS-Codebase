@@ -7,7 +7,7 @@
  * component built from a documentation snippet is caught here rather than by someone
  * using a screen reader.
  */
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api/client', () => ({
@@ -38,10 +38,14 @@ const PAGES = [
 
 describe('form pages emit no duplicate element ids', () => {
   it.each(PAGES)('%s', async (_name, Page) => {
-    const { container } = render(<Page />);
-    // The pages load their master data on mount; let those resolve so the rendered
-    // tree is the one an operator would see.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // These pages fetch their master data on mount, so rendering leaves state updates
+    // in flight. An async `act` flushes them, which both settles the tree into the one
+    // an operator would see and keeps React from warning that updates escaped it — a
+    // bare timeout waits the same wall-clock time but lets the updates land outside.
+    let container;
+    await act(async () => {
+      ({ container } = render(<Page />));
+    });
 
     const ids = Array.from(container.querySelectorAll('[id]'))
       .map((node) => node.id)

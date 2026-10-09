@@ -11,8 +11,10 @@ import SelectForm from "../../components/forms/SelectForm";
 import MultiSelectForm from "../../components/forms/MultiSelectForm";
 import DateForm from "../../components/forms/DateForm";
 import ArrivalsForm from "../../components/forms/ArrivalsForm";
+import ProcurementInvoiceField from "../../components/forms/ProcurementInvoiceField";
 import MyMessage from "../../components/forms/Message";
 import Button from '@mui/material/Button';
+import { buildProcurementFormData } from './formData';
 
 const ProcurementEdit = () => {
 
@@ -29,6 +31,7 @@ const ProcurementEdit = () => {
   const [arrivals, setArrivals] = useState({})
   const [attested, setAttested] = useState(false)
   const [attestError, setAttestError] = useState(false)
+  const [invoiceFile, setInvoiceFile] = useState(null)
   const [myData, setMyData] = useState({
     asset_ids: [],
     mode_of_purchase: '',
@@ -142,7 +145,11 @@ const ProcurementEdit = () => {
       setAttestError(false);
 
       try {
-        await AxiosInstance.put(`/procurement/${MyId}/`, payload);
+        await AxiosInstance.put(
+          `/procurement/${MyId}/`,
+          buildProcurementFormData(payload, invoiceFile),
+          { headers: { 'Content-Type': 'multipart/form-data' } },
+        );
 
         setMessage(
           <MyMessage
@@ -286,6 +293,14 @@ const ProcurementEdit = () => {
             onAttestChange={(checked) => { setAttested(checked); setAttestError(false); }}
             showAttestError={attestError}
           />
+
+          <Box className={"FormArea"}>
+            <ProcurementInvoiceField
+              file={invoiceFile}
+              onChange={setInvoiceFile}
+              currentInvoice={myData.current_invoice}
+            />
+          </Box>
 
           <Button
             type="submit"

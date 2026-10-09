@@ -6,7 +6,7 @@ Report a finding when a plan edits the canonical living spec before verified tem
 
 Also report zero-Clarify wording, a direct-Codex portable handoff, default Work routing, optional review, parallel writers/review of a changing candidate, silent purpose/model changes, missing payload/HEAD/checklist/tag binding, project-policy overwrite, unjustified overlapping complexity, or a plan that makes the installed delivery step execute maintainer-only candidate/release work.
 
-Report a stage-evidence finding when a Chat repository handoff relies only on its own `Specify approved`, `Clarify approved`, `Scope accepted`, or `Authorization: combined-local-afk` assertion instead of accessible user decisions; when a repository-free skill omits its constitution, active feature pointer, persistent `plan.md`/`research.md`/`quickstart.md`/`tasks.md`, applicable data model/contracts, or Analyze/Implement/Converge evidence; or when a user-initiated specification change is treated as a Clarify-only continuation. A guide-raised question within the approved design may resume Clarify after affected artifact/checklist and authority revalidation.
+Report a stage-evidence finding when a Chat repository handoff relies only on its own `Specify approved`, `Clarify approved`, `Scope accepted`, or `Authorization: combined-local-afk` assertion instead of accessible user decisions; when a repository-free feature or artifact omits its constitution, active feature pointer, persistent `plan.md`/`research.md`/`quickstart.md`/`tasks.md`, applicable data model/contracts, or Analyze/Implement/Converge evidence; or when a user-initiated specification change is treated as a Clarify-only continuation. A guide-raised question within the approved design may resume Clarify after affected artifact/checklist and authority revalidation.
 
 In addition to the upstream read-only analysis, report a finding when:
 
@@ -21,9 +21,11 @@ In addition to the upstream read-only analysis, report a finding when:
 - tasks omit the single repository-wide closeout review covering both self-description and stale-material removal;
 - completed logical implementation groups have no safe Git checkpoint plan.
 
-Report a governance finding if the planned work develops directly on `main` (or the project's designated stable branch), treats implementation or combined local-AFK authority as development-push authorization, or treats development-push authorization as approval to merge or enable automatic merging. Local checkpoint commits are expected; push and promotion decisions defer to the guide and constitution and are not implementation findings.
+Report a governance finding if the planned work develops directly on `main` (or the project's designated stable branch), omits verified connected development destination/commit/ancestry checks or project-owned restrictions for automatic checkpoint pushes, blocks the sprint solely for pending ordinary pushes, or treats development pushes as approval to merge or enable automatic merging. Local checkpoint commits are expected; push and promotion decisions defer to the guide and constitution and are not implementation findings.
 
 Do not edit artifacts during analysis. End with exactly one machine-readable line:
 
 - `CLOUDS_ANALYSIS: clean` when no findings remain.
 - `CLOUDS_ANALYSIS: findings` when any finding remains.
+
+Report missing required checks or unjustified duplicate test work. Reuse adequate coverage; add or extend tests only when accepted requirements, governing project standards, or a concrete uncovered behavior or defect risk require them. Choose verification proportionate to consequences, preserving mandatory fail-before/permanent regressions and required project checks.

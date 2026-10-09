@@ -10,10 +10,13 @@
  * screen offering an action implies permission the reader does not have. Hiding the
  * control is presentation; the backend check remains the decision.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../api/client', () => ({ default: { get: vi.fn() } }));
+vi.mock('../../api/downloadProtectedFile', () => ({
+  downloadProtectedFile: vi.fn(),
+}));
 vi.mock('react-router', () => ({
   Link: ({ children, ...rest }) => <a {...rest}>{children}</a>,
 }));
@@ -24,6 +27,7 @@ vi.mock('../../auth/useAuth', () => ({
 }));
 
 import AxiosInstance from '../../api/client';
+import { downloadProtectedFile } from '../../api/downloadProtectedFile';
 import Procurement from './Procurement';
 
 const ROW = {
@@ -98,5 +102,20 @@ describe('Procurement row actions', () => {
 
     await waitFor(() =>
       expect(screen.queryByLabelText(/delete procurement/i)).not.toBeInTheDocument());
+  });
+
+  it('lets a read-only operator download the protected current invoice', async () => {
+    AxiosInstance.get.mockResolvedValue({ data: [{
+      ...ROW,
+      current_invoice: {
+        file_name: 'purchase.pdf', version: 1,
+        download_url: '/procurement/7/invoice/',
+      },
+    }] });
+    await renderWith(['asset_view']);
+
+    fireEvent.click(screen.getByLabelText('Download purchase invoice'));
+    expect(downloadProtectedFile).toHaveBeenCalledWith(
+      '/procurement/7/invoice/', 'purchase.pdf');
   });
 });
