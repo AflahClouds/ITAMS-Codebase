@@ -4,6 +4,10 @@
 **Date**: 2026-10-27
 **Spec**: [spec.md](spec.md)
 **Input**: Accepted six-fix specification, FR-001–FR-009, ALR-001–ALR-003, AS-001–AS-018.
+**Delivery**: Implemented, verified and independently reviewed on 2026-10-27;
+native run `dc44aeed` completed after same-reviewer R1 confirmation. All 22
+tasks are checked. Final metadata-only closeout confirmation remains pending;
+see [issue 07](issues/07-verification.md) for terminal and snapshot evidence.
 
 ## Summary
 

@@ -27,7 +27,7 @@ Alternatives considered: Stripping characters destroys business data; prepending
 ## Existing execution tools
 
 Decision: Use backend/Env/Scripts/python.exe and installed Node/npm CLI; request sandbox escalation for the Python launcher/Spec Kit as needed. Use the separately user-authorized isolated Spec Kit 1.0.13 environment under .clouds-install-source/runtimes/specify-1.0.13, preserving global CLI 1.2.0.
-Rationale: The sandbox cannot launch the Python base executable, while the existing elevated test run succeeds. The npm shim points to a missing roaming installation; node 'C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js' works. No installation or environment modification is required.
+Rationale: The sandbox cannot launch the Python base executable, while the existing elevated test run succeeds. The npm shim points to a missing roaming installation; node 'C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js' works. Application verification uses the existing production dependencies without reinstalling them. The separately approved isolated workflow CLI repair did install Spec Kit 1.0.13 under the ignored local runtime directory, preserving the global CLI and production stack.
 Alternatives considered: Altering global CLI 1.2.0 or bypassing the pinned reader would weaken the recorded workflow. The user approved the isolated compatible runtime after the missing-version blocker was demonstrated. No application dependencies were reinstalled. Preserve one retained process per long test run.
 
 All technical questions are resolved from checked-in evidence and verified local probes. No external research or new dependency choice is required.

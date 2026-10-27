@@ -31,7 +31,7 @@
 
 ## Notes
 
-- Specify review completed on 2026-10-27 against constitution 1.1.0, CONTEXT.md,
+- Initial Specify review completed on 2026-10-27 against constitution 1.1.0, CONTEXT.md,
   ADR-0001, the resolved project-override spec template, and the materially
   affected B6, B8, and B9 predecessor requirements.
 - 16/16 requirements-quality checks pass. These markers concern specification
@@ -43,7 +43,13 @@
 - Scope is the six Standards findings only. The separate Spec findings and
   unresolved user-manager privilege policy are explicitly excluded.
 - No mandatory before/after-Specify hook is registered. The optional
-  `speckit.agent-context.update` after-Specify hook is deferred; the guide
-  requires the planned-context update after planning. No plan exists yet.
-- Next gate: explicit user approval to enter Clarify. Clarify has not run.
-  Plan, tasks, local tickets, implementation, and sprint delivery have not begun.
+  `speckit.agent-context.update` after-Specify hook was deferred to the required
+  planned-context stage; the coordinator subsequently ran the supported updater
+  successfully, and the official block points to the retained feature-015 plan.
+- Current stage: both design approvals, final six-fix scope acceptance and the
+  authorized local sprint are recorded in spec.md. Native run `dc44aeed` completed
+  after clean implementation review and same-reviewer R1 confirmation; all 22
+  implementation/review tasks are checked. Separate delivery/test/snapshot
+  evidence lives in issues/07-verification.md. The 16/16 quality markers remain
+  unchanged and do not themselves certify implementation or tests. Final
+  metadata-only closeout confirmation by the same reviewer remains pending.
