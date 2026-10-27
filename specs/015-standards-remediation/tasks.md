@@ -54,9 +54,9 @@ Independent test: AS-011–013 through POST/upsert/PUT/PATCH/DELETE.
 Goal: Safe literal company/headings/cells/Transfer text with intended layout preserved.
 Independent test: AS-014–015 using generated report/Transfer documents.
 
-- [ ] T014 [US5] Add and observe failing actual PDF text and no-resource-load regressions in backend/core/tests_exports_standards.py, including public report/Transfer delivery and markup-like values in every user-text position.
-- [ ] T015 [US5] Escape user text at shared Paragraph boundaries in backend/core/exports.py while preserving application-owned formatting; remove superseded raw user-markup input paths. Covers FR-007, FR-009, ALR-001–003.
-- [ ] T016 [US5] Run focused green checks, inspect delivered document content using existing tools, and record terminal evidence plus a checkpoint in issues/05-literal-pdf.md.
+- [x] T014 [US5] Add and observe failing actual PDF text and no-resource-load regressions in backend/core/tests_exports_standards.py, including public report/Transfer delivery and markup-like values in every user-text position.
+- [x] T015 [US5] Escape user text at shared Paragraph boundaries in backend/core/exports.py while preserving application-owned formatting; remove superseded raw user-markup input paths. Covers FR-007, FR-009, ALR-001–003.
+- [x] T016 [US5] Run focused green checks, inspect delivered document content using existing tools, and record terminal evidence plus a checkpoint in issues/05-literal-pdf.md.
 
 ## Phase 8: User Story 6 — Literal Excel text (P2)
 
@@ -86,6 +86,7 @@ Only independent read-only discovery may be parallel when its benefit exceeds co
 Use US1 as the first independently green tracer bullet, then complete all six accepted slices (no reduction of scope). In each ticket: write/observe red tests, implement the smallest fix, run green checks, update evidence and tasks, and commit/push only that coherent slice under the verified development destination policy. Review the full frozen candidate after integrated checks; repair/re-review until clean. No deployment or main promotion.
 
 Guide-owned canonical review, safe temporary-artifact cleanup, routing restoration and post-cleanup checks occur after task-tracked convergence and are intentionally outside this ledger. The ratified historical-record preservation rule remains binding.
+
 
 
 

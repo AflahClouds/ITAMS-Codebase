@@ -1,6 +1,7 @@
 """Server-side PDF (reportlab) and Excel (openpyxl) builders."""
 import io
 from datetime import datetime
+from xml.sax.saxutils import escape
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -13,6 +14,11 @@ from reportlab.platypus import (Paragraph, SimpleDocTemplate, Spacer, Table,
                                 TableStyle)
 
 BRAND_BLUE = colors.HexColor("#01014b")
+
+
+def _literal(value):
+    """Business text never supplies ReportLab markup or resource instructions."""
+    return escape(str(value))
 
 
 def _footer(canvas, doc):
@@ -37,7 +43,7 @@ def build_table_pdf(title, headers, rows, company_name="Cloud Shoe Factory"):
                                  textColor=colors.white, fontSize=14, leading=18)
     cell_style = ParagraphStyle("Cell", parent=styles["Normal"], fontSize=7, leading=9)
 
-    banner = Table([[Paragraph(f"{company_name} — {title}", title_style)]],
+    banner = Table([[Paragraph(f"{_literal(company_name)} — {_literal(title)}", title_style)]],
                    colWidths=[doc.width])
     banner.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), BRAND_BLUE),
@@ -46,9 +52,9 @@ def build_table_pdf(title, headers, rows, company_name="Cloud Shoe Factory"):
         ("LEFTPADDING", (0, 0), (-1, -1), 10),
     ]))
 
-    data = [[Paragraph(f"<b>{h}</b>", cell_style) for h in headers]]
+    data = [[Paragraph(f"<b>{_literal(h)}</b>", cell_style) for h in headers]]
     for row in rows:
-        data.append([Paragraph(str(cell if cell is not None else "-"), cell_style)
+        data.append([Paragraph(_literal(cell if cell is not None else "-"), cell_style)
                      for cell in row])
 
     table = Table(data, repeatRows=1, colWidths=[doc.width / len(headers)] * len(headers))
@@ -90,7 +96,7 @@ def build_transfer_pdf(transfer, company_name="Cloud Shoe Factory"):
     value = ParagraphStyle("Value", parent=styles["Normal"], fontSize=10)
 
     asset = transfer.asset
-    banner = Table([[Paragraph(f"{company_name}<br/>Asset Custody Transfer Document",
+    banner = Table([[Paragraph(f"{_literal(company_name)}<br/>Asset Custody Transfer Document",
                                title_style)]], colWidths=[doc.width])
     banner.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), BRAND_BLUE),
@@ -100,7 +106,7 @@ def build_transfer_pdf(transfer, company_name="Cloud Shoe Factory"):
     ]))
 
     def row(name, val):
-        return [Paragraph(name, label), Paragraph(str(val or "-"), value)]
+        return [Paragraph(_literal(name), label), Paragraph(_literal(val or "-"), value)]
 
     details = Table([
         row("Transfer ID", f"TRF-{transfer.id:05d}"),
