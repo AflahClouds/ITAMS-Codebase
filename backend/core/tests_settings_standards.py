@@ -46,4 +46,3 @@ class SettingMutationTests(TestCase):
                 self.assertEqual(self.mutate(method).status_code, 403)
         self.setting.refresh_from_db()
         self.assertEqual(self.setting.value, 'old-secret')
-

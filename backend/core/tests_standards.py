@@ -52,6 +52,3 @@ class DirectAuditReadTests(TestCase):
         self.assertEqual(denied.get('/audit/').status_code, 403)
         self.assertEqual(AuditLog.objects.count(), before + 1)
         self.assertEqual(AuditLog.objects.latest('pk').action, 'Audit Access Denied')
-
-
-
