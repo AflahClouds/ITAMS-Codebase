@@ -22,6 +22,8 @@ const Masters = () => {
   const [rows, setRows] = useState([]);
   const [name, setName] = useState('');
   const [extra, setExtra] = useState('');
+  const [brands, setBrands] = useState([]);
+  const [brand, setBrand] = useState('');
   const [message, setMessage] = useState(null);
 
   const master = MASTERS[tab];
@@ -37,15 +39,23 @@ const Masters = () => {
     setRows([]);
     setName('');
     setExtra('');
+    setBrand('');
   };
 
   useEffect(() => { load(); }, [tab]);
+  useEffect(() => {
+    if (master.key === 'model') AxiosInstance.get('/brand/').then((res) => setBrands(res.data));
+  }, [master.key]);
 
   const add = async (event) => {
     event.preventDefault();
     if (!name.trim()) return;
     const payload = { [master.nameField]: name.trim() };
     if (master.extraField) payload[master.extraField] = extra.trim();
+    if (master.key === 'model') {
+      if (!brand) return;
+      payload.brand = Number(brand);
+    }
     try {
       await AxiosInstance.post(master.endpoint, payload);
       setName(''); setExtra('');
@@ -94,6 +104,15 @@ const Masters = () => {
               <TextField size="small" label={master.extraLabel} sx={{ flexGrow: 1 }}
                 value={extra} onChange={(e) => setExtra(e.target.value)} />
             )}
+            {master.key === 'model' && (
+              <Box component="label">
+                Brand
+                <select aria-label="Brand" required value={brand} onChange={(e) => setBrand(e.target.value)}>
+                  <option value="">Select Brand</option>
+                  {brands.map((item) => <option key={item.id} value={item.id}>{item.brand_name}</option>)}
+                </select>
+              </Box>
+            )}
             <Button type="submit" variant="contained">Add</Button>
           </Box>
         </form>
@@ -104,6 +123,7 @@ const Masters = () => {
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontWeight: 'bold' }}>Name</TableCell>
+              {master.key === 'model' && <TableCell sx={{ fontWeight: 'bold' }}>Brand</TableCell>}
               {master.extraField && <TableCell sx={{ fontWeight: 'bold' }}>{master.extraLabel}</TableCell>}
               <TableCell align="right" sx={{ fontWeight: 'bold' }}>Actions</TableCell>
             </TableRow>
@@ -112,6 +132,7 @@ const Masters = () => {
             {rows.map((row) => (
               <TableRow key={row.id}>
                 <TableCell>{row[master.nameField]}</TableCell>
+                {master.key === 'model' && <TableCell>{brands.find((item) => item.id === row.brand)?.brand_name || '-'}</TableCell>}
                 {master.extraField && <TableCell>{row[master.extraField] || '-'}</TableCell>}
                 <TableCell align="right">
                   <IconButton size="small" color="error" onClick={() => remove(row)}>

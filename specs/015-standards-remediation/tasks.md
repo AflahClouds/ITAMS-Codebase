@@ -7,7 +7,7 @@
 
 ## Phase 1: Feature Setup
 
-- [ ] T001 Verify accepted spec/checklist/branch identity and preserve unrelated work in specs/015-standards-remediation/issues/01-model-brand.md before writing application code.
+- [x] T001 Verify accepted spec/checklist/branch identity and preserve unrelated work in specs/015-standards-remediation/issues/01-model-brand.md before writing application code.
 
 ## Phase 2: Foundational
 
@@ -18,9 +18,9 @@ No new framework, schema, or shared foundational implementation is needed. Each 
 Goal: Brand-backed Model creation/read/correction and an operational maintenance form.
 Independent test: AS-001–003 API and UI journey.
 
-- [ ] T002 [US1] Add and observe failing AS-001–003 API regressions in backend/catalog/tests_standards.py and Brand selection/display tests in frontend/src/pages/admin/Masters.test.jsx; prove missing/invalid/null Brand handling and stable legacy Model IDs/references.
-- [ ] T003 [US1] Expose/validate Model Brand in backend/catalog/serializers.py and add Brand selection/display in frontend/src/pages/admin/Masters.jsx; new creation requires one valid Brand, explicit clear is rejected, historical nullable rows remain readable and correctable. Covers FR-001, ALR-001–003.
-- [ ] T004 [US1] Run focused API/UI green checks, remove the superseded unbranded write path from backend/catalog/serializers.py, and record terminal evidence plus a coherent development checkpoint in issues/01-model-brand.md.
+- [x] T002 [US1] Add and observe failing AS-001–003 API regressions in backend/catalog/tests_standards.py and Brand selection/display tests in frontend/src/pages/admin/Masters.test.jsx; prove missing/invalid/null Brand handling and stable legacy Model IDs/references.
+- [x] T003 [US1] Expose/validate Model Brand in backend/catalog/serializers.py and add Brand selection/display in frontend/src/pages/admin/Masters.jsx; new creation requires one valid Brand, explicit clear is rejected, historical nullable rows remain readable and correctable. Covers FR-001, ALR-001–003.
+- [x] T004 [US1] Run focused API/UI green checks, remove the superseded unbranded write path from backend/catalog/serializers.py, and record terminal evidence plus a coherent development checkpoint in issues/01-model-brand.md.
 
 ## Phase 4: User Story 2 — Normalized identity conflicts (P1)
 
@@ -86,3 +86,4 @@ Only independent read-only discovery may be parallel when its benefit exceeds co
 Use US1 as the first independently green tracer bullet, then complete all six accepted slices (no reduction of scope). In each ticket: write/observe red tests, implement the smallest fix, run green checks, update evidence and tasks, and commit/push only that coherent slice under the verified development destination policy. Review the full frozen candidate after integrated checks; repair/re-review until clean. No deployment or main promotion.
 
 Guide-owned canonical review, safe temporary-artifact cleanup, routing restoration and post-cleanup checks occur after task-tracked convergence and are intentionally outside this ledger. The ratified historical-record preservation rule remains binding.
+

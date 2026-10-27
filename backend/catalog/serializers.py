@@ -16,9 +16,11 @@ class BrandSerializer(serializers.ModelSerializer):
 
 
 class ModelSerializer(serializers.ModelSerializer):
+    brand = serializers.PrimaryKeyRelatedField(queryset=Brand.objects.all(), allow_null=False)
+
     class Meta:
         model = Model
-        fields = ('id', 'model_name')
+        fields = ('id', 'model_name', 'brand')
 
 
 class PurchaseModeSerializer(serializers.ModelSerializer):
