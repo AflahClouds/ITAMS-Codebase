@@ -45,9 +45,9 @@ Independent test: AS-008–010 including empty results and injected audit failur
 Goal: Exactly one private audit for every supported Setting mutation, atomic on failure.
 Independent test: AS-011–013 through POST/upsert/PUT/PATCH/DELETE.
 
-- [ ] T011 [US4] Add and observe failing all-method Setting audit, injected audit-failure rollback and permission/privacy tests in backend/core/tests_standards.py.
-- [ ] T012 [US4] Add minimized mutation audit hooks in backend/core/views.py, preserve POST/upsert and avoid duplicate logs; no Setting secret values and no unaudited inherited mutation remain. Covers FR-005–006, ALR-001–003.
-- [ ] T013 [US4] Run focused green checks and record terminal evidence plus a checkpoint in issues/04-setting-audits.md.
+- [x] T011 [US4] Add and observe failing all-method Setting audit, injected audit-failure rollback and permission/privacy tests in backend/core/tests_standards.py.
+- [x] T012 [US4] Add minimized mutation audit hooks in backend/core/views.py, preserve POST/upsert and avoid duplicate logs; no Setting secret values and no unaudited inherited mutation remain. Covers FR-005–006, ALR-001–003.
+- [x] T013 [US4] Run focused green checks and record terminal evidence plus a checkpoint in issues/04-setting-audits.md.
 
 ## Phase 7: User Story 5 — Literal PDF text (P2)
 
@@ -86,6 +86,7 @@ Only independent read-only discovery may be parallel when its benefit exceeds co
 Use US1 as the first independently green tracer bullet, then complete all six accepted slices (no reduction of scope). In each ticket: write/observe red tests, implement the smallest fix, run green checks, update evidence and tasks, and commit/push only that coherent slice under the verified development destination policy. Review the full frozen candidate after integrated checks; repair/re-review until clean. No deployment or main promotion.
 
 Guide-owned canonical review, safe temporary-artifact cleanup, routing restoration and post-cleanup checks occur after task-tracked convergence and are intentionally outside this ledger. The ratified historical-record preservation rule remains binding.
+
 
 
 

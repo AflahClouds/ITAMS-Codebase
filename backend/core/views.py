@@ -104,6 +104,17 @@ class SettingViewSet(viewsets.ModelViewSet):
     queryset = Setting.objects.all().order_by('key')
     serializer_class = SettingSerializer
 
+    def perform_update(self, serializer):
+        old_key = serializer.instance.key
+        serializer.save()
+        log_action(self.request, 'Update Setting', 'Settings',
+                   old_value=old_key, new_value=serializer.instance.key)
+
+    def perform_destroy(self, instance):
+        key = instance.key
+        instance.delete()
+        log_action(self.request, 'Delete Setting', 'Settings', old_value=key)
+
     def create(self, request, *args, **kwargs):
         """Upsert by key so the settings page can save key/value pairs directly."""
         key = request.data.get('key')
