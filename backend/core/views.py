@@ -69,7 +69,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
     def get_queryset(self):
-        return self._filtered()[:AUDIT_VIEW_LIMIT]
+        return self._filtered()
 
     def list(self, request, *args, **kwargs):
         """Disclose the limit and any omission rather than truncating silently.
@@ -79,13 +79,21 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         entries, and how many were left out.
         """
         total = self._filtered().count()
-        rows = self.get_serializer(self.get_queryset(), many=True).data
+        rows = self.get_serializer(self.get_queryset()[:AUDIT_VIEW_LIMIT], many=True).data
+        log_action(request, 'Audit Access', 'Audit', new_value='List Audit Trail')
         return Response({
             "limit": AUDIT_VIEW_LIMIT,
             "total": total,
             "omitted": max(0, total - AUDIT_VIEW_LIMIT),
             "results": rows,
         })
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = self.get_serializer(instance).data
+        log_action(request, 'Audit Access', 'Audit',
+                   new_value=f'Read AuditLog {instance.pk}')
+        return Response(data)
 
 
 # ---------- Settings ----------

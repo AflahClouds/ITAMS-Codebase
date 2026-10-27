@@ -36,9 +36,9 @@ Independent test: AS-004–007 across all five master types.
 Goal: One private access record per successful list/filter/detail read, failing closed.
 Independent test: AS-008–010 including empty results and injected audit failure.
 
-- [ ] T008 [US3] Add and observe failing list/filter/empty/retrieve and audit-failure integration tests in backend/core/tests_standards.py; verify existing denial, IP privacy, omission disclosure and no recursive/payload copying.
-- [ ] T009 [US3] Audit successful direct reads in backend/core/views.py, using an unsliced detail queryset while retaining the list limit/envelope; required audit failure exposes no protected content. Covers FR-004, FR-006, ALR-001–003.
-- [ ] T010 [US3] Run focused green checks, remove the old unaudited read behavior in backend/core/views.py, and record terminal evidence plus a checkpoint in issues/03-audit-reads.md.
+- [x] T008 [US3] Add and observe failing list/filter/empty/retrieve and audit-failure integration tests in backend/core/tests_standards.py; verify existing denial, IP privacy, omission disclosure and no recursive/payload copying.
+- [x] T009 [US3] Audit successful direct reads in backend/core/views.py, using an unsliced detail queryset while retaining the list limit/envelope; required audit failure exposes no protected content. Covers FR-004, FR-006, ALR-001–003.
+- [x] T010 [US3] Run focused green checks, remove the old unaudited read behavior in backend/core/views.py, and record terminal evidence plus a checkpoint in issues/03-audit-reads.md.
 
 ## Phase 6: User Story 4 — Setting mutation accountability (P1)
 
@@ -86,5 +86,6 @@ Only independent read-only discovery may be parallel when its benefit exceeds co
 Use US1 as the first independently green tracer bullet, then complete all six accepted slices (no reduction of scope). In each ticket: write/observe red tests, implement the smallest fix, run green checks, update evidence and tasks, and commit/push only that coherent slice under the verified development destination policy. Review the full frozen candidate after integrated checks; repair/re-review until clean. No deployment or main promotion.
 
 Guide-owned canonical review, safe temporary-artifact cleanup, routing restoration and post-cleanup checks occur after task-tracked convergence and are intentionally outside this ledger. The ratified historical-record preservation rule remains binding.
+
 
 
