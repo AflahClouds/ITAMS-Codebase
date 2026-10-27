@@ -63,9 +63,9 @@ Independent test: AS-014–015 using generated report/Transfer documents.
 Goal: User strings remain literal and non-string values keep their types.
 Independent test: AS-016–018 by reopening exported workbooks.
 
-- [ ] T017 [US6] Add and observe failing XLSX regressions in backend/core/tests_exports_standards.py for =1+1, +, -, @ strings, headings/company fields and typed 0/-1/bool/date/null values, including public delivery.
-- [ ] T018 [US6] Mark string cells explicitly as text in backend/core/exports.py without modifying their visible values or non-string types; remove superseded raw formula-promoting string writes. Covers FR-008–009, ALR-001–003.
-- [ ] T019 [US6] Run focused green checks and record terminal evidence plus a checkpoint in issues/06-literal-excel.md.
+- [x] T017 [US6] Add and observe failing XLSX regressions in backend/core/tests_exports_standards.py for =1+1, +, -, @ strings, headings/company fields and typed 0/-1/bool/date/null values, including public delivery.
+- [x] T018 [US6] Mark string cells explicitly as text in backend/core/exports.py without modifying their visible values or non-string types; remove superseded raw formula-promoting string writes. Covers FR-008–009, ALR-001–003.
+- [x] T019 [US6] Run focused green checks and record terminal evidence plus a checkpoint in issues/06-literal-excel.md.
 
 ## Final Phase: Verification and Pre-closeout Review
 
@@ -86,6 +86,7 @@ Only independent read-only discovery may be parallel when its benefit exceeds co
 Use US1 as the first independently green tracer bullet, then complete all six accepted slices (no reduction of scope). In each ticket: write/observe red tests, implement the smallest fix, run green checks, update evidence and tasks, and commit/push only that coherent slice under the verified development destination policy. Review the full frozen candidate after integrated checks; repair/re-review until clean. No deployment or main promotion.
 
 Guide-owned canonical review, safe temporary-artifact cleanup, routing restoration and post-cleanup checks occur after task-tracked convergence and are intentionally outside this ledger. The ratified historical-record preservation rule remains binding.
+
 
 
 

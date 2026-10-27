@@ -4,14 +4,16 @@ import io
 import re
 import zlib
 from types import SimpleNamespace
+from datetime import date, datetime
 from unittest.mock import patch
 
 from django.test import TestCase
+from openpyxl import load_workbook
 
 from accounts.models import Department
 from assets.models import AssetTransfer
 from assets.tests_b6_conformance import _asset, _catalog
-from .exports import build_table_pdf, build_transfer_pdf
+from .exports import build_excel, build_table_pdf, build_transfer_pdf
 from .models import Setting
 from .tests_b8_conformance import _client
 
@@ -48,7 +50,7 @@ class LiteralPdfTests(TestCase):
         text = ''.join(pdf_text(data).split())
         for value in values:
             self.assertIn(''.join(value.split()), text)
-        self.assertIn('PreparedBy', text) if 'AssetCustodyTransferDocument' not in text else self.assertIn('AuthorizedBy', text)
+        self.assertIn('AuthorizedBy' if 'AssetCustodyTransferDocument' in text else 'PreparedBy', text)
 
     def test_shared_pdf_preserves_company_title_headers_and_cells(self):
         values = ['<b>broken', 'A & B', '<i>literal</i>', '<img src="https://example.invalid/probe.png"/>']
@@ -100,3 +102,43 @@ class LiteralPdfTests(TestCase):
         denied, _ = _client('literal-denied', ())
         self.assertEqual(denied.get('/reports/register/export/pdf/').status_code, 403)
         self.assertEqual(denied.get(f'/transfer/{transfer.pk}/document/').status_code, 403)
+
+
+class LiteralExcelTests(TestCase):
+    def test_shared_workbook_preserves_literal_strings_and_nonstring_types(self):
+        strings = ['=1+1', '+x', '-x', '@x']
+        typed = [0, -1, True, False, date(2026, 10, 27), datetime(2026, 10, 27, 12, 30), None]
+        rows = [strings + typed]
+        workbook = load_workbook(build_excel('=Title', strings + list(range(len(typed))), rows, company_name='=Company'))
+        sheet = workbook.active
+        self.assertEqual(sheet.cell(1, 1).value, '=Company — =Title')
+        self.assertEqual(sheet.cell(1, 1).data_type, 's')
+        for index, text in enumerate(strings, start=1):
+            for row in (2, 3):
+                self.assertEqual(sheet.cell(row, index).value, text)
+                self.assertEqual(sheet.cell(row, index).data_type, 's')
+        for index, value in enumerate(typed, start=5):
+            cell = sheet.cell(3, index)
+            expected = datetime.combine(value, datetime.min.time()) if type(value) is date else value
+            self.assertEqual(cell.value, expected)
+            self.assertEqual(cell.data_type, 'b' if isinstance(value, bool) else 'd' if isinstance(value, (date, datetime)) else 'n')
+
+    def test_public_delivered_workbook_preserves_strings_order_and_permission(self):
+        client, _ = _client('excel-exporter', ('report_access',))
+        cat = _catalog()
+        strings = ['=1+1', '+x', '-x', '@x']
+        for index, value in enumerate(strings):
+            _asset(f'XLSX-{index}', cat, name=value)
+        Setting.set('company_name', '=Company')
+        response = client.get('/reports/register/export/excel/')
+        self.assertEqual(response.status_code, 200)
+        sheet = load_workbook(io.BytesIO(delivered(response))).active
+        self.assertEqual(sheet.cell(1, 1).value, '=Company — Asset Register Report')
+        self.assertEqual(sheet.cell(1, 1).data_type, 's')
+        headers = [cell.value for cell in sheet[2]]
+        name_index = headers.index('Name') + 1
+        names = [sheet.cell(row, name_index) for row in range(3, 7)]
+        self.assertEqual([cell.value for cell in names], strings)
+        self.assertTrue(all(cell.data_type == 's' for cell in names))
+        denied, _ = _client('excel-denied', ())
+        self.assertEqual(denied.get('/reports/register/export/excel/').status_code, 403)

@@ -157,8 +157,14 @@ def build_excel(title, headers, rows, company_name="Cloud Shoe Factory"):
     ws = wb.active
     ws.title = title[:31]
 
+    def write(row, column, value):
+        cell = ws.cell(row=row, column=column, value=value)
+        if isinstance(value, str):
+            cell.data_type = 's'
+        return cell
+
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max(len(headers), 1))
-    banner = ws.cell(row=1, column=1, value=f"{company_name} — {title}")
+    banner = write(1, 1, f"{company_name} — {title}")
     banner.font = Font(bold=True, size=13, color="FFFFFF")
     banner.fill = PatternFill("solid", fgColor="01014B")
     banner.alignment = Alignment(horizontal="left", vertical="center")
@@ -166,13 +172,13 @@ def build_excel(title, headers, rows, company_name="Cloud Shoe Factory"):
 
     header_fill = PatternFill("solid", fgColor="E8EAF6")
     for col, header in enumerate(headers, start=1):
-        cell = ws.cell(row=2, column=col, value=header)
+        cell = write(2, col, header)
         cell.font = Font(bold=True)
         cell.fill = header_fill
 
     for r, row in enumerate(rows, start=3):
         for c, val in enumerate(row, start=1):
-            ws.cell(row=r, column=c, value=val)
+            write(r, c, val)
 
     for col in range(1, len(headers) + 1):
         longest = len(str(headers[col - 1]))
