@@ -19,4 +19,3 @@
 
 
 - Evidence 2026-10-27: PDF red 2 tests failed with3 parse errors and3 resource-fetch/literal failures; isolated every-Transfer-detail test also failed unclosed markup. Green LiteralPdfTests 3/3 exit0. Tests decode actual compressed PDF text streams using stdlib only; public report and Transfer FileResponses contain literal company/name/category/remark text, all Transfer detail positions tested, app signature labels/layout strings retained, ImageReader never invoked, denied exports403. Every shared Paragraph boundary now escapes business text while app-owned bold and line breaks remain. No dependency changes or network/file resource loads; visual/browser walkthrough not performed.
-

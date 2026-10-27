@@ -19,4 +19,3 @@
 
 
 - Evidence 2026-10-27: catalog identity red run 7 tests produced 11 expected conflict/server errors across five masters and Brand reassignment; isolated exact duplicate returned 400 but audit count 0 != 1. Production implementation normalizes before lookup, excludes self, scopes Model by Brand, retains ordinary field validators, catches only named/exact unique identity constraints and audits after savepoint rollback. Green catalog.tests_standards: 10/10, exit 0, including all-five race rollback, rejected audit failure and unrelated IntegrityError remaining 500. No model/schema changes. US1 checkpoint 300aff4 pushed normally after one review-timeout retry; no active publication process.
-

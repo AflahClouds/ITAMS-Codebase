@@ -19,4 +19,3 @@
 
 
 - Evidence 2026-10-27: shared workbook red stored company formula-like text as type f instead of s; public export independently failed same type assertion after correcting the fixture's existing Report title. Green core.tests_exports_standards 5/5 exit0. Explicit text type applies only to string-valued banner/header/data cells; exact =1+1/+x/-x/@x retained without apostrophes. Reopened workbooks preserve zero/-1 numeric, bool, date/datetime and null cells; public row order and permission denial verified. Existing dependencies only; no CSV changes.
-

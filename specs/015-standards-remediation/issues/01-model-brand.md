@@ -19,4 +19,3 @@
 
 
 - Evidence: branch/HEAD verified as codex/015-standards-remediation at 84f019b; requirements checklist 16/16. API red: catalog.tests_standards 4 tests, missing Brand retention/validation failures; legacy correction independently failed None != Brand after seeded fixture correction. UI red: Masters.test.jsx 1 failed, missing Brand selector. Green: same API 4/4 and UI 1/1, exit 0. Commands use backend Env Python manage.py test catalog.tests_standards --noinput and frontend npm CLI test -- src/pages/admin/Masters.test.jsx --maxWorkers=1 --no-file-parallelism. No schema change; nullable legacy storage retained. Completed 2026-10-27.
-

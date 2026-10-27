@@ -19,4 +19,3 @@
 
 
 - Evidence 2026-10-27: pre-fix tests demonstrated missing PUT/PATCH/DELETE audits and successful mutations despite injected log failure (200/204 instead of500); existing POST/upsert privacy behavior passed. Green core.tests_settings_standards: 3/3, exit0; every create/upsert/PUT/PATCH/DELETE audited exactly once, no old/new secret values, all methods roll back on injected audit failure, non-Admin methods403. Existing request transaction remains the atomic boundary. No schema/dependency changes.
-

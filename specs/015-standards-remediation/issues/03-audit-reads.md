@@ -19,4 +19,3 @@
 
 
 - Evidence 2026-10-27: core.tests_standards red included missing list/filter/empty access audits (count1 !=2), broken detail404, and audit-failure disclosure200. Green DirectAuditReadTests 3/3, exit0: exactly-one minimized audit, trusted-peer IP, no copied event contents, denial audit and 1000-row cap/omission. Detail now uses unsliced queryset; list alone limits rows. Required log failure propagates before Response. Setting regression class retained separately in tests_settings_standards.py for its next slice.
-
