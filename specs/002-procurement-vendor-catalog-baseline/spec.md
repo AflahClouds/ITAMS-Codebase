@@ -72,6 +72,10 @@ catalog masters.
 
 **Supersedes**: None.
 
+**Extended by**: `specs/015-standards-remediation/spec.md` (Draft) repairs
+Model/Brand maintenance and normalized master-identity conflict handling;
+the baseline requirement and acceptance content remains unchanged.
+
 **Superseded in part by**:
 `specs/013-procurement-invoice-attachment-change/spec.md` supersedes only the
 purchase-invoice-file requiredness in FR-018, AS-016, NC-010, SC-013, and the

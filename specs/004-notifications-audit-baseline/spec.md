@@ -87,6 +87,10 @@ surface cannot safely omit.
 
 **Supersedes**: None.
 
+**Extended by**: `specs/015-standards-remediation/spec.md` (Draft) repairs
+required audit coverage for direct Audit Trail reads and administrative
+Setting mutations without changing existing access or privacy requirements.
+
 **Reciprocal Links**: `ROADMAP.md` reserves
 `specs/004-notifications-audit-baseline/` for B8. The roadmap entry is not
 edited by this specification run because it already contains that path and has

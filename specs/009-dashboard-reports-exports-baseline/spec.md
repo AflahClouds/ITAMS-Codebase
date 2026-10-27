@@ -41,6 +41,10 @@ durable feature directory `specs/009-dashboard-reports-exports-baseline/`.
 prospective standard filters, written definitions, protected export parity,
 parseable values, branding correction, and non-truncating delivery behavior.
 
+**Also extended by**: `specs/015-standards-remediation/spec.md` (Draft) adds
+literal-text safety for PDF and Excel exports without changing report
+calculations, visibility, or the separate export-parity scope.
+
 **Reciprocal Links**: `ROADMAP.md` already reserves
 `specs/009-dashboard-reports-exports-baseline/` for B9 and must link the created
 directory when the B9 row moves to `R3 — draft review`. After this Draft is

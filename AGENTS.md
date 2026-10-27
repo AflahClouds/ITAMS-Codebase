@@ -90,5 +90,7 @@ Use native builder/reviewer subagents and completion-aware waits. Keep the root 
 - Not verified yet. Discover setup, fast checks, full tests, lint/format, build/run, and applicable operation commands from checked-in sources. Record each only after verification; mark unavailable or inapplicable commands explicitly.
 
 <!-- SPECKIT START -->
-<!-- Managed by the official Spec Kit agent-context extension. -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at specs/015-standards-remediation/plan.md
 <!-- SPECKIT END -->
