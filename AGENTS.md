@@ -69,8 +69,14 @@ Use native builder/reviewer subagents and completion-aware waits. Keep the root 
 
 ## Project context
 
-- Purpose and documentation entry point: repository README when available; Codex establishes it from the accepted business goal.
-- Code and operating documentation: not established yet; link relevant entry points as they become available.
+- Purpose: IT Asset Management System covering procurement, Asset custody,
+  Checkout, Assignment, Transfer, Service Records, Warranty/AMC and reporting.
+  Read `CONTEXT.md` for authoritative language and `docs/adr/` for decisions.
+  No root README exists; `frontend/README.md` describes the client and checks,
+  and `specs/README.md` describes durable feature/issue organization.
+- Code entry points: `backend/itams/{settings,urls}.py`, `backend/manage.py`,
+  and `frontend/src/App.jsx`. Feature 015 validation instructions and evidence
+  are in `specs/015-standards-remediation/quickstart.md` and `issues/01–07`.
 
 ## Project authority
 
@@ -78,16 +84,38 @@ Use native builder/reviewer subagents and completion-aware waits. Keep the root 
 
 ## GitHub repository
 
-- Full repository name: not verified yet; discover from origin when available.
+- Verified existing repository: `AflahClouds/ITAMS-Codebase`, origin
+  `https://github.com/AflahClouds/ITAMS-Codebase.git`. Connected GitHub account
+  `AflahClouds` (228531868) matches the repository owner; repository 1411560036
+  reports admin/push access. Feature 015 publishes ordinary checkpoints only to
+  `refs/heads/codex/015-standards-remediation`; this grants no main promotion.
 - New repositories requested through this workflow: private, under `Cloud-Shoes-LLP`; do not alter an existing remote without authorization.
 
 ## Technology envelope
 
-- Not established yet. Discover and preserve an existing stack from checked-in evidence; for greenfield work, recommend one and obtain approval before implementation. Record the approved language/runtime, framework, package manager, data store, tests, architecture/deployment, and material dependencies here.
+- Preserve the checked-in Django/DRF backend and React/Vite frontend. Existing
+  backend environment records Python 3.14.4; `backend/requirements.txt` pins
+  Django 6.0.5, DRF 3.17.1, ReportLab and openpyxl. SQLite and
+  `ATOMIC_REQUESTS` are configured in `backend/itams/settings.py`.
+- Frontend uses React 19, Material UI, npm/package-lock, Vitest, jsdom and
+  Testing Library. Backend coverage uses Django tests and DRF APIClient.
+  Feature 015 adds no application dependency or schema migration. Deployment
+  configuration and production operating commands remain unverified.
 
 ## Repository commands
 
-- Not verified yet. Discover setup, fast checks, full tests, lint/format, build/run, and applicable operation commands from checked-in sources. Record each only after verification; mark unavailable or inapplicable commands explicitly.
+- From `backend/`, use `.\Env\Scripts\python.exe manage.py test --noinput`
+  for the full isolated test suite; focused feature-015 labels are
+  `catalog.tests_standards`, `core.tests_standards`,
+  `core.tests_settings_standards` and `core.tests_exports_standards`.
+  This host requires sandbox escalation to launch that existing Python.
+- From `frontend/`, the verified npm entry point is
+  `node 'C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js'` because the
+  ordinary npm shim points to a missing roaming install. Append
+  `test -- --maxWorkers=1 --no-file-parallelism --testTimeout=60000`,
+  `run lint`, or `run build`; all are required delivery checks.
+- Fresh dependency installation, standalone format, local dev-server and
+  production operation commands have not been verified in this delivery.
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,

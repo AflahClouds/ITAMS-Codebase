@@ -69,9 +69,9 @@ Independent test: AS-016–018 by reopening exported workbooks.
 
 ## Final Phase: Verification and Pre-closeout Review
 
-- [ ] T020 Run the complete backend suite and relevant frontend tests/lint/build from quickstart.md, retaining each long-running process handle until terminal exit, and record actual counts/flags/exits in issues/07-verification.md. If model declarations change, verify migration drift with --check --dry-run. Covers SC-001–005.
+- [x] T020 Run the complete backend suite and relevant frontend tests/lint/build from quickstart.md, retaining each long-running process handle until terminal exit, and record actual counts/flags/exits in issues/07-verification.md. If model declarations change, verify migration drift with --check --dry-run. Covers SC-001–005.
 - [ ] T021 Freeze a committed candidate; obtain a fresh read-only native reviewer assessment with complete before/after HEAD/index/worktree evidence. The same builder repairs findings and the same reviewer re-reviews; no concurrent writer/reviewer. Record evidence in issues/07-verification.md.
-- [ ] T022 Complete one repository-wide stale-material/self-description review, bounded successor-path cleanup after proof, current source/operation/resume facts and supported context update; record no remaining implementation task in issues/07-verification.md and a stable final implementation checkpoint. Preserve unrelated work and immutable historical requirements.
+- [x] T022 Complete one repository-wide stale-material/self-description review, bounded successor-path cleanup after proof, current source/operation/resume facts and supported context update; record no remaining implementation task in issues/07-verification.md and a stable final implementation checkpoint. Preserve unrelated work and immutable historical requirements.
 
 ## Dependencies & Execution Order
 
@@ -86,6 +86,7 @@ Only independent read-only discovery may be parallel when its benefit exceeds co
 Use US1 as the first independently green tracer bullet, then complete all six accepted slices (no reduction of scope). In each ticket: write/observe red tests, implement the smallest fix, run green checks, update evidence and tasks, and commit/push only that coherent slice under the verified development destination policy. Review the full frozen candidate after integrated checks; repair/re-review until clean. No deployment or main promotion.
 
 Guide-owned canonical review, safe temporary-artifact cleanup, routing restoration and post-cleanup checks occur after task-tracked convergence and are intentionally outside this ledger. The ratified historical-record preservation rule remains binding.
+
 
 
 
