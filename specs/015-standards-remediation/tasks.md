@@ -27,9 +27,9 @@ Independent test: AS-001–003 API and UI journey.
 Goal: Stable catalog identity with useful and audited duplicate rejection.
 Independent test: AS-004–007 across all five master types.
 
-- [ ] T005 [US2] Add and observe failing case/whitespace, blank, self-update, rename, same-name/different-Brand, and save-time race regressions in backend/catalog/tests_standards.py, including one durable rejection audit and no partial mutation/reference changes.
-- [ ] T006 [US2] Implement normalized and Brand-scoped identity validation plus known-conflict handling/audit durability in backend/catalog/serializers.py and backend/catalog/views.py (small catalog helper if justified); preserve display casing and reject only recognized conflicts. Covers FR-002–003, ALR-001–003.
-- [ ] T007 [US2] Run focused green checks, remove the superseded exact-only duplicate path from backend/catalog/serializers.py, and record terminal evidence plus a checkpoint in issues/02-normalized-identity.md.
+- [x] T005 [US2] Add and observe failing case/whitespace, blank, self-update, rename, same-name/different-Brand, and save-time race regressions in backend/catalog/tests_standards.py, including one durable rejection audit and no partial mutation/reference changes.
+- [x] T006 [US2] Implement normalized and Brand-scoped identity validation plus known-conflict handling/audit durability in backend/catalog/serializers.py and backend/catalog/views.py (small catalog helper if justified); preserve display casing and reject only recognized conflicts. Covers FR-002–003, ALR-001–003.
+- [x] T007 [US2] Run focused green checks, remove the superseded exact-only duplicate path from backend/catalog/serializers.py, and record terminal evidence plus a checkpoint in issues/02-normalized-identity.md.
 
 ## Phase 5: User Story 3 — Direct Audit Trail read accountability (P1)
 
@@ -86,4 +86,5 @@ Only independent read-only discovery may be parallel when its benefit exceeds co
 Use US1 as the first independently green tracer bullet, then complete all six accepted slices (no reduction of scope). In each ticket: write/observe red tests, implement the smallest fix, run green checks, update evidence and tasks, and commit/push only that coherent slice under the verified development destination policy. Review the full frozen candidate after integrated checks; repair/re-review until clean. No deployment or main promotion.
 
 Guide-owned canonical review, safe temporary-artifact cleanup, routing restoration and post-cleanup checks occur after task-tracked convergence and are intentionally outside this ledger. The ratified historical-record preservation rule remains binding.
+
 
