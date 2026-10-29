@@ -21,6 +21,7 @@ from .models import (ASSET_CONDITIONS, ASSET_STATUSES, LIFECYCLE_MANAGED_STATUSE
 from .procurement_invoices import (InvoiceValidationError,
                                    record_procurement_invoice,
                                    validate_invoice_upload)
+from .procurement_lifecycle import associate, lock_purchase
 from .service import close_all_open_service_records
 
 
@@ -154,15 +155,16 @@ class AssetSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         self._validate_coverage_dates(attrs)
+        if 'procurement' in attrs and attrs['procurement'] != getattr(self.instance, 'procurement', None):
+            raise serializers.ValidationError({'procurement': 'Change associations through Procurement with arrival evidence.'})
         if self.instance is None:
             # A new asset enters the register unheld. Custody is only ever granted by
             # the operation that records it, so creation cannot short-circuit into a
             # lifecycle-managed status or hand the asset to someone (decision C2).
-            new_status = attrs.get('status') or "Available"
-            if new_status not in ("Available", "In Storage"):
+            new_status = attrs.get('status') or "In Storage"
+            if new_status != "In Storage":
                 raise serializers.ValidationError(
-                    {"status": "A new asset may only be created as Available or "
-                               "In Storage; use Checkout or a Service Record to move it."})
+                    {"status": "A new Asset starts In Storage; add Procurement to make it Available."})
             if attrs.get('custodian') is not None:
                 raise serializers.ValidationError(
                     {"custodian": "A new asset cannot be created with a Custodian; "
@@ -189,6 +191,8 @@ class AssetSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"custodian": "Custody changes through Checkout or Transfer, "
                                   "not a direct edit."})
+            if new_status == 'Available' and current_status != 'Available' and self.instance.procurement_id is None:
+                raise serializers.ValidationError({'status': 'Add Procurement to make this Asset Available.'})
             if new_status != current_status:
                 if current_status in TERMINAL_STATUSES:
                     raise serializers.ValidationError(
@@ -447,7 +451,7 @@ class ProcurementSerializer(serializers.ModelSerializer):
         validated_data.pop('attested', None)
         with transaction.atomic():
             procurement = Procurement.objects.create(**validated_data)
-            Asset.objects.filter(id__in=[a.id for a in assets]).update(procurement=procurement)
+            associate(procurement, assets)
             self._record_arrivals(procurement, arrivals)
             self._record_links(procurement, assets, set(), reason)
             self.saved_invoice = (record_procurement_invoice(
@@ -462,17 +466,13 @@ class ProcurementSerializer(serializers.ModelSerializer):
         reason = validated_data.pop('link_reason', "") or "Purchase record edited"
         validated_data.pop('attested', None)
         with transaction.atomic():
+            instance = lock_purchase(instance)
             for attr, value in validated_data.items():
                 setattr(instance, attr, value)
             instance.save()
 
             if assets is not None:
-                previous = set(Asset.objects.filter(procurement=instance)
-                               .values_list('id', flat=True))
-                asset_ids = [asset.id for asset in assets]
-                Asset.objects.filter(procurement=instance).exclude(
-                    id__in=asset_ids).update(procurement=None)
-                Asset.objects.filter(id__in=asset_ids).update(procurement=instance)
+                previous = associate(instance, assets)
                 self._record_arrivals(instance, arrivals)
                 self._record_links(instance, assets, previous, reason)
 
@@ -570,3 +570,4 @@ class AmcContractSerializer(serializers.ModelSerializer):
     class Meta:
         model = AmcContract
         fields = "__all__"
+

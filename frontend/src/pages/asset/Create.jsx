@@ -15,7 +15,7 @@ import Button from '@mui/material/Button';
 // A new asset enters the register unheld: every other status is reached through the
 // operation that owns it (Checkout, Transfer, a Service Record, or a disposal edit),
 // so offering them here would only produce a rejected save.
-const STATUS_OPTIONS = ["Available", "In Storage"]
+const STATUS_OPTIONS = ["In Storage"]
   .map((s) => ({ id: s, label: s }));
 const CONDITION_OPTIONS = ["New", "Good", "Average", "Damaged", "Repair Required"]
   .map((s) => ({ id: s, label: s }));
@@ -85,7 +85,7 @@ const AssetCreate = () => {
       category: '',
       brand: '',
       model: '',
-      status: 'Available',
+      status: 'In Storage',
       condition: 'New',
       location: '',
       warranty_start: null,
@@ -430,3 +430,6 @@ const AssetCreate = () => {
 }
 
 export default AssetCreate
+
+
+

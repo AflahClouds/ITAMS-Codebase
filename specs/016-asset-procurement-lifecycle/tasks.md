@@ -18,22 +18,22 @@ this feature's issues. No deployment or user-database mutation.
 
 ## Phase 1: Feature Setup
 
-- [ ] T001 Verify accepted authority/branch/baseline and preserve unrelated state; record starting evidence in specs/016-asset-procurement-lifecycle/issues/01-stage-and-link.md.
+- [X] T001 Verify accepted authority/branch/baseline and preserve unrelated state; record starting evidence in specs/016-asset-procurement-lifecycle/issues/01-stage-and-link.md.
 
 ## Phase 2: Foundational
 
-- [ ] T002 Add focused API fixture helpers with explicit status/procurement and private temporary storage in backend/assets/tests_procurement_lifecycle.py; reuse existing harnesses, no production changes.
+- [X] T002 Add focused API fixture helpers with explicit status/procurement and private temporary storage in backend/assets/tests_procurement_lifecycle.py; reuse existing harnesses, no production changes.
 
 ## Phase 3: User Story 1 - Stage Until Procurement (P1)
 
 Goal: New registration Storage, valid new association Available.
 Independent test: AS-001–005 through API and actual create/purchase forms.
 
-- [ ] T003 [US1] Add/execute failing API regressions for default/explicit create, singleton/batch/existing purchase attach, optional invoice, failed rollback, direct procurement/status bypass and metadata preservation in backend/assets/tests_procurement_lifecycle.py (FR-001/002, ALR-001–005).
-- [ ] T004 [US1] Add/execute failing creation/association form regressions in frontend/src/pages/asset/ and frontend/src/pages/procurement/Procurement.test.jsx (FR-008).
-- [ ] T005 [US1] Implement authoritative association/status seam in backend/assets/procurement_lifecycle.py, route serializers through it, change model default with default-only migration under backend/assets/migrations/, and block direct bypass in backend/assets/serializers.py (FR-001/002, ALR-002/003).
-- [ ] T006 [US1] Update frontend/src/pages/asset/Create.jsx and relevant Edit.jsx state controls plus Procurement create/edit flow to reflect staging/association contract; keep historical rows unchanged (FR-008).
-- [ ] T007 [US1] Prove focused green tests, update superseded default assumptions only in relevant backend/assets/tests*.py and UI fixtures, record red/green and checkpoint in specs/016-asset-procurement-lifecycle/issues/01-stage-and-link.md.
+- [X] T003 [US1] Add/execute failing API regressions for default/explicit create, singleton/batch/existing purchase attach, optional invoice, failed rollback, direct procurement/status bypass and metadata preservation in backend/assets/tests_procurement_lifecycle.py (FR-001/002, ALR-001–005).
+- [X] T004 [US1] Add/execute failing creation/association form regressions in frontend/src/pages/asset/ and frontend/src/pages/procurement/Procurement.test.jsx (FR-008).
+- [X] T005 [US1] Implement authoritative association/status seam in backend/assets/procurement_lifecycle.py, route serializers through it, change model default with default-only migration under backend/assets/migrations/, and block direct bypass in backend/assets/serializers.py (FR-001/002, ALR-002/003).
+- [X] T006 [US1] Update frontend/src/pages/asset/Create.jsx and relevant Edit.jsx state controls plus Procurement create/edit flow to reflect staging/association contract; keep historical rows unchanged (FR-008).
+- [X] T007 [US1] Prove focused green tests, update superseded default assumptions only in relevant backend/assets/tests*.py and UI fixtures, record red/green and checkpoint in specs/016-asset-procurement-lifecycle/issues/01-stage-and-link.md.
 
 ## Phase 4: User Story 2 - Detach Before Asset Deletion (P1)
 

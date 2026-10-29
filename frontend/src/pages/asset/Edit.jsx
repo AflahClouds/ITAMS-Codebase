@@ -20,14 +20,14 @@ const LIFECYCLE_MANAGED_STATUSES = ["Assigned", "Under Repair"];
 
 // Mirrors the backend's AssetSerializer.validate() transition rule: Assigned/Under Repair
 // can only be entered/left via Checkout or Service Record, and terminal statuses are one-way.
-const allowedStatusOptions = (currentStatus) => {
+const allowedStatusOptions = (currentStatus, hasProcurement) => {
   if (TERMINAL_STATUSES.includes(currentStatus)) {
     return [currentStatus];
   }
   if (LIFECYCLE_MANAGED_STATUSES.includes(currentStatus)) {
     return [currentStatus, ...TERMINAL_STATUSES];
   }
-  return ["Available", "In Storage", ...TERMINAL_STATUSES];
+  return [...(hasProcurement || currentStatus === "Available" ? ["Available"] : []), "In Storage", ...TERMINAL_STATUSES];
 };
 
 const statusLockNote = (currentStatus) => {
@@ -281,7 +281,7 @@ const AssetEdit = () => {
           <Box className={"FormArea"}>
             <SelectForm
               label={"Status"}
-              options={allowedStatusOptions(myData.status).map((s) => ({ id: s, label: s }))}
+              options={allowedStatusOptions(myData.status, myData.has_procurement).map((s) => ({ id: s, label: s }))}
               labelKey="label"
               name="status"
               value={formik.values.status}
@@ -469,3 +469,4 @@ const AssetEdit = () => {
 }
 
 export default AssetEdit
+

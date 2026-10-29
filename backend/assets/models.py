@@ -164,7 +164,7 @@ class Asset(models.Model):
     depreciation_rate = models.DecimalField(decimal_places=2, max_digits=5, null=True, blank=True)
     asset_life = models.IntegerField(null=True, blank=True)
 
-    status = models.CharField(max_length=32, default="Available")
+    status = models.CharField(max_length=32, default="In Storage")
     condition = models.CharField(max_length=32, default="New")
     location = models.ForeignKey('accounts.Location', on_delete=models.SET_NULL, null=True, blank=True)
     custodian = models.ForeignKey('accounts.User', on_delete=models.SET_NULL, null=True, blank=True, related_name="held_assets")
@@ -445,3 +445,4 @@ class AmcContract(models.Model):
 
     def __str__(self):
         return f"{self.asset.asset_id} AMC {self.start_date}–{self.end_date}"
+

@@ -56,6 +56,7 @@ describe('Asset department is derived from custody', () => {
     await waitFor(() => expect(AxiosInstance.post).toHaveBeenCalled());
     expect(AxiosInstance.post.mock.calls[0][0]).toBe('/asset/');
     expect(AxiosInstance.post.mock.calls[0][1]).not.toHaveProperty('department');
+    expect(AxiosInstance.post.mock.calls[0][1].status).toBe('In Storage');
   }, 45000);
 
   it('edits unrelated Asset details without submitting its derived Department', async () => {
@@ -69,3 +70,4 @@ describe('Asset department is derived from custody', () => {
     expect(AxiosInstance.put.mock.calls[0][1]).not.toHaveProperty('department');
   }, 15000);
 });
+
