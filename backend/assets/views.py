@@ -371,7 +371,7 @@ class ProcurementViewSet(viewsets.ModelViewSet):
                        new_value=f"{asset.asset_id} | retained | In Storage | Procurement removed")
             transaction.on_commit(lambda: _notify_it_managers(
                 f"{purchase} permanently deleted; Asset {asset.asset_id} retained In Storage.",
-                link=f'/asset/{asset.pk}'))
+                link=f'/asset/detail/{asset.pk}'))
         return Response(status=http_status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['get'])

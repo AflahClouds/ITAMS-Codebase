@@ -27,7 +27,7 @@ it('confirms permanent purchase invoice and history loss while retaining the Ass
   await userEvent.click(screen.getByRole('button', { name: 'Confirm permanent deletion' }));
   await waitFor(() => expect(AxiosInstance.post).toHaveBeenCalledWith('/procurement/7/permanent-delete/', {}));
   expect(AxiosInstance.delete).not.toHaveBeenCalled();
-  expect(state.navigate).toHaveBeenCalledWith('/asset/1');
+  expect(state.navigate).toHaveBeenCalledWith('/asset/detail/1');
 });
 
 it('cancels without mutation and reports server failure without success navigation', async () => {

@@ -47,8 +47,15 @@ acceptance unless a browser was actually used.
 Issue comments capture red/green; final issue records full checks and combined
 stale-material/self-description review. This guide is not verification evidence.
 
-Verified builder results (2026-10-29): full Django 410/410, full frontend
+Initial verified builder results (2026-10-29): full Django 410/410, full frontend
 16 files/81 tests, lint/build exit 0, migration drift No changes detected.
 See issues/04-verification.md for retained process identities and terminal
 counts, including superseded fixture failures. Independent review and guide
 closeout follow the frozen builder candidate; browser acceptance is unperformed.
+
+F001 review repair: success and manager notification now open the existing
+/asset/detail/:id route. Focused backend 35/35 and full frontend 17 files/82 tests
+pass; lint/build exit 0. The new actual-App routing regression freshly loads
+the retained unlinked In Storage Asset. See issues/05-retained-asset-navigation.md.
+The prior full 410-test backend green remains broader evidence for this URL-only
+backend repair; no schema or lifecycle logic changed.

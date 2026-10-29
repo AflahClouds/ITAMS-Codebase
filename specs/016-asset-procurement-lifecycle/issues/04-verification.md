@@ -41,3 +41,11 @@ Final verification and freeze (2026-10-29):
 - Application checkpoints 900e5d2, 34257e9 and 231cf8b were successfully pushed only to origin refs/heads/codex/016-asset-procurement-lifecycle. Exact origin, branch, HEAD/index, main ancestry and remote development revision are reverified before the final evidence checkpoint; its commit/push result is reported in the bound native builder completion.
 - Elevated Git status before final evidence showed only preserved untracked native workflow runs outside owned changes; the apparent sandbox workflow removals are ACL artifacts, not real removals. Existing .claude settings and historical runs were not staged or changed. Secrets, test logs, generated barcodes, private files, dependencies and build output remain ignored. No main mutation, tags, deployment, force-push or production database migration occurred.
 - The commit containing this final evidence freezes the candidate for fresh independent read-only review. Builder stops writes/tests at that commit. Root owns native review dispatch, any payload-bound repair/re-review, convergence and canonical CONTEXT/README closeout after clean review. Current accepted spec/plan/checklist bytes and all predecessor requirement content are unchanged.
+
+Independent review convergence: F001 identified that the release success and
+notification destinations did not match the existing Asset detail route. The
+same bounded builder reopened only that finding, published issue 05 and appended
+T019–T021. See issue 05 for fail-before route/notification evidence, the two URL
+corrections, focused backend 35/35 and full frontend 17 files/82 tests green,
+lint/build exits and the repaired same-reviewer freeze. Original lifecycle and
+full-backend verification remain applicable; canonical closeout is guide-owned.

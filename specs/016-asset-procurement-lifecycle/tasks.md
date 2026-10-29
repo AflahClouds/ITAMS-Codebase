@@ -86,3 +86,12 @@ after MVP or request routine ticket approval. Execute local issues, record evide
 and finish every task before independent review. Reviewer is read-only; findings
 return to same builder, followed by same reviewer re-review. Guide-owned canonical
 consolidation/review and post-closeout checks stay outside this ledger.
+
+## Phase 7: Independent Review Repair — F001
+
+Publish/execute issues/05-retained-asset-navigation.md after issue 04.
+The accepted scope and original 18-task delivery remain unchanged.
+
+- [X] T019 [US3] Observe expected red F001 regressions for release/notification destinations and actual App routing to freshly loaded retained Asset state in frontend/src/pages/procurement/{Delete,ReleaseNavigation}.test.jsx and backend/assets/tests_procurement_lifecycle.py (FR-008, ALR-004, AS-011).
+- [X] T020 [US3] Correct the two release destinations to existing /asset/detail/:id in frontend/src/pages/procurement/Delete.jsx and backend/assets/views.py; preserve release and notification behavior (F001).
+- [X] T021 Run focused backend lifecycle coverage, full frontend suite and lint/build; record F001 red/green and publication evidence in issues/05-retained-asset-navigation.md, complete ledgers, and freeze for same-reviewer re-review.

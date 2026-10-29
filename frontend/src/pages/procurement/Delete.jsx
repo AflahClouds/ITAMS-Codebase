@@ -56,7 +56,7 @@ const ProcurementDelete = () => {
     setBusy(true)
     try {
       await AxiosInstance.post(`/procurement/${MyId}/permanent-delete/`, {})
-      navigate(`/asset/${myData.assets[0].id}`)
+      navigate(`/asset/detail/${myData.assets[0].id}`)
     } catch (error) {
       const rejection = error.response?.data
       setMessage(<MyMessage messageText={Array.isArray(rejection)

@@ -202,6 +202,11 @@ class PermanentReleaseTests(ProcurementLifecycleTests):
         self.assertIn(proc.invoice_number, audit.old_value)
         self.assertIn(asset.asset_id, audit.new_value)
         self.assertEqual(audit.username, 'lifecycle')
+        notifications = self.client.get('/notification/')
+        self.assertEqual(notifications.status_code, 200)
+        releases = [row for row in notifications.data if 'permanently deleted' in row['message']]
+        self.assertEqual(len(releases), 1)
+        self.assertEqual(releases[0]['link'], f'/asset/detail/{asset.pk}')
         self.assertEqual(self.client.delete(f'/asset/{asset.pk}/').status_code, 204)
 
     def test_release_denied_multi_asset_and_protected_states_preserve_data(self):
