@@ -31,3 +31,13 @@ Do not broaden to multi-Asset destructive deletion or automatic Asset deletion.
 - Ordinary development checkpoints 900e5d2 (US1) and 34257e9 (US2) were pushed successfully to the exact authorized development ref. Singleton-release checkpoint follows final backend verification.
 
 Post-fixture-isolation focused green: 35 feature lifecycle tests plus the preserved Department-rejection case, 36/36 passed in 51.287s, exit 0 (94627). Final full-suite rerun follows the completed first run's single legacy fixture correction; no application defect required a change.
+
+Final contract-display regression: the permanent-delete API uses DRF list-shaped
+ValidationError responses for lifecycle rejection. The form originally read only
+`detail`, hiding the actionable reason behind generic text. Test 95618 failed
+for that expected mismatch (1 fail/8 skipped, exit 1); the form now renders the
+returned rejection list. Final full frontend 89798 passed 16 files/81 tests in
+81.35s, exit 0. Lint 21287 again exited 0 (0 errors/13 warnings), and build 4795
+again exited 0 (2,206 modules, 9.59s; existing chunk-size advisory).
+
+Final full backend 23591 passed all 410 tests in 594.117s, exit 0. This includes the full lifecycle, custody, invoice and audit suites after preserving all unrelated assertions. Application checkpoint 231cf8b was pushed successfully; final evidence/contract-display checkpoint follows.

@@ -58,8 +58,8 @@ Independent test: AS-010–013 and owned files/history plus rollback.
 ## Phase 6: Polish and Cross-Cutting Concerns
 
 - [X] T016 Remove proven superseded status/link/delete duplicate paths and stale current comments in backend/assets/ and frontend/src/pages/, add predecessor lineage metadata in specs/001-asset-register-lifecycle-baseline/spec.md, specs/002-procurement-vendor-catalog-baseline/spec.md, specs/013-procurement-invoice-attachment-change/spec.md and specs/014-asset-assignments/spec.md; retain historical requirements and ordinary archive/custody tests.
-- [ ] T017 Run full Django suite, serial frontend suite, lint, build and migration drift check per specs/016-asset-procurement-lifecycle/quickstart.md; retain each process handle to terminal exit and record commands/counts in issues/04-verification.md (SC-001–004).
-- [ ] T018 Complete one combined repository-wide stale-material/reference and self-description/resume review of current tree, update necessary current docs/context and verified evidence, verify unrelated state preserved, create/push final ordinary checkpoint, and freeze candidate in specs/016-asset-procurement-lifecycle/issues/04-verification.md.
+- [X] T017 Run full Django suite, serial frontend suite, lint, build and migration drift check per specs/016-asset-procurement-lifecycle/quickstart.md; retain each process handle to terminal exit and record commands/counts in issues/04-verification.md (SC-001–004).
+- [X] T018 Complete one combined repository-wide stale-material/reference and self-description/resume review of current tree, update necessary current docs/context and verified evidence, verify unrelated state preserved, create/push final ordinary checkpoint, and freeze candidate in specs/016-asset-procurement-lifecycle/issues/04-verification.md.
 
 ## Dependencies and Execution Order
 

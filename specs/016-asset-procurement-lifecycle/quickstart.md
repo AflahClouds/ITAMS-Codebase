@@ -46,3 +46,9 @@ acceptance unless a browser was actually used.
 
 Issue comments capture red/green; final issue records full checks and combined
 stale-material/self-description review. This guide is not verification evidence.
+
+Verified builder results (2026-10-29): full Django 410/410, full frontend
+16 files/81 tests, lint/build exit 0, migration drift No changes detected.
+See issues/04-verification.md for retained process identities and terminal
+counts, including superseded fixture failures. Independent review and guide
+closeout follow the frozen builder candidate; browser acceptance is unperformed.

@@ -42,6 +42,16 @@ it('cancels without mutation and reports server failure without success navigati
   expect(state.navigate).not.toHaveBeenCalled();
 });
 
+it('shows the lifecycle rejection returned as a DRF validation list', async () => {
+  const reason = 'Asset ONLY has protected lifecycle or custody state; resolve it before changing Procurement.';
+  AxiosInstance.post.mockRejectedValue({ response: { data: [reason] } });
+  render(<ProcurementDelete />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Permanently delete Procurement' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm permanent deletion' }));
+  expect(await screen.findByText(reason)).toBeInTheDocument();
+  expect(state.navigate).not.toHaveBeenCalled();
+});
+
 it('offers ordinary archive but no permanent action without deletion permission', async () => {
   state.permitted = false;
   render(<ProcurementDelete />);

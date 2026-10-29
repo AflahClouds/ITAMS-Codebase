@@ -7,12 +7,12 @@ three lifecycle journeys, with unrelated work preserved and current docs accurat
 **Status:** ready-for-agent
 **Traceability:** SC-001–004; ALR-001–005; T016–T018.
 
-- [ ] Successor tests prove replacement before old default/link/delete paths and stale current comments are removed.
-- [ ] Add only predecessor lineage metadata; preserve historical requirements and independent archive/custody coverage.
-- [ ] Full Django suite passes, with terminal process result/count recorded.
-- [ ] Full serial frontend suite, lint and build pass; migration drift check passes.
-- [ ] Complete one combined repository-wide stale-material/reference and self-description/resume review; update necessary current facts.
-- [ ] Verify unrelated state preserved; ordinary development checkpoint/push attempt recorded; freeze stable candidate for independent read-only review.
+- [X] Successor tests prove replacement before old default/link/delete paths and stale current comments are removed.
+- [X] Add only predecessor lineage metadata; preserve historical requirements and independent archive/custody coverage.
+- [X] Full Django suite passes, with terminal process result/count recorded.
+- [X] Full serial frontend suite, lint and build pass; migration drift check passes.
+- [X] Complete one combined repository-wide stale-material/reference and self-description/resume review; update necessary current facts.
+- [X] Verify unrelated state preserved; ordinary development checkpoint/push attempt recorded; freeze stable candidate for independent read-only review.
 
 ## Comments
 
@@ -33,3 +33,11 @@ status first. Its input now uses In Storage and all Department/no-row/no-audit
 assertions remain unchanged. No application correction was required. A focused
 fixture/module check and a fresh full-suite run follow this completed run; no
 healthy process was duplicated.
+
+Final verification and freeze (2026-10-29):
+- Final full Django run retained 23591 from start to terminal exit 0: 410/410 tests passed in 594.117 seconds, system check reported no issues and the isolated test database was destroyed. Expected injected notification-delivery logs were not test failures. This supersedes the first completed run's single fixture diagnostic failure. Focused post-fixture check 94627 also passed 36/36 in 51.287 seconds, exit 0.
+- Final frontend, after the verified DRF-list rejection display fix, retained 89798 to terminal exit 0: 16 files/81 tests passed in 81.35 seconds. Final lint 21287 exited 0 (0 errors/13 existing hook warnings), final build 4795 exited 0 (2,206 modules, 9.59 seconds; existing large-chunk advisory). Migration drift check exited 0, No changes detected. Earlier adequate green checks and fail-before evidence remain in issues 01–03.
+- All T001–T018 and the four issue acceptance lists are checked. Requirements-quality checklist remains 16/16 and was never edited during implementation. No implement hooks are registered. No browser/manual acceptance was claimed.
+- Application checkpoints 900e5d2, 34257e9 and 231cf8b were successfully pushed only to origin refs/heads/codex/016-asset-procurement-lifecycle. Exact origin, branch, HEAD/index, main ancestry and remote development revision are reverified before the final evidence checkpoint; its commit/push result is reported in the bound native builder completion.
+- Elevated Git status before final evidence showed only preserved untracked native workflow runs outside owned changes; the apparent sandbox workflow removals are ACL artifacts, not real removals. Existing .claude settings and historical runs were not staged or changed. Secrets, test logs, generated barcodes, private files, dependencies and build output remain ignored. No main mutation, tags, deployment, force-push or production database migration occurred.
+- The commit containing this final evidence freezes the candidate for fresh independent read-only review. Builder stops writes/tests at that commit. Root owns native review dispatch, any payload-bound repair/re-review, convergence and canonical CONTEXT/README closeout after clean review. Current accepted spec/plan/checklist bytes and all predecessor requirement content are unchanged.

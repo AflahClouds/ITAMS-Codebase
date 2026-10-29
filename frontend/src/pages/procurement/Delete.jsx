@@ -58,7 +58,10 @@ const ProcurementDelete = () => {
       await AxiosInstance.post(`/procurement/${MyId}/permanent-delete/`, {})
       navigate(`/asset/${myData.assets[0].id}`)
     } catch (error) {
-      setMessage(<MyMessage messageText={error.response?.data?.detail || 'Permanent deletion failed. Reload and try again.'} messageColor="red" />)
+      const rejection = error.response?.data
+      setMessage(<MyMessage messageText={Array.isArray(rejection)
+        ? rejection.join(' ')
+        : rejection?.detail || 'Permanent deletion failed. Reload and try again.'} messageColor="red" />)
     } finally {
       setBusy(false)
     }
