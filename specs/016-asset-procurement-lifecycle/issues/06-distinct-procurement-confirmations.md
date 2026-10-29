@@ -56,3 +56,10 @@ Final F002 verification and freeze:
 - All T001–T024 and all six issue acceptance lists are checked. No changes were made to backend code, schema, dependency files, accepted spec/plan/checklist, canonical domain requirements, README or AGENTS facts. Required verification is complete for this frontend-only correction; earlier backend evidence remains applicable.
 - Reverify exact development branch/HEAD/empty index, origin URL, main ancestry and remote development ref before staging only owned F002 source/test/evidence files. The ordinary checkpoint is pushed only to refs/heads/codex/016-asset-procurement-lifecycle; its actual revision and publication result are included in the bound native builder completion. Main, tags, deployment and force-push are excluded.
 - The checkpoint containing this evidence freezes the correction candidate for independent read-only review by the retained reviewer. Builder stops writes/tests. Native run state, .claude settings and inaccessible managed-workflow files remain preserved; root owns subsequent review/convergence and guide-closeout metadata.
+
+Guide completion: checkpoint 4295a73 was pushed to the authorized development
+branch. The retained read-only reviewer returned clean; complete pre/post review
+fingerprints matched. Native run c27104cb completed. Current completion metadata
+records 24 completed tasks and six local issues, without changing accepted
+requirements or repeating the completed relevant-reference review. No backend,
+dependency, production data, main promotion or deployment change is included.

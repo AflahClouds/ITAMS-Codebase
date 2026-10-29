@@ -65,11 +65,11 @@ F001 resolved with no further findings at e63184b. All 21 tasks and five local
 issues are complete. Final current-domain/README/agent-fact consolidation is
 guide-owned and changes no application behavior or accepted requirements.
 
-Guide closeout completed after clean independent documentation review. Current
+Original guide closeout completed after clean independent documentation review. Current
 CONTEXT.md, frontend README, agent project facts, feature metadata and evidence
 agree with the accepted behavior. All relevant pointers resolve to this retained
 authoritative feature; historical requirements and unrelated state are preserved.
-No application change followed the verified repair. Browser/manual acceptance,
+That documentation closeout introduced no application change. Browser/manual acceptance,
 production database migration, deployment and main promotion remain unperformed.
 
 F002 confirmation-intent correction: Archive retains /procurement/delete/:id and
@@ -80,3 +80,8 @@ Focused frontend 5 files/32 tests and full frontend 17 files/89 tests pass;
 lint/build exit 0. See issues/06-distinct-procurement-confirmations.md for red/green,
 retained terminal handles and the combined current-reference review. Backend,
 accepted business rules and dependencies are unchanged by this UI correction.
+
+Correction run c27104cb completed after clean read-only review of 4295a73 and
+matching complete before/after HEAD/index/content fingerprints. All 24 tasks and
+six issues are complete. Active feature/context pointers and retained canonical
+domain requirements remain unchanged; only completion metadata is refreshed.

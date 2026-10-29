@@ -76,7 +76,7 @@ Use native builder/reviewer subagents and completion-aware waits. Keep the root 
   and `specs/README.md` describes durable feature/issue organization.
 - Code entry points: `backend/itams/{settings,urls}.py`, `backend/manage.py`,
   and `frontend/src/App.jsx`. Current lifecycle validation and evidence are in
-  `specs/016-asset-procurement-lifecycle/quickstart.md` and `issues/01–05`;
+  `specs/016-asset-procurement-lifecycle/quickstart.md` and `issues/01–06`;
   feature 015 retains its earlier Standards-remediation evidence.
 
 ## Project authority
@@ -92,8 +92,9 @@ Use native builder/reviewer subagents and completion-aware waits. Keep the root 
   `refs/heads/codex/015-standards-remediation`; this grants no main promotion.
 - Feature 016's approved local sprint publishes ordinary checkpoints only to
   `refs/heads/codex/016-asset-procurement-lifecycle` on that same verified origin.
-  Native run `bfc1a11c` completed after clean independent re-review; this grants
-  no main promotion or deployment authority.
+  Native run `bfc1a11c` completed after clean independent re-review; follow-up
+  confirmation-intent repair run `c27104cb` also completed after clean review.
+  This grants no main promotion or deployment authority.
 - New repositories requested through this workflow: private, under `Cloud-Shoes-LLP`; do not alter an existing remote without authorization.
 
 ## Technology envelope

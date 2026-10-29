@@ -47,3 +47,6 @@
   requirements are unchanged. Native run bfc1a11c completed clean after F001 repair
   and independent re-review. Canonical documentation received a separate clean
   read-only review; before/after full repository fingerprints matched.
+- F002 is a presentation conformance repair of FR-008 with unchanged business
+  requirements. Quality review remains 16/16; correction run c27104cb completed
+  after clean read-only review and matching full repository fingerprints.

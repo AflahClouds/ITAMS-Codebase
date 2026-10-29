@@ -7,6 +7,8 @@
 **Status**: Accepted scope — implemented and independently reviewed locally on
 2026-10-29; native run `bfc1a11c` completed after clean re-review of `e63184b`.
 Canonical documentation closeout also received clean independent review.
+The reported F002 confirmation-intent correction was independently reviewed
+clean at `4295a73`; native run `c27104cb` completed on the same date.
 Browser/manual acceptance, deployment, and main promotion have not been performed.
 
 **Input**: New Assets must start `In Storage` and become `Available` after
@@ -83,6 +85,13 @@ they are not approval of Specify, Clarify, final scope, or a local sprint.
   and its evidence under the governing per-feature history convention; active
   feature and supported agent-context pointers resolve here. No installer or
   managed-policy update occurred.
+- Follow-up conformance repair: The stakeholder reported that both removal
+  controls opened the same page. Under FR-008 and the unchanged accepted scope,
+  issue 06 and T022–T024 repaired the action-intent routes and confirmations.
+  The retained reviewer returned clean at `4295a73`, with unchanged full review
+  snapshots; native correction run `c27104cb` completed. All 24 tasks and six
+  issue acceptance lists are complete. No purchase, retention, authorization,
+  cardinality or status requirement changed.
 
 ## Specification Lineage *(mandatory)*
 
