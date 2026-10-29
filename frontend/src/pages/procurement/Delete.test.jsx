@@ -1,26 +1,63 @@
-/**
- * Conformance tests for the Procurement removal surface.
- *
- * B6 FR-011 forbids destroying a purchase record; removal archives it. A screen that
- * still says "Delete" would describe an operation the system no longer performs, and
- * this is the screen where an operator decides whether to go ahead.
- */
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../api/client', () => ({
-  default: { get: vi.fn(), delete: vi.fn() },
-}));
-
-const navigate = vi.fn();
-vi.mock('react-router', () => ({
-  useNavigate: () => navigate,
-  useParams: () => ({ id: '7' }),
-}));
-
+const state = vi.hoisted(() => ({ navigate: vi.fn(), permitted: true }));
+vi.mock('../../api/client', () => ({ default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() } }));
+vi.mock('react-router', () => ({ useNavigate: () => state.navigate, useParams: () => ({ id: '7' }) }));
+vi.mock('../../auth/useAuth', () => ({ useAuth: () => ({ can: () => state.permitted }) }));
 import AxiosInstance from '../../api/client';
 import ProcurementDelete from './Delete';
+
+beforeEach(() => {
+  state.permitted = true;
+  state.navigate.mockReset();
+  AxiosInstance.get.mockResolvedValue({ data: {
+    id: 7, invoice_number: 'INV-7', assets: [{ id: 1, asset_id: 'ONLY' }],
+  } });
+  AxiosInstance.post.mockReset().mockResolvedValue({});
+  AxiosInstance.delete.mockReset().mockResolvedValue({});
+});
+
+it('confirms permanent purchase invoice and history loss while retaining the Asset', async () => {
+  render(<ProcurementDelete />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Permanently delete Procurement' }));
+  expect(screen.getByText(/invoice versions and.*history.*permanently/i)).toBeInTheDocument();
+  expect(screen.getByText(/Asset.*retained.*In Storage/i)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm permanent deletion' }));
+  await waitFor(() => expect(AxiosInstance.post).toHaveBeenCalledWith('/procurement/7/permanent-delete/', {}));
+  expect(AxiosInstance.delete).not.toHaveBeenCalled();
+  expect(state.navigate).toHaveBeenCalledWith('/asset/1');
+});
+
+it('cancels without mutation and reports server failure without success navigation', async () => {
+  AxiosInstance.post.mockRejectedValue({ response: { data: { detail: 'Asset custody changed. Reload.' } } });
+  render(<ProcurementDelete />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Permanently delete Procurement' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(AxiosInstance.post).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button', { name: 'Permanently delete Procurement' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm permanent deletion' }));
+  expect(await screen.findByText('Asset custody changed. Reload.')).toBeInTheDocument();
+  expect(state.navigate).not.toHaveBeenCalled();
+});
+
+it('offers ordinary archive but no permanent action without deletion permission', async () => {
+  state.permitted = false;
+  render(<ProcurementDelete />);
+  await screen.findByText('INV-7');
+  expect(screen.queryByRole('button', { name: 'Permanently delete Procurement' })).not.toBeInTheDocument();
+});
+
+it('does not offer permanent deletion for a multi-Asset purchase', async () => {
+  AxiosInstance.get.mockResolvedValue({ data: {
+    invoice_number: 'INV-7', assets: [{ id: 1, asset_id: 'ONE' }, { id: 2, asset_id: 'TWO' }],
+  } });
+  render(<ProcurementDelete />);
+  await screen.findByText('INV-7');
+  expect(screen.queryByRole('button', { name: 'Permanently delete Procurement' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
+});
 
 const RECORD = {
   id: 7,
@@ -52,7 +89,7 @@ describe('Procurement removal', () => {
     // is gone will record the purchase again.
     render(<ProcurementDelete />);
 
-    expect(await screen.findByText(/archived rather than deleted/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Archive keeps the purchase/i)).toBeInTheDocument();
     expect(screen.getByText(/remain linked/i)).toBeInTheDocument();
   });
 

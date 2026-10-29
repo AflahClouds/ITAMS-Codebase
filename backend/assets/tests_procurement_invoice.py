@@ -385,7 +385,8 @@ class ProcurementInvoiceApiTests(ProcurementInvoiceStorageTestCase):
         _account, holder = _client_profile("invoice-assignee")
         procurement = _procurement(self.catalog, "CUSTODY-INV")
         self.asset_a.procurement = procurement
-        self.asset_a.save(update_fields=["procurement"])
+        self.asset_a.status = 'Available'  # Established, purchased stock for this custody fixture.
+        self.asset_a.save(update_fields=["procurement", "status"])
         invoice = record_procurement_invoice(
             procurement, _pdf("custody.pdf", b"%PDF custody invoice"), self.actor)
 

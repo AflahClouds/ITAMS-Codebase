@@ -49,6 +49,7 @@ class AssignCustodyTests(TestCase):
         )
 
     def make_asset(self, name, **kwargs):
+        kwargs.setdefault("status", "Available")
         return Asset.objects.create(
             asset_id=name, tag_number=f"{name}-tag", serial_number=f"{name}-serial",
             **self.catalog, **kwargs,
@@ -870,7 +871,7 @@ class AssignCustodyTests(TestCase):
             "category": self.catalog["category"].pk,
             "brand": self.catalog["brand"].pk,
             "model": self.catalog["model"].pk,
-            "status": "Available", "condition": "Good",
+            "status": "In Storage", "condition": "Good",
             "department": self.department.pk,
         }, format="json")
         self.assertEqual(response.status_code, 400, getattr(response, "data", None))

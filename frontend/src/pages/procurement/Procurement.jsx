@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import CalendarViewMonth from '@mui/icons-material/CalendarViewMonth';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import DownloadIcon from '@mui/icons-material/Download';
 import AxiosInstance from '../../api/client'
 import { downloadProtectedFile } from '../../api/downloadProtectedFile';
@@ -103,6 +104,12 @@ const Procurement = () => {
               <IconButton color="error" aria-label="Archive procurement"
                           component={Link} to={`/procurement/delete/${row.original.id}`}>
                 <DeleteIcon/>
+              </IconButton>
+            )}
+            {can('asset_delete') && row.original.assets?.length === 1 && (
+              <IconButton color="error" aria-label="Permanently delete procurement"
+                          component={Link} to={`/procurement/delete/${row.original.id}`}>
+                <DeleteForeverIcon />
               </IconButton>
             )}
           </Box>

@@ -34,6 +34,8 @@
 
 **Supersedes**: The rule that every store-to-employee issue is a Checkout, the rejection of Assignment as a domain term, and the requirement that every post-service reissue must be a Checkout. Transfer approval, single custody, department derivation, Service Record clearing custody, and terminal accountability remain applicable.
 
+**Extended by**: `specs/016-asset-procurement-lifecycle/spec.md` adds Procurement staging and deletion sequencing while preserving custody-history and protected-state rules.
+
 **Reciprocal Links**: Add lineage metadata to predecessor records during this delivery; their accepted requirements remain unchanged. This specification uses the repository's durable feature convention under constitution 1.1.0. It does not authorize migration to a single living specification or deletion of feature history.
 
 ## Domain Alignment *(mandatory)*

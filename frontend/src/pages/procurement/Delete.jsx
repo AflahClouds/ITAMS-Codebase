@@ -4,11 +4,15 @@ import AxiosInstance from "../../api/client"
 import { Box, Typography, Button } from "@mui/material"
 import AddBoxIcon from '@mui/icons-material/AddBox';
 import MyMessage from "../../components/forms/Message";
+import { useAuth } from '../../auth/useAuth';
 
 const ProcurementDelete = () => {
   const MyParameter = useParams()
   const MyId = MyParameter.id
   const navigate = useNavigate()
+  const { can } = useAuth()
+  const [confirmPermanent, setConfirmPermanent] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   const [message, setMessage] = useState([])
 
@@ -29,9 +33,11 @@ const ProcurementDelete = () => {
     GetData()
   }, [])
 
-  const DeleteRecord = (event) => {
+  const DeleteRecord = async (event) => {
     event.preventDefault()
-    AxiosInstance.delete(`/procurement/${MyId}/`).then(() => {
+    setBusy(true)
+    try {
+      await AxiosInstance.delete(`/procurement/${MyId}/`)
       setMessage(<MyMessage
         messageText={"Procurement archived. It is no longer in the working list but remains readable."}
         messageColor={"green"}
@@ -39,7 +45,23 @@ const ProcurementDelete = () => {
       setTimeout(() => {
         navigate('/procurement')
       }, 2000)
-    })
+    } catch (error) {
+      setMessage(<MyMessage messageText={error.response?.data?.detail || 'Archive failed. Reload and try again.'} messageColor="red" />)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const permanentlyDelete = async () => {
+    setBusy(true)
+    try {
+      await AxiosInstance.post(`/procurement/${MyId}/permanent-delete/`, {})
+      navigate(`/asset/${myData.assets[0].id}`)
+    } catch (error) {
+      setMessage(<MyMessage messageText={error.response?.data?.detail || 'Permanent deletion failed. Reload and try again.'} messageColor="red" />)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -62,21 +84,32 @@ const ProcurementDelete = () => {
             <strong>{myData.assets?.map((asset) => asset.asset_id).join(", ")}</strong>
           </Typography>
           <Typography sx={{ marginTop: "15px" }}>
-            Purchase records are archived rather than deleted: the invoice, dates,
-            vendor, and link history are the evidence that these assets were bought, so
-            they stay readable. The assets remain linked to it.
+            Archive keeps the purchase, invoice versions and history readable. The Assets remain linked.
           </Typography>
         </Box>
 
         <Box sx={{marginTop: "30px"}}>
           <Button
             type="submit"
+            disabled={busy || !can('asset_delete')}
             variant="contained" fullWidth>
             Archive
           </Button>
         </Box>
 
         </form>
+        {can('asset_delete') && myData.assets?.length === 1 && <Box sx={{ marginTop: 3 }}>
+          {confirmPermanent ? <>
+            <Typography>
+              Invoice {myData.invoice_number}: its purchase, invoice versions and Procurement history will be permanently deleted.
+            </Typography>
+            <Typography>The Asset {myData.assets[0].asset_id} is retained, unlinked and In Storage. Asset deletion is a separate action.</Typography>
+            <Button color="error" disabled={busy} onClick={permanentlyDelete}>Confirm permanent deletion</Button>
+            <Button disabled={busy} onClick={() => setConfirmPermanent(false)}>Cancel</Button>
+          </> : <Button color="error" disabled={busy} onClick={() => setConfirmPermanent(true)}>
+            Permanently delete Procurement
+          </Button>}
+        </Box>}
     </div>
   )
 }

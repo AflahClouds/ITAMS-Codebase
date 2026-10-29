@@ -30,6 +30,7 @@ from .serializers import (AmcContractSerializer, AssignmentSerializer, AssetDocu
                           ProcurementSerializer, ServiceRecordSerializer,
                           TransferSerializer)
 from .service import close_service, open_service
+from .procurement_lifecycle import permanently_release
 from .transfer import approve as approve_transfer
 from .transfer import reject as reject_transfer
 from .transfer import request_transfer
@@ -286,7 +287,7 @@ class ProcurementViewSet(viewsets.ModelViewSet):
     permission_map = {"list": "asset_view", "retrieve": "asset_view",
                       "create": "asset_create", "update": "asset_edit",
                       "partial_update": "asset_edit", "destroy": "asset_delete",
-                      "invoice": "asset_view"}
+                      "invoice": "asset_view", "permanent_delete": "asset_delete"}
     queryset = (Procurement.objects.all().select_related('mode_of_purchase', 'vendor')
                 .prefetch_related('invoice_versions').order_by('-id'))
     serializer_class = ProcurementSerializer
@@ -351,13 +352,7 @@ class ProcurementViewSet(viewsets.ModelViewSet):
                 message, link=f"/procurement/edit/{proc.pk}"))
 
     def perform_destroy(self, instance):
-        """Archive rather than delete.
-
-        B6 FR-011 forbids destroying a purchase record: the invoice, the dates, the
-        Vendor, and the link history are the evidence that the organization bought the
-        thing, and a mistaken click should not be able to erase it. The Assets stay
-        linked, so the purchase they came from remains answerable.
-        """
+        """Ordinary removal archives; explicit singleton release is a separate action."""
         instance.archived = True
         instance.archived_at = timezone.now()
         instance.archive_reason = (self.request.data.get('reason') or "").strip()
@@ -365,6 +360,19 @@ class ProcurementViewSet(viewsets.ModelViewSet):
         log_action(self.request, "Archive", "Procurement",
                    old_value=instance.invoice_number,
                    new_value=instance.archive_reason or "no reason given")
+
+    @action(detail=True, methods=['post'], url_path='permanent-delete')
+    def permanent_delete(self, request, pk=None):
+        with transaction.atomic():
+            instance = self.get_object()
+            purchase = f"Procurement {instance.pk} | invoice {instance.invoice_number}"
+            asset = permanently_release(instance)
+            log_action(request, 'Permanent Delete', 'Procurement', old_value=purchase,
+                       new_value=f"{asset.asset_id} | retained | In Storage | Procurement removed")
+            transaction.on_commit(lambda: _notify_it_managers(
+                f"{purchase} permanently deleted; Asset {asset.asset_id} retained In Storage.",
+                link=f'/asset/{asset.pk}'))
+        return Response(status=http_status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['get'])
     def invoice(self, request, pk=None):

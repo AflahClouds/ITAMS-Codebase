@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useNavigate, useParams } from "react-router"
+import { Link, useNavigate, useParams } from "react-router"
 import { useFormik } from "formik"
 import * as yup from "yup"
 import dayjs from "dayjs"
@@ -15,8 +15,10 @@ import ProcurementInvoiceField from "../../components/forms/ProcurementInvoiceFi
 import MyMessage from "../../components/forms/Message";
 import Button from '@mui/material/Button';
 import { buildProcurementFormData } from './formData';
+import { useAuth } from '../../auth/useAuth';
 
 const ProcurementEdit = () => {
+  const { can } = useAuth()
 
   const MyParameter = useParams()
   const MyId = MyParameter.id
@@ -74,7 +76,7 @@ const ProcurementEdit = () => {
 
   const validationSchema = yup.object({
     asset_ids: yup
-      .array().min(1, "Please select at least one asset").required("Please select at least one asset"),
+      .array().min(1, "Permanently delete this Procurement to release its last Asset.").required("Please select at least one asset"),
     mode_of_purchase: yup
       .string().required("Please select a purchase mode"),
     vendor: yup
@@ -189,6 +191,8 @@ const ProcurementEdit = () => {
           <Typography sx={{marginLeft: "10px", fontWeight: "bold"}} variant="subtitle2">
             Edit Procurement !
           </Typography>
+          {myData.asset_ids.length === 1 && can('asset_delete') && <Button component={Link}
+            to={`/procurement/delete/${MyId}`} color="error">Permanently delete Procurement</Button>}
         </Box>
 
         {message}

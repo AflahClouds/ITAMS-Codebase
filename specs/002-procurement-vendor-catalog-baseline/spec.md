@@ -84,6 +84,8 @@ invoice file optional at Procurement creation and permits it to be added or
 replaced through Procurement edit; Procurement ownership, single storage,
 linked-Asset exposure, and retained versions remain unchanged.
 
+**Superseded by**: `specs/016-asset-procurement-lifecycle/spec.md` adds association status changes and the explicit singleton permanent-deletion exception; ordinary archive and reasoned multi-Asset detachment remain.
+
 **Reciprocal Links**: `ROADMAP.md` entry B6 links to this Draft. Future changes
 after acceptance must be recorded in a new specification and linked here with
 `Extends`, `Supersedes`, or `Superseded by` metadata.

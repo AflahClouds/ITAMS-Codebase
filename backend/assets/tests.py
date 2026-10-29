@@ -142,6 +142,7 @@ class AmcContractPartyTests(TestCase):
 
 
 def _create_asset(asset_id, category, brand, model, procurement, **extra):
+    extra.setdefault("status", "Available")
     return Asset.objects.create(
         asset_id=asset_id,
         tag_number=f"{asset_id}-TAG",
@@ -1141,7 +1142,7 @@ class BaselineConformanceTests(TestCase):
         asset.refresh_from_db()
         self.assertEqual(asset.custodian, self.employee)
 
-    def test_create_still_accepts_available_and_in_storage(self):
+    def test_create_only_accepts_in_storage(self):
         """Covers: B2 FR-013."""
         for i, status_value in enumerate(("Available", "In Storage")):
             response = self.client_op.post("/asset/", {
@@ -1149,7 +1150,7 @@ class BaselineConformanceTests(TestCase):
                 "serial_number": f"C2-OK{i}-S", "category": self.category.pk,
                 "brand": self.brand.pk, "model": self.model.pk,
                 "status": status_value}, format="json")
-            self.assertEqual(response.status_code, 201, status_value)
+            self.assertEqual(response.status_code, 201 if status_value == "In Storage" else 400, status_value)
 
     # --- C6: Employee reads only its own custodial records ---
 

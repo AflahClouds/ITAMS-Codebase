@@ -4,12 +4,14 @@ from unittest.mock import patch
 
 from django.core.files.storage import FileSystemStorage
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from core.models import AuditLog
+from rest_framework.exceptions import ValidationError
 
 from .models import Asset, Procurement, ProcurementInvoiceVersion
 from .tests_b6_conformance import _asset, _catalog, _client, _link_payload, _procurement
+from .serializers import AssetSerializer, ProcurementSerializer
 
 
 class ProcurementLifecycleTests(TestCase):
@@ -19,6 +21,7 @@ class ProcurementLifecycleTests(TestCase):
                                            'asset_delete', 'asset_custody_manage'))
         self.private = TemporaryDirectory()
         self.addCleanup(self.private.cleanup)
+        self.enterContext(override_settings(MEDIA_ROOT=self.private.name))
         field = ProcurementInvoiceVersion._meta.get_field('file')
         original = field.storage
         field.storage = FileSystemStorage(location=self.private.name)
@@ -156,3 +159,123 @@ class DetachBeforeDeleteTests(ProcurementLifecycleTests):
         self.assertEqual(self.read_asset(removed)['procurement'], proc.pk)
 
 
+
+class PermanentReleaseTests(ProcurementLifecycleTests):
+    def singleton(self):
+        asset = _asset('ONLY', self.cat, status='In Storage')
+        response = self.purchase(asset)
+        self.assertEqual(response.status_code, 201, response.data)
+        return asset, Procurement.objects.get(pk=response.data['id'])
+
+    def test_empty_edit_explains_complete_deletion_without_mutation(self):
+        asset, proc = self.singleton()
+        response = self.client.patch(f'/procurement/{proc.pk}/',
+            {'asset_ids': [], 'attested': True, 'link_reason': 'Release last'}, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('permanently delete', str(response.data).lower())
+        self.assertEqual(self.read_asset(asset)['procurement'], proc.pk)
+
+    def test_singleton_release_deletes_purchase_owned_rows_files_and_retains_audit_asset(self):
+        asset, proc = self.singleton()
+        invoices = []
+        for version in (1, 2):
+            if version == 2:
+                proc.invoice_versions.update(is_current=False)
+            invoices.append(ProcurementInvoiceVersion.objects.create(
+                procurement=proc, file=SimpleUploadedFile(f'invoice-{version}.pdf', b'%PDF-1.4'),
+                file_name=f'invoice-{version}.pdf', version=version))
+        storage = invoices[0].file.storage
+        names = [invoice.file.name for invoice in invoices]
+        # File bytes stay until the outer request transaction commits.
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(f'/procurement/{proc.pk}/permanent-delete/', {}, format='json')
+            self.assertEqual(response.status_code, 204, getattr(response, 'data', response.content))
+            self.assertTrue(all(storage.exists(name) for name in names))
+        self.assertTrue(all(not storage.exists(name) for name in names))
+        self.assertEqual(self.client.get(f'/procurement/{proc.pk}/').status_code, 404)
+        self.assertEqual(ProcurementInvoiceVersion.objects.count(), 0)
+        self.assertEqual(asset.arrivals.count(), 0)
+        self.assertEqual(asset.procurement_link_history.count(), 0)
+        data = self.read_asset(asset)
+        self.assertEqual((data['procurement'], data['status']), (None, 'In Storage'))
+        audit = AuditLog.objects.get(action='Permanent Delete', module='Procurement')
+        self.assertIn(proc.invoice_number, audit.old_value)
+        self.assertIn(asset.asset_id, audit.new_value)
+        self.assertEqual(audit.username, 'lifecycle')
+        self.assertEqual(self.client.delete(f'/asset/{asset.pk}/').status_code, 204)
+
+    def test_release_denied_multi_asset_and_protected_states_preserve_data(self):
+        asset, proc = self.singleton()
+        url = f'/procurement/{proc.pk}/permanent-delete/'
+        editor = _client('only-edit', ('asset_view', 'asset_edit'))
+        self.assertEqual(editor.post(url, {}, format='json').status_code, 403)
+        second = _asset('SECOND', self.cat, procurement=proc, status='Available')
+        self.assertEqual(self.client.post(url, {}, format='json').status_code, 400)
+        second.delete()
+        for state in ('Assigned', 'Under Repair', 'Sold', 'Scrapped', 'Lost'):
+            Asset.objects.filter(pk=asset.pk).update(status=state)
+            self.assertEqual(self.client.post(url, {}, format='json').status_code, 400)
+            self.assertEqual(self.read_asset(asset)['procurement'], proc.pk)
+
+    def test_failed_audit_preserves_purchase_history_asset_and_private_files(self):
+        asset, proc = self.singleton()
+        invoice = ProcurementInvoiceVersion.objects.create(
+            procurement=proc, file=SimpleUploadedFile('invoice.pdf', b'%PDF-1.4'),
+            file_name='invoice.pdf', version=1)
+        with self.captureOnCommitCallbacks(execute=True):
+            with patch('assets.views.log_action', side_effect=RuntimeError('audit unavailable')):
+                with self.assertRaisesMessage(RuntimeError, 'audit unavailable'):
+                    self.client.post(f'/procurement/{proc.pk}/permanent-delete/', {}, format='json')
+        self.assertTrue(invoice.file.storage.exists(invoice.file.name))
+        self.assertEqual(self.read_asset(asset)['procurement'], proc.pk)
+        self.assertEqual(self.read_asset(asset)['status'], 'Available')
+        self.assertEqual(proc.arrivals.count(), 1)
+        self.assertEqual(proc.link_history.count(), 1)
+        self.assertEqual(proc.invoice_versions.count(), 1)
+
+    def test_ordinary_archive_retains_asset_association_and_purchase(self):
+        asset, proc = self.singleton()
+        self.assertEqual(self.client.delete(f'/procurement/{proc.pk}/').status_code, 204)
+        self.assertEqual(self.read_asset(asset)['procurement'], proc.pk)
+        self.assertTrue(self.client.get(f'/procurement/{proc.pk}/').data['archived'])
+
+    def test_stale_asset_form_cannot_restore_a_link_after_release(self):
+        asset, proc = self.singleton()
+        asset.refresh_from_db()
+        form = AssetSerializer(asset, data={'notes': 'Earlier form', 'procurement': proc.pk}, partial=True)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(self.client.post(f'/procurement/{proc.pk}/permanent-delete/', {}, format='json').status_code, 204)
+        with self.assertRaises(ValidationError):
+            form.save()
+        data = self.read_asset(asset)
+        self.assertEqual((data['procurement'], data['status']), (None, 'In Storage'))
+
+    def test_stale_purchase_selection_cannot_reclaim_an_asset(self):
+        proc = _procurement(self.cat)
+        kept = _asset('KEPT', self.cat, procurement=proc, status='Available')
+        staged = _asset('STAGED', self.cat, status='In Storage')
+        form = ProcurementSerializer(proc, data=_link_payload(self.cat, kept, staged), partial=True)
+        self.assertTrue(form.is_valid(), form.errors)
+        other = self.purchase(staged)
+        self.assertEqual(other.status_code, 201, other.data)
+        with self.assertRaises(ValidationError):
+            form.save()
+        self.assertEqual(self.read_asset(staged)['procurement'], other.data['id'])
+        self.assertEqual(self.read_asset(kept)['procurement'], proc.pk)
+
+    def test_detached_asset_with_returned_custody_history_still_cannot_be_deleted(self):
+        from accounts.models import User
+        asset, proc = self.singleton()
+        holder = User.objects.get(user_name='lifecycle')
+        issued = self.client.post('/assignment/', {'asset': asset.pk, 'user': holder.pk}, format='json')
+        self.assertEqual(issued.status_code, 201, issued.data)
+        returned = self.client.post(f"/assignment/{issued.data['id']}/take-back/",
+                                   {'condition': 'Good'}, format='json')
+        self.assertEqual(returned.status_code, 200, returned.data)
+        kept = _asset('KEPT', self.cat, procurement=proc, status='Available')
+        self.assertEqual(self.client.patch(f'/procurement/{proc.pk}/',
+            _link_payload(self.cat, kept, link_reason='Correct invoice'), format='json').status_code, 200)
+        self.assertEqual(self.read_asset(asset)['status'], 'In Storage')
+        response = self.client.delete(f'/asset/{asset.pk}/')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('custody history', str(response.data))

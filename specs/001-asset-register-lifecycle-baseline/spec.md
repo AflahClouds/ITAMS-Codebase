@@ -32,6 +32,8 @@
 
 **Extended by**: `specs/014-asset-assignments/spec.md` adds ongoing custody and its lifecycle interruption while retaining this baseline's terminal-state eligibility and accountability rules.
 
+**Superseded by**: `specs/016-asset-procurement-lifecycle/spec.md` replaces the creation-state choice with In Storage staging and adds Procurement association/deletion sequencing; custody and terminal protections remain.
+
 **Reciprocal Links**: `ROADMAP.md` entry B2 links to this baseline. Future
 changes after acceptance must be recorded in a new specification and linked
 here with `Extends`, `Supersedes`, or `Superseded by` metadata.

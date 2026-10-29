@@ -94,14 +94,10 @@ describe('Procurement row actions', () => {
     expect(screen.getByText('AST-001')).toBeInTheDocument();
   });
 
-  it('names the archive control for what it does', async () => {
-    // Covers: B6 FR-011.
-    // Removal archives rather than deletes, so a control labelled "delete" would
-    // describe an operation the system no longer performs.
+  it('names archive and explicit singleton permanent deletion separately', async () => {
     await renderWith(['asset_view', 'asset_delete']);
 
-    await waitFor(() =>
-      expect(screen.queryByLabelText(/delete procurement/i)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText('Permanently delete procurement')).toBeInTheDocument());
   });
 
   it('lets a read-only operator download the protected current invoice', async () => {

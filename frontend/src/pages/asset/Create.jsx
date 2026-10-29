@@ -12,9 +12,8 @@ import DescriptionForm from "../../components/forms/DescriptionForm";
 import MyMessage from "../../components/forms/Message";
 import Button from '@mui/material/Button';
 
-// A new asset enters the register unheld: every other status is reached through the
-// operation that owns it (Checkout, Transfer, a Service Record, or a disposal edit),
-// so offering them here would only produce a rejected save.
+// Registration stages the Asset In Storage. Procurement association makes it
+// Available; custody and servicing operations own subsequent transitions.
 const STATUS_OPTIONS = ["In Storage"]
   .map((s) => ({ id: s, label: s }));
 const CONDITION_OPTIONS = ["New", "Good", "Average", "Damaged", "Repair Required"]
@@ -430,6 +429,3 @@ const AssetCreate = () => {
 }
 
 export default AssetCreate
-
-
-

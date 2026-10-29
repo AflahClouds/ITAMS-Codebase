@@ -62,3 +62,41 @@ def associate(procurement, assets):
         if changed != 1:
             raise ValidationError('An Asset changed. Reload and try again.')
     return previous
+
+
+@transaction.atomic
+def permanently_release(instance):
+    """Delete one purchase, retaining its sole eligible Asset and exact file handles.
+
+    The caller records independent audit in the same outer transaction. File cleanup
+    runs only once that transaction commits; rollback retains every file and row.
+    """
+    procurement = lock_purchase(instance)
+    # Acquire the SQLite write lock before reading cardinality. On databases with
+    # row locking, lock_purchase already serializes every purchase edit.
+    changed = Procurement.objects.filter(pk=procurement.pk, modified=procurement.modified).update(
+        modified=timezone.now())
+    if changed != 1:
+        raise ValidationError('This Procurement changed. Reload and try again.')
+    assets = list(Asset.objects.select_for_update().filter(procurement=procurement).order_by('pk'))
+    if len(assets) != 1:
+        raise ValidationError('Permanent deletion requires exactly one remaining Asset. '
+                              'Remove other eligible Assets with a reason first.')
+    asset = assets[0]
+    _eligible(asset)
+    changed = Asset.objects.filter(
+        pk=asset.pk, procurement=procurement, status=asset.status, modified=asset.modified,
+        custodian__isnull=True, department__isnull=True,
+    ).update(procurement=None, status='In Storage', modified=timezone.now())
+    if changed != 1:
+        raise ValidationError('This Asset changed. Reload and try again.')
+    files = [(invoice.file.storage, invoice.file.name)
+             for invoice in procurement.invoice_versions.all() if invoice.file.name]
+    procurement.delete()
+
+    def cleanup():
+        for storage, name in files:
+            storage.delete(name)
+
+    transaction.on_commit(cleanup)
+    return asset

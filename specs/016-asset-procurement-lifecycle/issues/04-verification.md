@@ -19,3 +19,17 @@ three lifecycle journeys, with unrelated work preserved and current docs accurat
 Full backend baseline is 8–12 minutes. Retain one process handle per long run and
 wait to terminal exit; never duplicate or treat truncated output as success.
 Guide owns subsequent canonical consolidation/review and final post-closeout checks.
+2026-10-29 ongoing verification and combined stale-material/self-description review:
+- Full Django suite started in retained session 75077 with an 8–12 minute baseline estimate; completion signals are the final Ran/OK-or-FAILED summary and process exit. Log: ignored backend/feature016-full-tests.log. No healthy run has been duplicated or treated as passed from intermediate output.
+- Full serial frontend: retained 35709 reached terminal exit 0, 16 files/80 tests, 119.17s. Existing fixture/MUI warnings were non-failing. Lint 72845 reached exit 0 (0 errors, 13 hook warnings); build 66901 reached exit 0 (2,206 modules; chunk-size/plugin timing advisories). makemigrations --check --dry-run exited 0, No changes detected. No user database migration, historical-row rewrite, dependency install, browser acceptance claim or deployment occurred. Existing full-suite barcode fixtures use the configured ignored media directory; the new feature fixture now isolates barcode output as well as invoice bytes in a temporary directory.
+- The combined current-tree review inspected tracked feature changes, current domain/README/agent documents, relevant lifecycle/association/storage callers, regression fixtures and predecessor references. Removed superseded Available creation options/defaults, unconditional Procurement link writes, missing linked-delete guard and generic last-Asset guidance through proven replacements. Preserved ordinary archive, independent custody assertions and unrelated native state.
+- Predecessor edits are eight lines of non-semantic reciprocal lineage metadata across 001/002/013/014 only; historical requirement and acceptance content is unchanged. Current model/view archive comments now identify the explicit singleton exception. Canonical CONTEXT/README successor consolidation is intentionally reserved to guide-owned closeout after initial clean independent review, as required by the plan.
+- Spec, plan and requirements checklist remain byte-stable at SHA-256 6c0e2a40c1258a3725783c622bf8aa64644b8667fa5654468d193283c31ad1b4, 8310e0f7255cee7294edc489f7ec30260bab7db5de885db42cedc37f990e028b and 608d2563c611f51278cc2fee5cda0066ece87b8276d6ab8e1e36618502b30a1e respectively. Requirements checklist remains 16/16. No before/after-implement hooks exist. Loaded AGENTS.md is unchanged; no restart is triggered.
+
+First full backend terminal result: session 75077 exited 1 after 410 tests in
+763.569 seconds (12m44s). Exactly one legacy custody test submitted Available while
+checking Department rejection; the new creation-state guard correctly rejected
+status first. Its input now uses In Storage and all Department/no-row/no-audit
+assertions remain unchanged. No application correction was required. A focused
+fixture/module check and a fresh full-suite run follow this completed run; no
+healthy process was duplicated.

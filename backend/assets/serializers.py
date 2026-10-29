@@ -230,7 +230,13 @@ class AssetSerializer(serializers.ModelSerializer):
                 AmcContract.objects.create(asset=asset, status="Incomplete")
         return asset
 
+    @transaction.atomic
     def update(self, instance, validated_data):
+        current = Asset.objects.select_for_update().get(pk=instance.pk)
+        if (current.modified != instance.modified or current.status != instance.status
+                or current.procurement_id != instance.procurement_id):
+            raise serializers.ValidationError('This Asset changed. Reload and try again.')
+        instance = current
         has_amc = validated_data.pop('has_amc', None)
         amc_start = validated_data.pop('amc_start', None)
         amc_end = validated_data.pop('amc_end', None)
@@ -364,7 +370,8 @@ class ProcurementSerializer(serializers.ModelSerializer):
         # the lower bound a Procurement can be emptied and left describing nothing.
         if not assets:
             raise serializers.ValidationError(
-                "A procurement must keep at least one asset linked to it.")
+                "A Procurement must keep at least one Asset. To release its last Asset, "
+                "permanently delete the Procurement and its purchase invoice/history.")
         return assets
 
     def validate_invoice_file(self, upload):
@@ -575,4 +582,3 @@ class AmcContractSerializer(serializers.ModelSerializer):
     class Meta:
         model = AmcContract
         fields = "__all__"
-

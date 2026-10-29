@@ -26,6 +26,8 @@ AS-016, NC-010, SC-013, and corresponding accepted-intent text. The B6 rules
 for Procurement ownership, single storage, linked-Asset exposure, and retained
 replacement versions remain in force.
 
+**Extended by**: `specs/016-asset-procurement-lifecycle/spec.md` removes owned invoice versions/files only under explicit singleton permanent purchase deletion; optional upload and ordinary retained versions remain.
+
 **Reciprocal Links**: Draft B6 records this scoped successor under its
 Specification Lineage section.
 

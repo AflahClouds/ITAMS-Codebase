@@ -28,8 +28,8 @@ class Procurement(models.Model):
     # number is ours, so it is unique across the system when present.
     invoice_number = models.CharField(max_length=100)
     po_number = models.CharField(max_length=100, null=True, blank=True)
-    # B6 FR-011 forbids destroying a purchase record. Removal archives it instead, so
-    # the purchase details and their history stay readable.
+    # Ordinary removal archives the purchase and history. Feature 016 permits
+    # explicit permanent deletion only to release one remaining eligible Asset.
     archived = models.BooleanField(default=False)
     archived_at = models.DateTimeField(null=True, blank=True)
     archive_reason = models.TextField(blank=True, default="")
@@ -445,4 +445,3 @@ class AmcContract(models.Model):
 
     def __str__(self):
         return f"{self.asset.asset_id} AMC {self.start_date}–{self.end_date}"
-

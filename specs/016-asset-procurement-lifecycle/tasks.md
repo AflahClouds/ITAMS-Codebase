@@ -50,14 +50,14 @@ Independent test: AS-006–009, including archived links/custody-history protect
 Goal: Explicit permanent singleton purchase deletion retains Asset Storage.
 Independent test: AS-010–013 and owned files/history plus rollback.
 
-- [ ] T012 [US3] Add/execute failing singleton-only permanent deletion, owned history/invoice rows and physical file cleanup, empty-edit guidance, protected/stale/cardinality/permission/audit rollback and ordinary archive API/UI regressions in backend/assets/tests_procurement_lifecycle.py and frontend/src/pages/procurement/ tests.
-- [ ] T013 [US3] Implement explicit asset_delete-mapped singleton action in backend/assets/views.py and authoritative permanent release in backend/assets/procurement_lifecycle.py, including commit-safe exact private-file cleanup and retained audit (FR-005–007, ALR-001–005).
-- [ ] T014 [US3] Implement explicit confirmed permanent-delete UI/navigation/error handling in frontend/src/pages/procurement/{Procurement,Edit,Delete}.jsx while retaining ordinary archive behavior (FR-008).
-- [ ] T015 [US3] Run focused green regressions, retain permanent failure protection, and record red/green/checkpoint in specs/016-asset-procurement-lifecycle/issues/03-release-last-asset.md.
+- [X] T012 [US3] Add/execute failing singleton-only permanent deletion, owned history/invoice rows and physical file cleanup, empty-edit guidance, protected/stale/cardinality/permission/audit rollback and ordinary archive API/UI regressions in backend/assets/tests_procurement_lifecycle.py and frontend/src/pages/procurement/ tests.
+- [X] T013 [US3] Implement explicit asset_delete-mapped singleton action in backend/assets/views.py and authoritative permanent release in backend/assets/procurement_lifecycle.py, including commit-safe exact private-file cleanup and retained audit (FR-005–007, ALR-001–005).
+- [X] T014 [US3] Implement explicit confirmed permanent-delete UI/navigation/error handling in frontend/src/pages/procurement/{Procurement,Edit,Delete}.jsx while retaining ordinary archive behavior (FR-008).
+- [X] T015 [US3] Run focused green regressions, retain permanent failure protection, and record red/green/checkpoint in specs/016-asset-procurement-lifecycle/issues/03-release-last-asset.md.
 
 ## Phase 6: Polish and Cross-Cutting Concerns
 
-- [ ] T016 Remove proven superseded status/link/delete duplicate paths and stale current comments in backend/assets/ and frontend/src/pages/, add predecessor lineage metadata in specs/001-asset-register-lifecycle-baseline/spec.md, specs/002-procurement-vendor-catalog-baseline/spec.md, specs/013-procurement-invoice-attachment-change/spec.md and specs/014-asset-assignments/spec.md; retain historical requirements and ordinary archive/custody tests.
+- [X] T016 Remove proven superseded status/link/delete duplicate paths and stale current comments in backend/assets/ and frontend/src/pages/, add predecessor lineage metadata in specs/001-asset-register-lifecycle-baseline/spec.md, specs/002-procurement-vendor-catalog-baseline/spec.md, specs/013-procurement-invoice-attachment-change/spec.md and specs/014-asset-assignments/spec.md; retain historical requirements and ordinary archive/custody tests.
 - [ ] T017 Run full Django suite, serial frontend suite, lint, build and migration drift check per specs/016-asset-procurement-lifecycle/quickstart.md; retain each process handle to terminal exit and record commands/counts in issues/04-verification.md (SC-001–004).
 - [ ] T018 Complete one combined repository-wide stale-material/reference and self-description/resume review of current tree, update necessary current docs/context and verified evidence, verify unrelated state preserved, create/push final ordinary checkpoint, and freeze candidate in specs/016-asset-procurement-lifecycle/issues/04-verification.md.
 
@@ -86,4 +86,3 @@ after MVP or request routine ticket approval. Execute local issues, record evide
 and finish every task before independent review. Reviewer is read-only; findings
 return to same builder, followed by same reviewer re-review. Guide-owned canonical
 consolidation/review and post-closeout checks stay outside this ledger.
-

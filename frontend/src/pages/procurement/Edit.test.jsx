@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../api/client', () => ({
   default: { get: vi.fn(), put: vi.fn() },
 }));
+vi.mock('../../auth/useAuth', () => ({ useAuth: () => ({ can: () => true }) }));
 vi.mock('react-router', () => ({
+  Link: ({ to, children, ...rest }) => <a href={to} {...rest}>{children}</a>,
   useNavigate: () => vi.fn(), useParams: () => ({ id: '7' }),
 }));
 vi.mock('../../components/forms/TextForm', () => ({
@@ -16,7 +18,8 @@ vi.mock('../../components/forms/SelectForm', () => ({
     <input aria-label={label} name={name} value={value || ''} onChange={onChange} />,
 }));
 vi.mock('../../components/forms/MultiSelectForm', () => ({
-  default: () => <div>Linked assets</div>,
+  default: ({ name, onChange }) => <button type="button"
+    onClick={() => onChange({ target: { name, value: [1] } })}>Keep first Asset</button>,
 }));
 vi.mock('../../components/forms/DateForm', () => ({ default: () => null }));
 vi.mock('../../components/forms/ArrivalsForm', () => ({
@@ -83,5 +86,24 @@ describe('Procurement edit invoice replacement', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Update Procurement' }));
 
     expect(await screen.findByText(/25 MB or smaller/)).toBeInTheDocument();
+  });
+
+  it('submits the chosen surviving Asset and a reason for detachment', async () => {
+    AxiosInstance.get.mockImplementation((url) => Promise.resolve({ data:
+      url === '/procurement/7/' ? { ...PROCUREMENT,
+        assets: [...PROCUREMENT.assets, { id: 2, asset_id: 'B', has_procurement: true }],
+      } : url === '/asset/' ? [...PROCUREMENT.assets, { id: 2, asset_id: 'B' }] : [],
+    }));
+    render(<ProcurementEdit />);
+    await screen.findByText(/existing\.pdf/);
+    fireEvent.click(screen.getByRole('button', { name: 'Keep first Asset' }));
+    fireEvent.change(screen.getByLabelText('Association change reason'), { target: { value: 'Wrong unit on invoice' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Attest arrivals' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Update Procurement' }));
+    await waitFor(() => expect(AxiosInstance.put).toHaveBeenCalled());
+    const form = AxiosInstance.put.mock.calls.at(-1)[1];
+    expect(form.getAll('asset_ids')).toEqual(['1']);
+    expect(form.get('link_reason')).toBe('Wrong unit on invoice');
+    expect(screen.getByText(/Removing an eligible Asset returns it to In Storage/)).toBeInTheDocument();
   });
 });

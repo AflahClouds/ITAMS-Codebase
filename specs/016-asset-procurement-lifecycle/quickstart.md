@@ -13,8 +13,9 @@ From backend (existing Env Python requires host sandbox escalation):
 .\Env\Scripts\python.exe manage.py makemigrations --check --dry-run
 ~~~
 
-The new focused module is planned until builder creates it. Record actual legacy
-labels, terminal exits/counts, red-before-green evidence in each issue.
+The focused module covers the three journeys plus stale validation/write, audit
+rollback and private-file commit boundaries. Existing Procurement/invoice/custody
+regressions remain; terminal evidence is recorded in issues 01–04.
 
 From frontend, use verified npm entry point:
 

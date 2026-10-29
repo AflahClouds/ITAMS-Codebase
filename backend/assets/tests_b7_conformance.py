@@ -54,6 +54,7 @@ def _catalog():
 
 
 def _asset(asset_id, cat, **extra):
+    extra.setdefault("status", "Available")
     return Asset.objects.create(
         asset_id=asset_id, tag_number=f"{asset_id}-T", serial_number=f"{asset_id}-S",
         category=cat["category"], brand=cat["brand"], model=cat["model"], **extra)

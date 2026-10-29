@@ -19,4 +19,6 @@ returns the chosen Asset to In Storage and preserves the remaining purchase.
 
 Execute sequentially after issue 01; ordinary archive behavior stays unchanged.
 
-2026-10-29 evidence: API red 2/2 expected failures (linked DELETE 204, reasonless detach 200), exit1, terminal7902. API green11/11 exit0 terminal50379; existing custody-history coverage retained for final full verification. UI red missing Procurement navigation1 fail/1 skipped exit1 terminal87002; UI green2/2 deletion cases plus2/2 creation/edit form cases, exit0 terminal64738. Reasoned history and surviving Asset/purchase asserted through API. Protected detach and denied edit retain association. Coherent US1 checkpoint900e5d2 pushed; issue02 checkpoint follows.
+2026-10-29 evidence: API red 2/2 expected failures (linked DELETE 204, reasonless detach 200), exit 1, terminal 7902. API green 11/11 exit 0 terminal 50379; existing custody-history coverage retained for final full verification. UI red missing Procurement navigation1 fail/1 skipped exit 1 terminal 87002; UI green2/2 deletion cases plus2/2 creation/edit form cases, exit 0 terminal 64738. Reasoned history and surviving Asset/purchase asserted through API. Protected detach and denied edit retain association. Coherent US1 checkpoint 900e5d2 pushed; issue 02 checkpoint follows.
+
+Checkpoint 34257e9 was committed/pushed successfully to the authorized development branch. Existing custody-history protections also receive the explicit detach-after-Take-Back regression in the final feature API module.
