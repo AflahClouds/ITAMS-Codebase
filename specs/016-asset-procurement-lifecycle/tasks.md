@@ -95,3 +95,14 @@ The accepted scope and original 18-task delivery remain unchanged.
 - [X] T019 [US3] Observe expected red F001 regressions for release/notification destinations and actual App routing to freshly loaded retained Asset state in frontend/src/pages/procurement/{Delete,ReleaseNavigation}.test.jsx and backend/assets/tests_procurement_lifecycle.py (FR-008, ALR-004, AS-011).
 - [X] T020 [US3] Correct the two release destinations to existing /asset/detail/:id in frontend/src/pages/procurement/Delete.jsx and backend/assets/views.py; preserve release and notification behavior (F001).
 - [X] T021 Run focused backend lifecycle coverage, full frontend suite and lint/build; record F001 red/green and publication evidence in issues/05-retained-asset-navigation.md, complete ledgers, and freeze for same-reviewer re-review.
+
+## Phase 8: Reported Confirmation-Intent Repair — F002
+
+Publish/execute issues/06-distinct-procurement-confirmations.md. This corrects the
+existing FR-008 explicit-action presentation after the stakeholder reported that
+the two buttons lead to the same page. No purchase, retention, permission,
+cardinality, status, or backend contract decision changes.
+
+- [ ] T022 [US3] Observe expected failing actual-route regressions proving Archive and permanent-delete entry points currently open the same confirmation in frontend/src/pages/procurement/Procurement.test.jsx, Delete.test.jsx and ReleaseNavigation.test.jsx; include the Edit.jsx last-Asset link (F002, FR-008).
+- [ ] T023 [US3] Give archive and permanent deletion distinct action-intent routes and focused confirmations in frontend/src/App.jsx and frontend/src/pages/procurement/{Procurement,Delete,Edit}.jsx; preserve permission/cardinality checks, deliberate permanent confirmation, cancellation/error handling, and existing API methods.
+- [ ] T024 Run focused and full frontend tests, lint/build, record F002 red/green evidence and combined relevant stale-reference/self-description check in issues/06-distinct-procurement-confirmations.md, checkpoint/push only the authorized development ref and freeze for independent read-only review.
