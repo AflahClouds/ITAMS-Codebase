@@ -120,5 +120,5 @@ Use native builder/reviewer subagents and completion-aware waits. Keep the root 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/015-standards-remediation/plan.md
+at specs/016-asset-procurement-lifecycle/plan.md
 <!-- SPECKIT END -->
