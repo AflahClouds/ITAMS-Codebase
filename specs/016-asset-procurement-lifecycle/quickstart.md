@@ -15,7 +15,7 @@ From backend (existing Env Python requires host sandbox escalation):
 
 The focused module covers the three journeys plus stale validation/write, audit
 rollback and private-file commit boundaries. Existing Procurement/invoice/custody
-regressions remain; terminal evidence is recorded in issues 01–04.
+regressions remain; terminal evidence is recorded in issues 01–05.
 
 From frontend, use verified npm entry point:
 
@@ -25,7 +25,7 @@ node 'C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js' run lint
 node 'C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js' run build
 ~~~
 
-Full backend baseline takes 8–12 minutes. Builder retains each run's handle to
+Verified full backend runs took about 10–13 minutes. Builder retains each run's handle to
 terminal exit; no duplicate healthy run. Root coordinates. Do not claim browser
 acceptance unless a browser was actually used.
 
@@ -59,3 +59,15 @@ pass; lint/build exit 0. The new actual-App routing regression freshly loads
 the retained unlinked In Storage Asset. See issues/05-retained-asset-navigation.md.
 The prior full 410-test backend green remains broader evidence for this URL-only
 backend repair; no schema or lifecycle logic changed.
+
+Native run bfc1a11c completed after the same fresh read-only reviewer confirmed
+F001 resolved with no further findings at e63184b. All 21 tasks and five local
+issues are complete. Final current-domain/README/agent-fact consolidation is
+guide-owned and changes no application behavior or accepted requirements.
+
+Guide closeout completed after clean independent documentation review. Current
+CONTEXT.md, frontend README, agent project facts, feature metadata and evidence
+agree with the accepted behavior. All relevant pointers resolve to this retained
+authoritative feature; historical requirements and unrelated state are preserved.
+No application change followed the verified repair. Browser/manual acceptance,
+production database migration, deployment and main promotion remain unperformed.

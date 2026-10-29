@@ -49,3 +49,15 @@ T019–T021. See issue 05 for fail-before route/notification evidence, the two U
 corrections, focused backend 35/35 and full frontend 17 files/82 tests green,
 lint/build exits and the repaired same-reviewer freeze. Original lifecycle and
 full-backend verification remain applicable; canonical closeout is guide-owned.
+
+Guide closeout record (2026-10-29): native run bfc1a11c completed after the same
+fresh reviewer returned clean on repaired e63184b. Before/after HEAD, full index
+and tracked/nonignored content snapshots matched for both reviews. The guide
+then consolidated current domain/README/agent facts and completion metadata;
+the same reviewer independently returned clean on that documentation candidate,
+again with identical before/after full snapshots. Requirements-quality checklist
+remains 16/16; all 21 tasks/five issue acceptance lists are complete. Active
+feature and supported agent-context pointers remain on feature 016. Historical
+features remain under constitution 1.1.0; no installer/managed-policy change,
+application change, production migration, main promotion or deployment followed
+verified repair. The final documentation checkpoint/push is recorded in Git.

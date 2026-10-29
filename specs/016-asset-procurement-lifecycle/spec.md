@@ -4,8 +4,10 @@
 
 **Created**: 2026-10-29
 
-**Status**: Accepted scope — current-update local sprint authorized on
-2026-10-29; planning and delivery in progress.
+**Status**: Accepted scope — implemented and independently reviewed locally on
+2026-10-29; native run `bfc1a11c` completed after clean re-review of `e63184b`.
+Canonical documentation closeout also received clean independent review.
+Browser/manual acceptance, deployment, and main promotion have not been performed.
 
 **Input**: New Assets must start `In Storage` and become `Available` after
 Procurement is added. An Asset linked to Procurement cannot be deleted until
@@ -44,8 +46,9 @@ they are not approval of Specify, Clarify, final scope, or a local sprint.
 - Final decision presented: Accept this clarified scope and authorize its full
   local sprint (Plan, quality work, local implementation issues, test-first
   implementation, independent review/repair, verification, convergence, and
-  closeout). Both design-stage approvals are verified, but final scope and
-  current-update sprint authority remain absent. No dependent stage has started.
+  closeout). At that presentation both design-stage approvals were verified;
+  final scope and sprint authority had not yet been granted. The subsequent
+  affirmative decision is recorded below.
 - Authorization identity: Repository `AflahClouds/ITAMS-Codebase`, local root
   `D:/AFLAH V K/ITAMS - Codebase`, development branch
   `codex/016-asset-procurement-lifecycle`, baseline revision
@@ -67,10 +70,24 @@ they are not approval of Specify, Clarify, final scope, or a local sprint.
   `origin refs/heads/codex/016-asset-procurement-lifecycle` under existing policy.
   Main promotion, deployment, force-push, tags, billing, and paid/reset capacity
   are excluded. Preserve unrelated existing work and immutable feature history.
+- Delivery evidence: All 21 tasks and five local issue acceptance lists are
+  complete. The fresh read-only reviewer identified navigation finding F001;
+  the same builder repaired it with regressions and the same reviewer returned
+  clean. Full HEAD/index/content snapshots verified read-only behavior. See
+  `quickstart.md` and issues 04–05 for terminal check results. Current domain and
+  frontend documentation are consolidated only after this verified result.
+- Guide closeout: The same read-only reviewer independently checked the current
+  domain/README/agent-fact consolidation and returned clean; full before/after
+  repository fingerprints matched. Requirements remain unchanged, the quality
+  checklist is 16/16, and all implementation work is complete. Retain this feature
+  and its evidence under the governing per-feature history convention; active
+  feature and supported agent-context pointers resolve here. No installer or
+  managed-policy update occurred.
 
 ## Specification Lineage *(mandatory)*
 
-**Type**: Change; temporary change specification pending verified delivery.
+**Type**: Change; retained authoritative feature record after verified delivery
+under constitution 1.1.0's per-feature history convention.
 
 **Roadmap Reference**: Standalone update affecting B2 (Asset register and
 lifecycle) and B6 (Procurement) in `ROADMAP.md`.
@@ -89,8 +106,8 @@ exception. The 2026-10-29 stakeholder answers explicitly authorize the proposed
 retention exception as design intent; final scope and local implementation
 authority were subsequently granted as recorded above.
 
-**Reciprocal Links**: Add non-semantic successor links during delivery;
-predecessor requirement content remains unchanged.
+**Reciprocal Links**: Predecessors 001, 002, 013 and 014 contain non-semantic
+successor links to this feature; their requirement content remains unchanged.
 
 ## Domain Alignment *(mandatory)*
 

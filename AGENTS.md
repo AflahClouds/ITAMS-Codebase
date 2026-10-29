@@ -75,8 +75,9 @@ Use native builder/reviewer subagents and completion-aware waits. Keep the root 
   No root README exists; `frontend/README.md` describes the client and checks,
   and `specs/README.md` describes durable feature/issue organization.
 - Code entry points: `backend/itams/{settings,urls}.py`, `backend/manage.py`,
-  and `frontend/src/App.jsx`. Feature 015 validation instructions and evidence
-  are in `specs/015-standards-remediation/quickstart.md` and `issues/01–07`.
+  and `frontend/src/App.jsx`. Current lifecycle validation and evidence are in
+  `specs/016-asset-procurement-lifecycle/quickstart.md` and `issues/01–05`;
+  feature 015 retains its earlier Standards-remediation evidence.
 
 ## Project authority
 
@@ -89,6 +90,10 @@ Use native builder/reviewer subagents and completion-aware waits. Keep the root 
   `AflahClouds` (228531868) matches the repository owner; repository 1411560036
   reports admin/push access. Feature 015 publishes ordinary checkpoints only to
   `refs/heads/codex/015-standards-remediation`; this grants no main promotion.
+- Feature 016's approved local sprint publishes ordinary checkpoints only to
+  `refs/heads/codex/016-asset-procurement-lifecycle` on that same verified origin.
+  Native run `bfc1a11c` completed after clean independent re-review; this grants
+  no main promotion or deployment authority.
 - New repositories requested through this workflow: private, under `Cloud-Shoes-LLP`; do not alter an existing remote without authorization.
 
 ## Technology envelope
@@ -99,8 +104,10 @@ Use native builder/reviewer subagents and completion-aware waits. Keep the root 
   `ATOMIC_REQUESTS` are configured in `backend/itams/settings.py`.
 - Frontend uses React 19, Material UI, npm/package-lock, Vitest, jsdom and
   Testing Library. Backend coverage uses Django tests and DRF APIClient.
-  Feature 015 adds no application dependency or schema migration. Deployment
-  configuration and production operating commands remain unverified.
+  Feature 015 added no application dependency or schema migration. Feature 016
+  adds no dependency and includes default-only migration
+  `assets/0018_asset_storage_default` for new Assets; historical rows are unchanged.
+  Deployment configuration and production operating commands remain unverified.
 
 ## Repository commands
 
@@ -109,6 +116,9 @@ Use native builder/reviewer subagents and completion-aware waits. Keep the root 
   `catalog.tests_standards`, `core.tests_standards`,
   `core.tests_settings_standards` and `core.tests_exports_standards`.
   This host requires sandbox escalation to launch that existing Python.
+- Feature 016's focused backend label is `assets.tests_procurement_lifecycle`;
+  the verified migration consistency command is
+  `.\Env\Scripts\python.exe manage.py makemigrations --check --dry-run`.
 - From `frontend/`, the verified npm entry point is
   `node 'C:/Program Files/nodejs/node_modules/npm/bin/npm-cli.js'` because the
   ordinary npm shim points to a missing roaming install. Append

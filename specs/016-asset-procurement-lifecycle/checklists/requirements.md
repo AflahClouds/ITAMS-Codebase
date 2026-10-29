@@ -40,5 +40,10 @@
   complete. Revalidation remains 16/16, with no regressions or unchecked items.
 - Final scope acceptance and current-update local-sprint authority were granted
   on 2026-10-29 after both design-stage approvals; see spec.md#clarifications.
-- The optional `after_specify` agent-context refresh hook was inspected and
-  deferred: no implementation plan exists yet; planning owns its later refresh.
+- The optional `after_specify` agent-context refresh was deferred during
+  preparation; the supported refresh completed during planning and AGENTS.md
+  points to this feature's plan.
+- Post-convergence requirements-quality review remains 16/16; approved business
+  requirements are unchanged. Native run bfc1a11c completed clean after F001 repair
+  and independent re-review. Canonical documentation received a separate clean
+  read-only review; before/after full repository fingerprints matched.

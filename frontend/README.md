@@ -16,6 +16,16 @@ administrative Setting mutation, and preserves literal text in PDF/Excel exports
 The accepted scope and regression evidence are in
 [`specs/015-standards-remediation/`](../specs/015-standards-remediation/).
 
+New Assets start **In Storage** and become **Available** when valid Procurement
+is added. Asset deletion explains that any Procurement link must be removed
+first. Procurement editing supports reasoned detachment while other Assets
+remain; its last eligible Asset is released through the separate confirmed
+**Permanently delete** action. That action removes the purchase and its owned
+history/invoices, retains the Asset In Storage, and opens its refreshed detail
+page. Ordinary **Archive** remains separate. Existing permissions and custody
+history safeguards apply. Scope and validation evidence are in
+[`specs/016-asset-procurement-lifecycle/`](../specs/016-asset-procurement-lifecycle/).
+
 From this directory, with the dependencies in `package-lock.json` installed:
 
 ```powershell

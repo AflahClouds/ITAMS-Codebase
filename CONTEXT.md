@@ -8,6 +8,13 @@ IT Asset Management System — tracks IT assets (laptops, hardware) through thei
 A physical IT item (laptop, monitor, etc.) tracked from procurement to end-of-life. Has a `status` (Available, Assigned, Under Repair, In Storage, Sold, Scrapped, Lost) and a `condition` (New, Good, Average, Damaged, Repair Required), independent of each other. `Sold`, `Scrapped`, and `Lost` are terminal statuses — an Asset in one of these has left circulation.
 _Avoid_: Disposed (renamed to Sold — the org's only disposal path is selling the asset; "Disposed" was a vague catch-all).
 
+Newly registered Assets start `In Storage`, without Procurement or a Custodian.
+Adding valid Procurement makes a newly linked eligible Asset `Available`.
+Removing an eligible Asset from Procurement returns it to `In Storage`.
+An Asset cannot be deleted while linked to Procurement; existing custody-history
+deletion protections also continue after detachment. These rules do not
+retroactively reclassify historical Assets.
+
 **Sold**:
 Terminal Asset status — the asset was sold and has left the organization.
 
@@ -35,6 +42,15 @@ An approval-gated handoff of an Asset's custody from one user (and department) t
 
 **Procurement**:
 A record of a completed asset purchase (vendor, invoice, PO), created by IT only, after the asset physically arrives at its location. Not a request workflow — unlike Transfer, there is no `requested_by`/approval stage; employees cannot ask for a new asset to be bought through the system.
+Ordinary removal archives Procurement and retains its Asset links. A reasoned
+edit may detach an eligible Asset while another Asset remains. To release the
+last eligible Asset, an authorized operator explicitly **permanently deletes**
+Procurement, its owned history and invoice versions/files. The Asset survives
+unlinked `In Storage`, for a separate deletion if existing safeguards permit;
+independent operational audit evidence remains. Purchase maintenance cannot
+overwrite custody, servicing, or terminal states. This scoped retention exception
+and the status transitions are recorded in
+[`specs/016-asset-procurement-lifecycle/spec.md`](specs/016-asset-procurement-lifecycle/spec.md).
 _Deferred_: an employee/team-lead-initiated procurement request stage is a possible future scope, intentionally left out for now.
 
 **Service Record**:
