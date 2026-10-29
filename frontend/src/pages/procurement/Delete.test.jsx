@@ -20,8 +20,9 @@ beforeEach(() => {
 });
 
 it('confirms permanent purchase invoice and history loss while retaining the Asset', async () => {
-  render(<ProcurementDelete />);
-  await userEvent.click(await screen.findByRole('button', { name: 'Permanently delete Procurement' }));
+  render(<ProcurementDelete mode="permanent" />);
+  await screen.findByRole('button', { name: 'Confirm permanent deletion' });
+  expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
   expect(screen.getByText(/invoice versions and.*history.*permanently/i)).toBeInTheDocument();
   expect(screen.getByText(/Asset.*retained.*In Storage/i)).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Confirm permanent deletion' }));
@@ -30,43 +31,52 @@ it('confirms permanent purchase invoice and history loss while retaining the Ass
   expect(state.navigate).toHaveBeenCalledWith('/asset/detail/1');
 });
 
-it('cancels without mutation and reports server failure without success navigation', async () => {
-  AxiosInstance.post.mockRejectedValue({ response: { data: { detail: 'Asset custody changed. Reload.' } } });
-  render(<ProcurementDelete />);
-  await userEvent.click(await screen.findByRole('button', { name: 'Permanently delete Procurement' }));
+it('cancels permanent confirmation without mutation', async () => {
+  render(<ProcurementDelete mode="permanent" />);
+  await screen.findByRole('button', { name: 'Confirm permanent deletion' });
   await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(AxiosInstance.post).not.toHaveBeenCalled();
-  await userEvent.click(screen.getByRole('button', { name: 'Permanently delete Procurement' }));
+  expect(AxiosInstance.delete).not.toHaveBeenCalled();
+  expect(state.navigate).toHaveBeenCalledWith('/procurement');
+});
+
+it('reports permanent failure without success navigation or archiving', async () => {
+  AxiosInstance.post.mockRejectedValue({ response: { data: { detail: 'Asset custody changed. Reload.' } } });
+  render(<ProcurementDelete mode="permanent" />);
+  await screen.findByRole('button', { name: 'Confirm permanent deletion' });
   await userEvent.click(screen.getByRole('button', { name: 'Confirm permanent deletion' }));
   expect(await screen.findByText('Asset custody changed. Reload.')).toBeInTheDocument();
   expect(state.navigate).not.toHaveBeenCalled();
+  expect(AxiosInstance.delete).not.toHaveBeenCalled();
 });
 
 it('shows the lifecycle rejection returned as a DRF validation list', async () => {
   const reason = 'Asset ONLY has protected lifecycle or custody state; resolve it before changing Procurement.';
   AxiosInstance.post.mockRejectedValue({ response: { data: [reason] } });
-  render(<ProcurementDelete />);
-  await userEvent.click(await screen.findByRole('button', { name: 'Permanently delete Procurement' }));
+  render(<ProcurementDelete mode="permanent" />);
+  await screen.findByRole('button', { name: 'Confirm permanent deletion' });
   await userEvent.click(screen.getByRole('button', { name: 'Confirm permanent deletion' }));
   expect(await screen.findByText(reason)).toBeInTheDocument();
   expect(state.navigate).not.toHaveBeenCalled();
 });
 
-it('offers ordinary archive but no permanent action without deletion permission', async () => {
+it('offers no destructive action in permanent mode without deletion permission', async () => {
   state.permitted = false;
-  render(<ProcurementDelete />);
+  render(<ProcurementDelete mode="permanent" />);
   await screen.findByText('INV-7');
-  expect(screen.queryByRole('button', { name: 'Permanently delete Procurement' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Confirm permanent deletion' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
 });
 
 it('does not offer permanent deletion for a multi-Asset purchase', async () => {
   AxiosInstance.get.mockResolvedValue({ data: {
-    invoice_number: 'INV-7', assets: [{ id: 1, asset_id: 'ONE' }, { id: 2, asset_id: 'TWO' }],
+    id: 7, invoice_number: 'INV-7', assets: [{ id: 1, asset_id: 'ONE' }, { id: 2, asset_id: 'TWO' }],
   } });
-  render(<ProcurementDelete />);
+  render(<ProcurementDelete mode="permanent" />);
   await screen.findByText('INV-7');
-  expect(screen.queryByRole('button', { name: 'Permanently delete Procurement' })).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Confirm permanent deletion' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
+  expect(screen.getByText(/requires exactly one remaining Asset/)).toBeInTheDocument();
 });
 
 const RECORD = {

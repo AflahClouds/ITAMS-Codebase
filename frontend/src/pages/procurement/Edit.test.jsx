@@ -63,6 +63,12 @@ describe('Procurement edit invoice replacement', () => {
     expect(form.has('invoice_file')).toBe(false);
   });
 
+  it('opens the permanent confirmation from the last-Asset action', async () => {
+    render(<ProcurementEdit />);
+    expect(await screen.findByRole('link', { name: 'Permanently delete Procurement' }))
+      .toHaveAttribute('href', '/procurement/permanent-delete/7');
+  });
+
   it('includes a selected replacement in the multipart update', async () => {
     render(<ProcurementEdit />);
     await screen.findByText(/existing\.pdf/);

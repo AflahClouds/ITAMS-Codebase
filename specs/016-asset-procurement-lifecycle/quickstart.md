@@ -71,3 +71,12 @@ agree with the accepted behavior. All relevant pointers resolve to this retained
 authoritative feature; historical requirements and unrelated state are preserved.
 No application change followed the verified repair. Browser/manual acceptance,
 production database migration, deployment and main promotion remain unperformed.
+
+F002 confirmation-intent correction: Archive retains /procurement/delete/:id and
+opens only archive confirmation. The singleton table and edit permanent actions
+use /procurement/permanent-delete/:id and open only permanent confirmation.
+Entry/cancel never mutate; direct ineligible permanent entry fails closed.
+Focused frontend 5 files/32 tests and full frontend 17 files/89 tests pass;
+lint/build exit 0. See issues/06-distinct-procurement-confirmations.md for red/green,
+retained terminal handles and the combined current-reference review. Backend,
+accepted business rules and dependencies are unchanged by this UI correction.

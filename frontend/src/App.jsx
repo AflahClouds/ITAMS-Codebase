@@ -87,6 +87,7 @@ function App() {
                 <Route path="/procurement/create" element={<ProtectedRoute permission="asset_create"><ProcurementCreate /></ProtectedRoute>} />
                 <Route path="/procurement/edit/:id" element={<ProtectedRoute permission="asset_edit"><ProcurementEdit /></ProtectedRoute>} />
                 <Route path="/procurement/delete/:id" element={<ProtectedRoute permission="asset_delete"><ProcurementDelete /></ProtectedRoute>} />
+                <Route path="/procurement/permanent-delete/:id" element={<ProtectedRoute permission="asset_delete"><ProcurementDelete mode="permanent" /></ProtectedRoute>} />
 
                 {/* Service Record Routes */}
                 <Route path="/service" element={<ProtectedRoute permission="asset_view"><Services /></ProtectedRoute>} />

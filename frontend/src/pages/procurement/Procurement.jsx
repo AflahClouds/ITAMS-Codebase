@@ -108,7 +108,7 @@ const Procurement = () => {
             )}
             {can('asset_delete') && row.original.assets?.length === 1 && (
               <IconButton color="error" aria-label="Permanently delete procurement"
-                          component={Link} to={`/procurement/delete/${row.original.id}`}>
+                          component={Link} to={`/procurement/permanent-delete/${row.original.id}`}>
                 <DeleteForeverIcon />
               </IconButton>
             )}

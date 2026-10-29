@@ -192,7 +192,7 @@ const ProcurementEdit = () => {
             Edit Procurement !
           </Typography>
           {myData.asset_ids.length === 1 && can('asset_delete') && <Button component={Link}
-            to={`/procurement/delete/${MyId}`} color="error">Permanently delete Procurement</Button>}
+            to={`/procurement/permanent-delete/${MyId}`} color="error">Permanently delete Procurement</Button>}
         </Box>
 
         {message}

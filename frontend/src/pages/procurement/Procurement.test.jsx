@@ -18,7 +18,7 @@ vi.mock('../../api/downloadProtectedFile', () => ({
   downloadProtectedFile: vi.fn(),
 }));
 vi.mock('react-router', () => ({
-  Link: ({ children, ...rest }) => <a {...rest}>{children}</a>,
+  Link: ({ to, children, ...rest }) => <a href={to} {...rest}>{children}</a>,
 }));
 
 const permissions = { current: [] };
@@ -98,6 +98,9 @@ describe('Procurement row actions', () => {
     await renderWith(['asset_view', 'asset_delete']);
 
     await waitFor(() => expect(screen.getByLabelText('Permanently delete procurement')).toBeInTheDocument());
+    expect(screen.getByLabelText('Archive procurement')).toHaveAttribute('href', '/procurement/delete/7');
+    expect(screen.getByLabelText('Permanently delete procurement'))
+      .toHaveAttribute('href', '/procurement/permanent-delete/7');
   });
 
   it('lets a read-only operator download the protected current invoice', async () => {
