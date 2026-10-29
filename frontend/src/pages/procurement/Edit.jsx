@@ -121,6 +121,7 @@ const ProcurementEdit = () => {
       invoice_date: myData.invoice_date,
       invoice_number: myData.invoice_number,
       po_number: myData.po_number,
+      link_reason: '',
     },
     enableReinitialize: true,
     validationSchema: validationSchema,
@@ -193,6 +194,15 @@ const ProcurementEdit = () => {
         {message}
 
         <Box className={"FormBox"}>
+          <Typography sx={{ width: '100%', margin: 2 }}>
+            New associations make staged Assets Available. Removing an eligible Asset returns it to In Storage.
+            To release the last Asset, permanently delete this Procurement instead of saving an empty selection.
+          </Typography>
+          <Box className="FormArea">
+            <TextForm label="Association change reason" name="link_reason"
+              value={formik.values.link_reason} onChange={formik.handleChange}
+              helperText="Required when removing an Asset; the reason stays in purchase history." />
+          </Box>
           <Box className={"FormArea"}>
             <MultiSelectForm
               label={"Assets"}

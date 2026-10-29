@@ -141,6 +141,11 @@ class AssetViewSet(viewsets.ModelViewSet):
             # lock through the history check and deletion so a new custody record
             # cannot appear between them.
             asset = Asset.objects.select_for_update().get(pk=instance.pk)
+            if asset.procurement_id is not None:
+                return Response(
+                    {"detail": "Remove this Asset from Procurement first. If it is the last "
+                               "Asset, permanently delete that Procurement to release it."},
+                    status=http_status.HTTP_400_BAD_REQUEST)
             if (asset.custodian_id is not None or
                     AssetAssignment.objects.filter(asset=asset).exists() or
                     AssetCheckout.objects.filter(asset=asset).exists() or

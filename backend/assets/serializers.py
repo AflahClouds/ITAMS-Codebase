@@ -397,6 +397,11 @@ class ProcurementSerializer(serializers.ModelSerializer):
 
         assets = attrs.get('asset_ids')
         if assets is not None:
+            if self.instance is not None:
+                previous = set(self.instance.assets.values_list('pk', flat=True))
+                if previous - {asset.pk for asset in assets} and not (attrs.get('link_reason') or '').strip():
+                    raise serializers.ValidationError(
+                        {'link_reason': 'Give a reason for removing an Asset from Procurement.'})
             arrivals = attrs.get('arrivals') or []
             if not attrs.get('attested'):
                 raise serializers.ValidationError(

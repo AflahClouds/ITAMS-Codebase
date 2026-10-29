@@ -40,10 +40,10 @@ Independent test: AS-001–005 through API and actual create/purchase forms.
 Goal: Linked Asset protected; reasoned multi-Asset removal returns Storage.
 Independent test: AS-006–009, including archived links/custody-history protections.
 
-- [ ] T008 [US2] Add/execute failing linked/archived Asset deletion, reasoned detachment, separate eligible deletion, protected state and permission API/UI regressions in backend/assets/tests_procurement_lifecycle.py and frontend/src/pages/asset/ deletion tests (FR-003/004/008).
-- [ ] T009 [US2] Implement locked/revalidated detach and linked-delete guard in backend/assets/procurement_lifecycle.py and backend/assets/views.py, preserving custody history and durable audit/notification obligations (ALR-001–005).
-- [ ] T010 [US2] Update frontend/src/pages/asset/Delete.jsx and procurement/Edit.jsx to show server rejection, Procurement navigation and reasoned detachment/status refresh (FR-008).
-- [ ] T011 [US2] Run focused regressions, prove surviving purchase/Assets unchanged, and record red/green/checkpoint in specs/016-asset-procurement-lifecycle/issues/02-detach-before-delete.md.
+- [X] T008 [US2] Add/execute failing linked/archived Asset deletion, reasoned detachment, separate eligible deletion, protected state and permission API/UI regressions in backend/assets/tests_procurement_lifecycle.py and frontend/src/pages/asset/ deletion tests (FR-003/004/008).
+- [X] T009 [US2] Implement locked/revalidated detach and linked-delete guard in backend/assets/procurement_lifecycle.py and backend/assets/views.py, preserving custody history and durable audit/notification obligations (ALR-001–005).
+- [X] T010 [US2] Update frontend/src/pages/asset/Delete.jsx and procurement/Edit.jsx to show server rejection, Procurement navigation and reasoned detachment/status refresh (FR-008).
+- [X] T011 [US2] Run focused regressions, prove surviving purchase/Assets unchanged, and record red/green/checkpoint in specs/016-asset-procurement-lifecycle/issues/02-detach-before-delete.md.
 
 ## Phase 5: User Story 3 - Release Last Asset (P1)
 
@@ -86,3 +86,4 @@ after MVP or request routine ticket approval. Execute local issues, record evide
 and finish every task before independent review. Reviewer is read-only; findings
 return to same builder, followed by same reviewer re-review. Guide-owned canonical
 consolidation/review and post-closeout checks stay outside this ledger.
+

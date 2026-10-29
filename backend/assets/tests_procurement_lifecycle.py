@@ -3,7 +3,10 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from django.core.files.storage import FileSystemStorage
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+
+from core.models import AuditLog
 
 from .models import Asset, Procurement, ProcurementInvoiceVersion
 from .tests_b6_conformance import _asset, _catalog, _client, _link_payload, _procurement
@@ -105,4 +108,51 @@ class ProcurementLifecycleTests(TestCase):
         data = self.read_asset(asset)
         self.assertEqual((data['status'], data['procurement']), ('In Storage', None))
         self.assertEqual(Procurement.objects.count(), 0)
+
+
+class DetachBeforeDeleteTests(ProcurementLifecycleTests):
+    # Reuse fixture methods, while inherited US1 cases keep each checkpoint covered.
+    def test_linked_asset_deletion_is_blocked_including_archived_purchase(self):
+        proc = _procurement(self.cat)
+        asset = _asset('LINKED', self.cat, procurement=proc, status='Available')
+        for archived in (False, True):
+            proc.archived = archived
+            proc.save()
+            response = self.client.delete(f'/asset/{asset.pk}/')
+            self.assertEqual(response.status_code, 400, response.data)
+            self.assertIn('Procurement', str(response.data))
+            self.assertEqual(self.read_asset(asset)['procurement'], proc.pk)
+
+    def test_detach_requires_reason_then_retains_purchase_and_allows_separate_delete(self):
+        proc = _procurement(self.cat)
+        removed = _asset('REMOVED', self.cat, procurement=proc, status='Available')
+        kept = _asset('KEPT', self.cat, procurement=proc, status='Available')
+        url = f'/procurement/{proc.pk}/'
+        response = self.client.patch(url, _link_payload(self.cat, kept), format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.read_asset(removed)['procurement'], proc.pk)
+
+        response = self.client.patch(url,
+            _link_payload(self.cat, kept, link_reason='Wrong unit on invoice'), format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        data = self.read_asset(removed)
+        self.assertEqual((data['procurement'], data['status']), (None, 'In Storage'))
+        self.assertEqual(self.read_asset(kept)['procurement'], proc.pk)
+        self.assertTrue(any(row['action'] == 'Detached' and row['reason'] == 'Wrong unit on invoice'
+                            for row in response.data['link_history']))
+        self.assertEqual(self.client.delete(f'/asset/{removed.pk}/').status_code, 204)
+        self.assertEqual(self.read_asset(kept)['procurement'], proc.pk)
+
+    def test_protected_detach_and_edit_denial_preserve_purchase(self):
+        proc = _procurement(self.cat)
+        removed = _asset('PROTECTED', self.cat, procurement=proc, status='Under Repair')
+        kept = _asset('KEPT', self.cat, procurement=proc, status='Available')
+        payload = _link_payload(self.cat, kept, link_reason='Correction')
+        self.assertEqual(self.client.patch(f'/procurement/{proc.pk}/', payload,
+                                          format='json').status_code, 400)
+        denied = _client('no-edit', ('asset_view',))
+        self.assertEqual(denied.patch(f'/procurement/{proc.pk}/', payload,
+                                     format='json').status_code, 403)
+        self.assertEqual(self.read_asset(removed)['procurement'], proc.pk)
+
 

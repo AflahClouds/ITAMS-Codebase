@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useNavigate, useParams } from "react-router"
+import { Link, useNavigate, useParams } from "react-router"
 import AxiosInstance from "../../api/client"
 import {Box, Typography, Button} from "@mui/material"
 import AddBoxIcon from '@mui/icons-material/AddBox';
@@ -24,8 +24,6 @@ const AssetDelete = () => {
         model: "",
       })
 
-  console.log("myData:", myData)
-
   const GetData = () => {
     AxiosInstance.get(`/asset/${MyId}/`).then((res) => {
       setMyData(res.data)
@@ -49,9 +47,10 @@ const AssetDelete = () => {
     GetData()
   }, [])
 
-  const DeleteRecord = (event) => {
+  const DeleteRecord = async (event) => {
     event.preventDefault()
-    AxiosInstance.delete(`/asset/${MyId}/`).then(() => {
+    try {
+      await AxiosInstance.delete(`/asset/${MyId}/`)
       setMessage(<MyMessage
         messageText={"You successfully deleted the data!"}
         messageColor={"red"}
@@ -59,7 +58,12 @@ const AssetDelete = () => {
       setTimeout(() => {
         navigate('/asset')
       }, 2000)
-    })
+    } catch (error) {
+      setMessage(<MyMessage
+        messageText={error.response?.data?.detail || 'Asset deletion failed. Reload and try again.'}
+        messageColor="red"
+      />)
+    }
   }
 
   return (
@@ -75,6 +79,10 @@ const AssetDelete = () => {
         </Box>
 
         <Box className={"TextBox"}>
+          {myData.procurement && <Typography>
+            Remove this Asset from Procurement first. The last Asset requires permanent Procurement deletion.{' '}
+            <Link to={`/procurement/edit/${myData.procurement}`}>Open Procurement</Link>
+          </Typography>}
           <Typography>
             You will be deleting the asset: <strong>{myData.asset_id}</strong> from {" "}
             {category.find(c => c.id === myData.category)?.category_name} - {" "}
